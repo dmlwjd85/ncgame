@@ -1,0 +1,53 @@
+# GitHub Pages — https://<user>.github.io/<저장소이름>/
+# Settings → Pages → Source: GitHub Actions
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-ncgame
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # actions/checkout, setup-node 등이 Node 24 런타임 사용 (Node 20 러너 종료 대비)
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: 설치 및 빌드 (lint 포함)
+        env:
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          npm run deploy
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment
