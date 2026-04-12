@@ -6,7 +6,11 @@ import {
   phase2SecondsForLevel,
 } from '../../utils/gameRules'
 import { sfxMerge, sfxPenalty } from '../../utils/gameSfx'
-import { scheduleBotFireTimes } from '../../utils/phase2Utils'
+import {
+  BOT_PLAY_START_DELAY_MS,
+  PLAYER_AHEAD_MS,
+  scheduleBotFireTimesFromFloors,
+} from '../../utils/phase2Utils'
 
 const BOT_NAMES = ['가상 플레이어 A', '가상 플레이어 B']
 const DISPLAY_HEARTS = 3
@@ -157,7 +161,11 @@ function applyWrongSubmission(state, playedCard, playedFrom) {
   }
 }
 
-/** 족보(전체 주제어 순)에서 봇이 내는 순서와 시각 — 해당 타이밍에 그 카드로 무조건 제출 */
+/**
+ * 족보(전체 주제어 순)에서 봇이 내는 순서와 시각 — 해당 타이밍에 그 카드로 무조건 제출.
+ * 같은 족보에서 플레이어 카드가 앞에 많을수록 봇 최소 시각을 뒤로 밀어,
+ * 봇이 ㅎ 쪽만 잡혀 있어도 첫 제출이 너무 이르지 않게 한다.
+ */
 function buildBotScheduleFromHands(
   playerHand,
   bot1Hand,
@@ -177,8 +185,22 @@ function buildBotScheduleFromHands(
     if (o !== 0) return o
     return String(a.card.id).localeCompare(String(b.card.id))
   })
-  const botPlays = entries.filter((e) => e.bot !== 'player')
-  const times = scheduleBotFireTimes(botPlays.length, durationMs)
+
+  const botPlays = []
+  for (let j = 0; j < entries.length; j++) {
+    const e = entries[j]
+    if (e.bot === 'player') continue
+    let precedingPlayers = 0
+    for (let p = 0; p < j; p++) {
+      if (entries[p].bot === 'player') precedingPlayers += 1
+    }
+    botPlays.push({ card: e.card, bot: e.bot, precedingPlayers })
+  }
+
+  const minFloors = botPlays.map(
+    (bp) => BOT_PLAY_START_DELAY_MS + bp.precedingPlayers * PLAYER_AHEAD_MS,
+  )
+  const times = scheduleBotFireTimesFromFloors(minFloors, durationMs)
   return botPlays.map((bp, i) => ({
     fireAt: times[i],
     bot: bp.bot,

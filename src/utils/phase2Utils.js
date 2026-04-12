@@ -1,7 +1,13 @@
 export const USER_RESERVE_MS = 2000
 
 /** 봇이 첫 카드를 내기 전 암묵적 대기(ms) — 유저가 끼워 넣을 시간 확보 */
-export const BOT_PLAY_START_DELAY_MS = 2000
+export const BOT_PLAY_START_DELAY_MS = 1000
+
+/**
+ * 족보상 이 봇 카드보다 앞에 있는 '플레이어' 카드 한 장당 최소로 더하는 대기(ms).
+ * (앞에 낼 사람 손이 많을수록 봇 첫 제출이 뒤로 밀림 — ㅎ 쪽만 잡혀 있어도 앞선 가나다는 플레이어 몫으로 처리)
+ */
+export const PLAYER_AHEAD_MS = 1000
 
 /** 봇 카드 사이 사람 반응 시간(ms), 라운드 끝 여유(ms) */
 export const BOT_HUMAN_GAP_MS = 1500
@@ -15,7 +21,7 @@ function easeOutQuad(t) {
 
 /**
  * 봇 자동 제출 타이밍 개수만큼 시각(ms) 분배. 끝부분은 플레이어 제출 여유로 비움.
- * @deprecated scheduleBotFireTimes 사용 권장
+ * @deprecated scheduleBotFireTimesFromFloors 사용 권장
  */
 export function scheduleTimes(n, durationMs, reserveMs) {
   const windowMs = Math.max(0, durationMs - reserveMs)
@@ -24,33 +30,77 @@ export function scheduleTimes(n, durationMs, reserveMs) {
 }
 
 /**
- * 족보 순 봇 제출 시각(k개, 이미 ㄱ→ㅎ 순으로 정렬된 봇 플레이 개수).
- * - 첫 봇 제출은 BOT_PLAY_START_DELAY_MS 이후(라운드가 짧으면 가능한 만큼만 지연).
- * - 봇 카드 사이 최소 BOT_HUMAN_GAP_MS, 마지막 BOT_END_BUFFER_MS는 비움.
- * - 남는 슬랙은 ease-out으로 뒤쪽(ㅎ에 가까운 순번)으로 더 몰아 유저가 앞쪽 타이밍에 끼워 넣기 쉽게 함.
+ * 플레이어 선행 매수·최소 시각(minFloors)을 반영해 봇 제출 시각(ms) 배열을 만든다.
+ * - minFloors[i]: i번째 봇 플레이(족보 순)가 **이 시각 이전에는** 오지 않도록 하는 하한.
+ * - 봇 사이는 BOT_HUMAN_GAP_MS를 기본으로 두되, 라운드 길이에 안 맞으면 간격을 줄여 맞춘다.
+ * - 끝 BOT_END_BUFFER_MS 앞까지 ease-out으로 남는 시간을 뒤쪽 봇에 더 분배.
+ */
+export function scheduleBotFireTimesFromFloors(minFloors, durationMs) {
+  const k = minFloors.length
+  if (k === 0) return []
+  const playEnd = Math.max(0, durationMs - BOT_END_BUFFER_MS)
+  const f = minFloors.map((m) => Math.min(Math.max(0, m), playEnd))
+
+  let gap = BOT_HUMAN_GAP_MS
+  /** @type {number[]} */
+  let t = [f[0]]
+
+  for (let attempt = 0; attempt < 24; attempt++) {
+    t = [f[0]]
+    for (let i = 1; i < k; i++) {
+      t[i] = Math.max(f[i], t[i - 1] + gap)
+    }
+    if (t[k - 1] <= playEnd) break
+    gap *= 0.82
+  }
+
+  if (t[k - 1] > playEnd) {
+    t = [f[0]]
+    for (let i = 1; i < k; i++) {
+      t[i] = Math.max(f[i], t[i - 1])
+    }
+    if (t[k - 1] > playEnd && t[k - 1] > f[0]) {
+      const s = (playEnd - f[0]) / (t[k - 1] - f[0])
+      for (let i = 0; i < k; i++) {
+        t[i] = f[0] + (t[i] - f[0]) * s
+      }
+      for (let i = 0; i < k; i++) {
+        t[i] = Math.max(f[i], t[i])
+      }
+      for (let i = 1; i < k; i++) {
+        t[i] = Math.max(t[i], t[i - 1])
+      }
+    }
+    t[k - 1] = Math.min(t[k - 1], playEnd)
+    for (let i = k - 2; i >= 0; i--) {
+      t[i] = Math.min(t[i], t[i + 1])
+      t[i] = Math.max(f[i], t[i])
+    }
+  }
+
+  const slack = playEnd - t[k - 1]
+  if (k > 1 && slack > 0) {
+    for (let i = 0; i < k; i++) {
+      const u = i / (k - 1)
+      t[i] += easeOutQuad(u) * slack
+    }
+    for (let i = 1; i < k; i++) {
+      t[i] = Math.max(t[i], t[i - 1])
+    }
+    for (let i = k - 1; i >= 0; i--) {
+      t[i] = Math.min(t[i], playEnd)
+    }
+  }
+
+  return t.map((x) => Math.round(x))
+}
+
+/**
+ * 선행 플레이어 수를 무시할 때(하한이 모두 동일)의 봇 제출 시각.
+ * @deprecated buildBotScheduleFromHands에서 scheduleBotFireTimesFromFloors 사용 권장
  */
 export function scheduleBotFireTimes(k, durationMs) {
   if (k <= 0) return []
-  const GAP = BOT_HUMAN_GAP_MS
-  const playWindowEnd = Math.max(0, durationMs - BOT_END_BUFFER_MS)
-  const playWindowStart = Math.min(BOT_PLAY_START_DELAY_MS, playWindowEnd)
-  const windowLen = Math.max(0, playWindowEnd - playWindowStart)
-
-  if (k === 1) {
-    return [playWindowStart]
-  }
-
-  const minSpan = (k - 1) * GAP
-  if (windowLen < minSpan) {
-    return Array.from({ length: k }, (_, i) =>
-      Math.min(playWindowStart + i * GAP, playWindowEnd),
-    )
-  }
-
-  const inner = windowLen - minSpan
-  return Array.from({ length: k }, (_, i) => {
-    const u = i / (k - 1)
-    const eased = easeOutQuad(u)
-    return playWindowStart + i * GAP + eased * inner
-  })
+  const f = Array.from({ length: k }, () => BOT_PLAY_START_DELAY_MS)
+  return scheduleBotFireTimesFromFloors(f, durationMs)
 }
