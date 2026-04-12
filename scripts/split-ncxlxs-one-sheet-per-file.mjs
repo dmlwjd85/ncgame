@@ -18,8 +18,18 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const ncxlxsRoot = join(__dirname, '..', 'ncxlxs')
 const sourcesDir = join(ncxlxsRoot, '_sources')
 
-/** 이 스크립트가 한 번에 나누는 통합 엑셀 목록(파일명 기준, _sources 기준) */
-const SOURCE_FILES = ['ncxlsx.xlsx', 'pack_extra_elementary.xlsx']
+/** _sources 폴더의 모든 .xlsx를 읽어 시트마다 팩으로 분할(단어 누락 없이 원본 시트 그대로 복사) */
+function listSourceWorkbooks() {
+  if (!existsSync(sourcesDir)) return []
+  return readdirSync(sourcesDir)
+    .filter(
+      (n) =>
+        n.endsWith('.xlsx') &&
+        !n.startsWith('~$') &&
+        !n.startsWith('.'),
+    )
+    .sort()
+}
 
 function slugifySheetName(name) {
   return String(name)
@@ -34,6 +44,7 @@ function parentSlug(filename) {
 
 function main() {
   const outNames = []
+  const SOURCE_FILES = listSourceWorkbooks()
 
   for (const src of SOURCE_FILES) {
     const srcPath = join(sourcesDir, src)
@@ -61,9 +72,7 @@ function main() {
 
   if (outNames.length === 0) {
     console.error(
-      '분할할 소스 엑셀이 없습니다. ncxlxs/_sources에',
-      SOURCE_FILES.join(', '),
-      '를 두세요.',
+      '분할할 소스 엑셀이 없습니다. ncxlxs/_sources/*.xlsx 파일을 두세요.',
     )
     process.exit(1)
   }

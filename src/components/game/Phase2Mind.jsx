@@ -272,10 +272,15 @@ export default function Phase2Mind({
   const endedRef = useRef(false)
   const nextBotIdxRef = useRef(0)
   const overlayPauseRef = useRef(false)
+  const onItemRewardPopRef = useRef(onItemRewardPop)
 
   useEffect(() => {
     overlayPauseRef.current = overlayTimerPause
   }, [overlayTimerPause])
+
+  useEffect(() => {
+    onItemRewardPopRef.current = onItemRewardPop
+  }, [onItemRewardPop])
 
   useEffect(() => {
     if (!state.penaltyToast) return
@@ -342,7 +347,15 @@ export default function Phase2Mind({
           if (!entry) break
           /* 전역 최소가 플레이어 손이면 봇 타이밍만 대기(인덱스 유지) */
           if (entry.from === 'player') break
+          const comboBefore = next.p2Combo ?? 0
           next = applyBotCorrectPlay(next, entry.from, entry.card)
+          const comboAfter = next.p2Combo ?? 0
+          if (comboAfter > comboBefore) {
+            const r = phase1ComboRewards(comboAfter)
+            if (r.cheonryan > 0 || r.lives > 0) {
+              queueMicrotask(() => onItemRewardPopRef.current?.(r))
+            }
+          }
           nextBotIdxRef.current += 1
         }
 
@@ -740,7 +753,7 @@ export default function Phase2Mind({
   )
 }
 
-/** 봇은 항상 globalMinValidCard와 동일한 카드만 제출(미리 정한 족보 카드는 쓰지 않음) */
+/** 봇은 항상 globalMinValidCard와 동일한 카드만 제출 · 플레이어와 동일한 콤보·보상 규칙 */
 function applyBotCorrectPlay(state, bot, card) {
   const hand = bot === 'bot1' ? state.bot1Hand : state.bot2Hand
   if (!hand.some((c) => c.id === card.id)) return state
@@ -748,6 +761,8 @@ function applyBotCorrectPlay(state, bot, card) {
   const globalMin = globalMinValidCard(state)
   if (!globalMin || globalMin.id !== card.id) return state
 
+  const newCombo = (state.p2Combo ?? 0) + 1
+  const { cheonryan: chAdd, lives: lfAdd } = phase1ComboRewards(newCombo)
   const t = card.topic
   const h2 = removeFromHand(hand, card)
   return {
@@ -759,6 +774,9 @@ function applyBotCorrectPlay(state, bot, card) {
     revealed: new Set(),
     lifePenaltyModal: null,
     mergeFlash: state.mergeFlash + 1,
+    p2Combo: newCombo,
+    cheonryan: state.cheonryan + chAdd,
+    lives: Math.min(MAX_LIVES, state.lives + lfAdd),
   }
 }
 
