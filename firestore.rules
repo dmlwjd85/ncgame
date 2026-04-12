@@ -1,9 +1,19 @@
 rules_version = '2';
 // sambong-world-2026 단일 Firestore — 삼봉 월드(artifacts) + ncgame(loginByName, users) 통합 규칙
 // 배포: ncgame 또는 2026sambong6에서 firebase deploy --only firestore (동일 프로젝트면 한 번이면 됨)
+//
+// ★ ncgame 마스터: 아래 REPLACE_NCGAME_MASTER_EMAIL 을 VITE_MASTER_AUTH_EMAIL 과 동일한 문자열로 바꾼 뒤 배포하세요.
+//    (선택) VITE_MASTER_UIDS 로 추가 마스터를 쓰는 경우, REPLACE_OPTIONAL_MASTER_UID 를 해당 UID 한 개로 바꾸세요. 미사용이면 임의의 불가능한 문자열 유지.
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function isNcgameMaster() {
+      return request.auth != null && (
+        request.auth.token.email == 'REPLACE_NCGAME_MASTER_EMAIL'
+        || request.auth.uid == 'REPLACE_OPTIONAL_MASTER_UID'
+      );
+    }
     // --- 삼봉 월드 (2026sambong6 / sambongWorld.js) ---
     match /artifacts/{appId}/public/{document=**} {
       allow read: if true;
@@ -22,9 +32,9 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow read: if request.auth != null && request.auth.uid == uid;
+      allow read: if request.auth != null && (request.auth.uid == uid || isNcgameMaster());
       allow create, update: if request.auth != null && request.auth.uid == uid;
-      allow delete: if false;
+      allow delete: if isNcgameMaster();
     }
 
     // --- ncgame 명예의 전당 (팩별 서브컬렉션) ---

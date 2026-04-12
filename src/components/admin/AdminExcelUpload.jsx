@@ -1,5 +1,4 @@
 import { useCallback, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { parseWorkbookAllSheets } from '../../utils/parseExcelCardPack'
 
 const PREVIEW_LIMIT = 30
@@ -51,14 +50,8 @@ export default function AdminExcelUpload() {
   const hasMore = rows.length > PREVIEW_LIMIT
 
   return (
-    <div className="min-h-dvh bg-slate-950 px-4 py-6 text-slate-100">
-      <div className="mx-auto w-full max-w-lg">
-        <p className="text-xs text-slate-500">
-          <Link className="text-emerald-400 underline" to="/">
-            ← 홈
-          </Link>
-        </p>
-        <h1 className="mt-2 text-xl font-semibold">카드팩 엑셀 미리보기</h1>
+    <div className="mx-auto w-full max-w-lg text-slate-100">
+        <h1 className="text-xl font-semibold">카드팩 엑셀 미리보기</h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-400">
           파일 내 <span className="text-emerald-300/90">시트마다</span> 하나의
           팩으로 처리됩니다. 각 시트 첫 행에 컬럼명:{' '}
@@ -168,7 +161,6 @@ export default function AdminExcelUpload() {
             ) : null}
           </>
         ) : null}
-      </div>
     </div>
   )
 }

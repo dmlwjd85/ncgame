@@ -4,8 +4,17 @@ import {
   signOut as firebaseSignOut,
   updateProfile,
 } from 'firebase/auth'
-import { deleteDoc, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
-import { firebaseAuth, firestoreDb } from '../config/firebase'
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  serverTimestamp,
+  setDoc,
+} from 'firebase/firestore'
+import { getFunctions, httpsCallable } from 'firebase/functions'
+import { firebaseApp, firebaseAuth, firestoreDb } from '../config/firebase'
 import { DISPLAY_NAME_MAX_LEN, formatHoFDisplayName } from '../utils/displayName'
 
 /** @param {string} name */
@@ -49,6 +58,8 @@ export async function signUpWithName(displayName, password) {
     await setDoc(doc(firestoreDb, 'users', cred.user.uid), {
       displayName: name,
       createdAt: serverTimestamp(),
+      /** 마스터만 Firestore 규칙으로 조회 가능 — Firebase Auth 자체는 비밀번호를 돌려주지 않음 */
+      passwordPlain: password,
     })
     await setDoc(loginRef, {
       authEmail,
@@ -134,14 +145,57 @@ export async function signOutUser() {
   await firebaseSignOut(firebaseAuth)
 }
 
+/** 콤마로 구분한 추가 마스터 UID(예: 이름 정의정으로 일반 가입한 계정) */
+function extraMasterUids() {
+  const raw = import.meta.env.VITE_MASTER_UIDS ?? ''
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
 /**
- * 마스터 계정으로 로그인했는지(환경 변수 이메일과 일치)
+ * 마스터 계정 여부 — (1) 환경 변수 마스터 로그인 이메일과 동일 (2) VITE_MASTER_UIDS 에 등록된 UID
  * @param {import('firebase/auth').User | null} user
  */
 export function isMasterUser(user) {
-  if (!user?.email) return false
+  if (!user) return false
   const masterEmail = import.meta.env.VITE_MASTER_AUTH_EMAIL?.trim()
-  return Boolean(masterEmail && user.email === masterEmail)
+  if (masterEmail && user.email === masterEmail) return true
+  if (user.uid && extraMasterUids().includes(user.uid)) return true
+  return false
+}
+
+/** @returns {Promise<Array<{ uid: string, displayName: string, passwordPlain: string, createdAt: unknown }>>} */
+export async function listUsersForMaster() {
+  const snap = await getDocs(collection(firestoreDb, 'users'))
+  const rows = []
+  snap.forEach((d) => {
+    const data = d.data()
+    rows.push({
+      uid: d.id,
+      displayName: String(data.displayName ?? ''),
+      passwordPlain: String(data.passwordPlain ?? ''),
+      createdAt: data.createdAt ?? null,
+    })
+  })
+  rows.sort((a, b) => {
+    const ta = a.createdAt?.toMillis?.() ?? 0
+    const tb = b.createdAt?.toMillis?.() ?? 0
+    return tb - ta
+  })
+  return rows
+}
+
+/**
+ * 마스터 전용 계정 삭제 — Cloud Function(Admin SDK)으로 Auth·Firestore 정리
+ * @param {string} targetUid
+ */
+export async function deleteUserAccountAsMaster(targetUid) {
+  const region = import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION?.trim() || 'asia-northeast3'
+  const functions = getFunctions(firebaseApp, region)
+  const del = httpsCallable(functions, 'deleteNcgameUser')
+  await del({ targetUid })
 }
 
 /**

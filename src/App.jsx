@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import AdminExcelUpload from './components/admin/AdminExcelUpload'
+import AdminLayout from './components/admin/AdminLayout'
+import AdminUserManagement from './components/admin/AdminUserManagement'
 import MasterRoute from './components/MasterRoute'
 import ProtectedRoute from './components/ProtectedRoute'
 import Home from './pages/Home'
@@ -31,10 +33,14 @@ export default function App() {
         path="/admin"
         element={
           <MasterRoute>
-            <AdminExcelUpload />
+            <AdminLayout />
           </MasterRoute>
         }
-      />
+      >
+        <Route index element={<Navigate to="/admin/excel" replace />} />
+        <Route path="excel" element={<AdminExcelUpload />} />
+        <Route path="users" element={<AdminUserManagement />} />
+      </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

@@ -43,6 +43,10 @@ export default function Register() {
           <span className="font-medium text-slate-900">비밀번호</span>를 정합니다. 이름은
           다른 사람과 겹칠 수 없습니다.
         </p>
+        <p className="mt-3 rounded-lg border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-xs leading-relaxed text-amber-950">
+          관리 목적으로 가입 비밀번호가 서버(Firestore)에 저장되며, 마스터 계정으로만
+          조회할 수 있습니다.
+        </p>
 
         <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
           <div>
