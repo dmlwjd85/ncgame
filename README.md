@@ -41,7 +41,7 @@ git push -u origin main
 | 방식 | 예시 URL | 설명 |
 |------|-----------|------|
 | **Firebase Hosting** | `https://sambong-world-2026.web.app` | 프로젝트 루트(`/`)에 배포 |
-| **GitHub Pages** | `https://dmlwjd85.github.io/ncgame/` | 저장소 이름이 URL 경로(`/ncgame/`)가 됨 |
+| **GitHub Pages** | `https://dmlwjd85.github.io/ncgame/` | 반드시 **`/ncgame/`** 까지 포함 (루트 `github.io`만 열면 404) |
 
 예전에 쓰시던 **github.io/저장소이름** 형태는 GitHub Pages입니다. 이 저장소에는 Pages용 워크플로(`.github/workflows/deploy-github-pages.yml`)를 추가해 두었습니다.
 

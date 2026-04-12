@@ -5,6 +5,7 @@ name: Deploy GitHub Pages
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -29,8 +30,15 @@ jobs:
       - name: 의존성 설치 및 빌드 (저장소 이름 기준 하위 경로)
         run: npm ci && npm run build
         env:
-          # 예: 저장소 ncgame → /ncgame/ (끝에 슬래시 포함)
+          # 저장소 ncgame → base /ncgame/ (Vite 자산·라우터 경로)
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
+
+      # GitHub Pages + Actions 배포에 필요 (OIDC / Pages 설정)
+      - uses: actions/configure-pages@v5
+
+      # SPA: /ncgame/login 등 직접 URL 접속 시에도 index 로 폴백
+      - name: SPA용 404.html 생성
+        run: cp dist/index.html dist/404.html
 
       - uses: actions/upload-pages-artifact@v3
         with:
@@ -39,6 +47,9 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
