@@ -642,6 +642,7 @@ export default function Game() {
                 overlayTimerPause={!!rewardPop}
                 coachMode={coachMode || tutorialMode}
                 tutorialMode={tutorialMode}
+                hideTimerHud={showLevelClearPopup}
               />
             </div>
             {showLevelClearPopup ? (

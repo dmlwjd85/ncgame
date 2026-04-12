@@ -322,6 +322,8 @@ export default function Phase2Mind({
   tutorialMode = false,
   /** 라운드 진입 직후 카운트다운(초). 0이면 바로 플레이. 같은 화면에서 팝업으로만 표시 */
   prepSeconds = 5,
+  /** 레벨 클리어 팝업 중에는 우측 상단 타이머·카운트다운 배지 숨김 */
+  hideTimerHud = false,
 }) {
   const durationMs = phase2SecondsForLevel(level) * 1000
   const [prepLeft, setPrepLeft] = useState(() => prepSeconds)
@@ -703,54 +705,88 @@ export default function Phase2Mind({
         timerPaused ? 'cheonryan-ring' : ''
       }`}
     >
-      {prepLeft > 0 ? (
+      {/* 우측 상단: 타이머·준비/재개 카운트다운 — 전체 화면 딤 없이 판이 보이게 */}
+      {!hideTimerHud ? (
         <div
-          className="fixed inset-0 z-[92] flex items-center justify-center bg-black/35 p-4 backdrop-blur-[1px]"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="p2-prep-title"
-        >
-          <div className="w-full max-w-sm rounded-2xl border border-sky-200/90 bg-white/96 px-5 py-6 text-center shadow-2xl">
-            <p
-              id="p2-prep-title"
-              className="text-base font-semibold leading-snug text-slate-900 md:text-lg"
-            >
-              가나다 순으로 눈치껏 내세요!
-            </p>
-            <p
-              className="mt-4 text-7xl font-black tabular-nums text-transparent md:text-8xl bg-gradient-to-br from-cyan-300 to-violet-400 bg-clip-text"
-              aria-live="polite"
-            >
-              {prepLeft}
-            </p>
-            <p className="mt-4 text-xs leading-relaxed text-slate-600 md:text-sm">
-              뒤의 2페이즈 판을 미리 살펴보세요. 숫자가 사라지면 바로 플레이할 수 있어요.
-            </p>
-          </div>
-        </div>
-      ) : null}
-      {prepLeft <= 0 && postHintResumeLeft > 0 ? (
-        <div
-          className="fixed inset-0 z-[93] flex items-center justify-center bg-black/30 p-4 backdrop-blur-[1px]"
-          role="dialog"
-          aria-modal="true"
+          className="pointer-events-none fixed top-[max(0.35rem,env(safe-area-inset-top))] right-[max(0.35rem,env(safe-area-inset-right))] z-[85] flex flex-col items-end gap-1"
           aria-live="polite"
-          aria-labelledby="p2-hint-resume-title"
         >
-          <div className="w-full max-w-sm rounded-2xl border border-amber-200/90 bg-white/96 px-5 py-6 text-center shadow-2xl">
-            <p
-              id="p2-hint-resume-title"
-              className="text-sm font-semibold text-amber-900 md:text-base"
+          {prepLeft > 0 ? (
+            <div
+              className="rounded-xl border border-sky-400/90 bg-white/95 px-2.5 py-1.5 text-right shadow-lg ring-1 ring-sky-200/80"
+              role="status"
+              aria-labelledby="p2-prep-title"
             >
-              타이머 재개까지
-            </p>
-            <p className="mt-3 text-7xl font-black tabular-nums text-amber-600 md:text-8xl">
-              {postHintResumeLeft}
-            </p>
-            <p className="mt-3 text-xs text-slate-600 md:text-sm">
-              잠시 후 다시 흘러가요.
-            </p>
-          </div>
+              <p
+                id="p2-prep-title"
+                className="text-[9px] font-semibold leading-tight text-sky-900"
+              >
+                시작까지
+              </p>
+              <p className="text-3xl font-black tabular-nums leading-none text-sky-600 md:text-4xl">
+                {prepLeft}
+              </p>
+              <p className="mt-0.5 max-w-[9rem] text-[9px] leading-snug text-sky-800/90">
+                판을 살펴보세요
+              </p>
+            </div>
+          ) : postHintResumeLeft > 0 ? (
+            <div
+              className="rounded-xl border border-amber-400/90 bg-white/95 px-2.5 py-1.5 text-right shadow-lg ring-1 ring-amber-200/80"
+              role="status"
+              aria-labelledby="p2-hint-resume-title"
+            >
+              <p
+                id="p2-hint-resume-title"
+                className="text-[9px] font-semibold text-amber-950"
+              >
+                재개까지
+              </p>
+              <p className="text-3xl font-black tabular-nums leading-none text-amber-600 md:text-4xl">
+                {postHintResumeLeft}
+              </p>
+            </div>
+          ) : (
+            <>
+              <div
+                className={`rounded-xl border px-2.5 py-1.5 text-right shadow-md ${
+                  urgentSec != null
+                    ? 'border-rose-400 bg-rose-50/95 ring-2 ring-rose-400/70 animate-pulse'
+                    : 'border-slate-200/90 bg-white/92 ring-1 ring-slate-200/70'
+                }`}
+              >
+                <p className="text-[9px] font-medium text-slate-500">남은 시간</p>
+                <p className="font-mono text-lg font-bold tabular-nums leading-tight text-sky-800 md:text-xl">
+                  {timerPaused ? (
+                    <span className="text-amber-800">{secLeft.toFixed(1)}초</span>
+                  ) : (
+                    <>
+                      {secLeft.toFixed(1)}
+                      <span className="text-[10px] font-normal text-slate-500">
+                        초
+                      </span>
+                    </>
+                  )}
+                </p>
+                {timerPaused ? (
+                  <p className="mt-0.5 max-w-[10rem] text-right text-[9px] leading-tight text-amber-800">
+                    {timerPauseHint.trim()}
+                  </p>
+                ) : null}
+                {urgentSec != null && !timerPaused ? (
+                  <p className="mt-0.5 text-center text-[10px] font-black text-rose-600">
+                    {urgentSec}
+                  </p>
+                ) : null}
+              </div>
+              <div className="h-1 w-[6.75rem] overflow-hidden rounded-full bg-slate-200/95 ring-1 ring-slate-300/50">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-sky-500 to-violet-500 transition-[width] duration-100 ease-linear"
+                  style={{ width: `${gaugePct}%` }}
+                />
+              </div>
+            </>
+          )}
         </div>
       ) : null}
       {state.hintMode ? (
@@ -866,17 +902,6 @@ export default function Phase2Mind({
         </div>
       ) : null}
 
-      {urgentSec != null ? (
-        <div
-          className="pointer-events-none fixed inset-0 z-[110] flex items-center justify-center bg-rose-950/25"
-          aria-hidden
-        >
-          <div className="animate-pulse rounded-[2rem] border-4 border-amber-300 bg-gradient-to-b from-rose-600 to-rose-800 px-12 py-10 text-[min(22vw,7rem)] font-black tabular-nums text-white shadow-[0_0_60px_rgba(225,29,72,0.65)] md:px-16 md:py-12 md:text-[min(18vw,8rem)]">
-            {urgentSec}
-          </div>
-        </div>
-      ) : null}
-
       <div className="relative overflow-hidden rounded-2xl border border-amber-200/90 bg-gradient-to-br from-white via-amber-50/80 to-sky-50/90 px-3 py-3 shadow-md md:px-4">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs md:text-sm">
           <div className="flex items-center gap-2 md:gap-3">
@@ -903,21 +928,6 @@ export default function Phase2Mind({
               {state.p2Combo ?? 0}
             </span>
           </div>
-          <div className="font-mono text-sky-700 tabular-nums">
-            {timerPaused ? (
-              <span className="text-amber-700">
-                일시정지 {secLeft.toFixed(1)}초{timerPauseHint}
-              </span>
-            ) : (
-              <>{secLeft.toFixed(1)}초</>
-            )}
-          </div>
-        </div>
-        <div className="mt-2 h-3 w-full overflow-hidden rounded-full bg-slate-200/90 ring-1 ring-slate-300/60">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-sky-500 to-violet-500 transition-[width] duration-100 ease-linear"
-            style={{ width: `${gaugePct}%` }}
-          />
         </div>
         {state.lastTopic ? (
           <p className="mt-2 text-center text-[11px] text-slate-600 md:text-xs">
