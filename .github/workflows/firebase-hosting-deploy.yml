@@ -1,0 +1,56 @@
+# Firebase Hosting (https://<project>.web.app) — GitHub Pages와 달리 base 경로는 루트(/) 입니다.
+# 저장소 Settings → Secrets and variables → Actions 에 다음이 필요합니다:
+# - FIREBASE_SERVICE_ACCOUNT_SAMBONG_WORLD_2026 : Firebase 콘솔에서 받은 서비스 계정 JSON 전체
+# - (선택) VITE_FIREBASE_* : 프로덕션 빌드용; 없으면 빌드는 되지만 클라이언트 설정이 비어 있을 수 있음
+name: Deploy Firebase Hosting
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: firebase-hosting-ncgame
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: 빌드 (Firebase = 루트 경로, GitHub Pages용 /ncgame/ 와 구분)
+        env:
+          VITE_BASE_PATH: /
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_MASTER_DISPLAY_NAME: ${{ secrets.VITE_MASTER_DISPLAY_NAME }}
+          VITE_MASTER_PASSWORD: ${{ secrets.VITE_MASTER_PASSWORD }}
+          VITE_MASTER_AUTH_EMAIL: ${{ secrets.VITE_MASTER_AUTH_EMAIL }}
+        run: |
+          npm ci
+          npm run deploy
+
+      - name: Firebase Hosting 배포
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_SAMBONG_WORLD_2026 }}
+          projectId: sambong-world-2026
+          channelId: live
