@@ -43,7 +43,8 @@ export default function GameRulesModal({ open, onClose }) {
           </li>
           <li>
             <span className="font-semibold text-amber-700">천리안</span>을 쓰면
-            잠깐 상대 카드를 볼 수 있어요. 쓰는 동안 시간이 멈춰요.
+            상대 카드 한 장만 탭해서 잠깐 볼 수 있어요. 그 순간부터 시간이 다시
+            흘러요.
           </li>
           <li>
             단계가 올라갈수록 카드가 많아지고, 주어진 시간도 조금씩 늘어나요.

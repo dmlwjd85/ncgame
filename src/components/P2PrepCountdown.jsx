@@ -66,7 +66,8 @@ export default function P2PrepCountdown({ level, playerCards = [], onComplete })
         </div>
       </div>
       <p className="max-w-xs text-xs text-slate-600 md:text-sm">
-        제한 시간 {phase2SecondsForLevel(level)}초 · 천리안 사용 시 타이머가 잠시 멈춥니다
+        제한 시간 {phase2SecondsForLevel(level)}초 · 천리안은 상대 카드를 고르기 전까지만
+        타이머가 멈춥니다
       </p>
     </div>
   )

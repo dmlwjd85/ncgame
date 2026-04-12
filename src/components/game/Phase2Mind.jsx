@@ -273,6 +273,8 @@ export default function Phase2Mind({
   const nextBotIdxRef = useRef(0)
   const overlayPauseRef = useRef(false)
   const onItemRewardPopRef = useRef(onItemRewardPop)
+  /** 천리안으로 잠깐 공개한 뒤 다시 가리기 위한 타이머 */
+  const peekClearRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null))
 
   useEffect(() => {
     overlayPauseRef.current = overlayTimerPause
@@ -281,6 +283,15 @@ export default function Phase2Mind({
   useEffect(() => {
     onItemRewardPopRef.current = onItemRewardPop
   }, [onItemRewardPop])
+
+  useEffect(() => {
+    return () => {
+      if (peekClearRef.current) {
+        clearTimeout(peekClearRef.current)
+        peekClearRef.current = null
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (!state.penaltyToast) return
@@ -435,6 +446,10 @@ export default function Phase2Mind({
 
   const startCheonryan = useCallback(() => {
     if (endedRef.current) return
+    if (peekClearRef.current) {
+      clearTimeout(peekClearRef.current)
+      peekClearRef.current = null
+    }
     setState((s) => {
       if (s.cheonryan <= 0 || s.hintMode) return s
       return {
@@ -450,13 +465,29 @@ export default function Phase2Mind({
     setState((s) => {
       if (!s.hintMode) return s
       const key = `${botKey}-${cardId}`
-      /* 한 번에 한 장만 볼 수 있음 — 다른 카드는 자동으로 가림 */
-      return { ...s, revealed: new Set([key]) }
+      /* 상대 카드 한 장만 확인하면 천리안 모드 종료(타이머 재개), 잠시 후 카드는 다시 가림 */
+      return {
+        ...s,
+        revealed: new Set([key]),
+        hintMode: false,
+      }
     })
+    if (peekClearRef.current) {
+      clearTimeout(peekClearRef.current)
+      peekClearRef.current = null
+    }
+    peekClearRef.current = window.setTimeout(() => {
+      peekClearRef.current = null
+      setState((s) => ({ ...s, revealed: new Set() }))
+    }, 1600)
   }, [])
 
   const endHintMode = useCallback(() => {
-    setState((s) => ({ ...s, hintMode: false }))
+    if (peekClearRef.current) {
+      clearTimeout(peekClearRef.current)
+      peekClearRef.current = null
+    }
+    setState((s) => ({ ...s, hintMode: false, revealed: new Set() }))
   }, [])
 
   const secLeft = Math.max(0, (durationMs - state.elapsedMs) / 1000)
@@ -734,7 +765,7 @@ export default function Phase2Mind({
           onClick={startCheonryan}
           className="rounded-xl border border-amber-300 bg-amber-100 px-3 py-2 text-xs font-medium text-amber-900 shadow-md disabled:opacity-40 md:px-4 md:text-sm"
         >
-          천리안 {state.hintMode ? '· 카드 탭' : `×${state.cheonryan}`}
+          천리안 {state.hintMode ? '· 상대 카드 탭' : `×${state.cheonryan}`}
         </button>
         {state.hintMode ? (
           <button
@@ -742,7 +773,7 @@ export default function Phase2Mind({
             onClick={endHintMode}
             className="text-[11px] text-slate-600 underline md:text-xs"
           >
-            닫기 · 타이머 재개
+            취소(탭 없이 닫기)
           </button>
         ) : null}
         <p className="text-[11px] text-slate-600 md:text-xs">
