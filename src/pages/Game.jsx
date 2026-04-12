@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import {
+  Link,
+  Navigate,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from 'react-router-dom'
 import Phase1Matching from '../components/game/Phase1Matching'
 import Phase2Mind from '../components/game/Phase2Mind'
 import P2PrepCountdown from '../components/P2PrepCountdown'
@@ -20,6 +26,11 @@ import {
   saveRunSave,
 } from '../utils/gameRunSave'
 import { compareTopicOrder } from '../utils/koCompare'
+import {
+  NCGAME_LAST_PACK_KEY,
+  resolveGameBotCount,
+  resolveGamePackId,
+} from '../utils/gameRoute'
 
 function shuffleRows(rows) {
   const a = [...rows]
@@ -47,10 +58,17 @@ function fieldActorLabel(from) {
 export default function Game() {
   const location = useLocation()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { user } = useAuth()
-  const { packs } = useCardPacks()
-  const { packId, botCount: bc } = location.state || {}
-  const botCount = bc === 2 ? 2 : 1
+  const {
+    packs,
+    loading: packsLoading,
+    error: packsError,
+    reloadPacks,
+  } = useCardPacks()
+
+  const packId = resolveGamePackId(location.state, searchParams)
+  const botCount = resolveGameBotCount(location.state, searchParams)
 
   const resumeSnap = useMemo(() => {
     if (!packId) return null
@@ -61,6 +79,24 @@ export default function Game() {
     () => packs.find((p) => p.id === packId),
     [packs, packId],
   )
+
+  useEffect(() => {
+    if (packsLoading || packsError || !packId) return
+    if (pack?.id) {
+      try {
+        sessionStorage.setItem(NCGAME_LAST_PACK_KEY, pack.id)
+      } catch {
+        /* noop */
+      }
+      return
+    }
+    try {
+      const s = sessionStorage.getItem(NCGAME_LAST_PACK_KEY)
+      if (s === packId) sessionStorage.removeItem(NCGAME_LAST_PACK_KEY)
+    } catch {
+      /* noop */
+    }
+  }, [packsLoading, packsError, packId, pack])
 
   const validRows = useMemo(
     () => (pack ? pack.rows.filter((r) => r.topic && r.explanation) : []),
@@ -338,11 +374,41 @@ export default function Game() {
     return <Navigate to="/" replace />
   }
 
+  if (packsLoading) {
+    return (
+      <div className="game-shell flex min-h-dvh flex-col items-center justify-center gap-3 px-4 text-slate-700">
+        <p>카드팩을 불러오는 중…</p>
+      </div>
+    )
+  }
+
+  if (packsError) {
+    return (
+      <div className="game-shell flex min-h-dvh flex-col items-center justify-center gap-4 px-4 text-center text-slate-700">
+        <p className="text-sm leading-relaxed">{packsError}</p>
+        <button
+          type="button"
+          className="rounded-xl bg-sky-600 px-4 py-2 text-sm font-medium text-white"
+          onClick={() => void reloadPacks()}
+        >
+          다시 시도
+        </button>
+        <Link className="text-sky-700 underline" to="/">
+          홈으로
+        </Link>
+      </div>
+    )
+  }
+
   if (!pack) {
     return (
-      <div className="game-shell flex min-h-dvh items-center justify-center px-4 text-slate-700">
+      <div className="game-shell flex min-h-dvh flex-col items-center justify-center gap-2 px-4 text-center text-slate-700">
         <p>카드팩을 찾을 수 없습니다.</p>
-        <Link className="mt-4 block text-sky-700 underline" to="/">
+        <p className="max-w-sm text-xs text-slate-500">
+          팩 목록이 바뀌었거나 이전에 저장된 주소가 맞지 않을 수 있어요. 홈에서
+          단어팩을 다시 선택해 주세요.
+        </p>
+        <Link className="mt-2 text-sky-700 underline" to="/">
           홈으로
         </Link>
       </div>

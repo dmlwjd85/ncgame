@@ -12,6 +12,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useCardPacks } from '../contexts/CardPackContext'
 import { DISPLAY_NAME_MAX_LEN, formatHoFDisplayName } from '../utils/displayName'
 import { maxLevelFromRowCount } from '../utils/gameRules'
+import { buildGameLocation } from '../utils/gameRoute'
 
 /**
  * 홈 — 로그인·팩 선택·설명/족보 팝업·시작
@@ -62,13 +63,15 @@ export default function Home() {
     if (!effectivePackId || !canStart) return
     clearStagedResume()
     clearRunSave()
-    navigate('/game', {
+    const loc = buildGameLocation(effectivePackId, botCount)
+    navigate(loc, {
       state: { packId: effectivePackId, botCount },
     })
   }
 
   const continueGame = () => {
     if (!effectivePackId || !canStart || !savedRun) return
+    const bc = savedRun.botCount === 2 ? 2 : 1
     try {
       sessionStorage.setItem(
         `ncgame-resume-${effectivePackId}`,
@@ -78,8 +81,9 @@ export default function Home() {
       /* noop */
     }
     clearRunSave()
-    navigate('/game', {
-      state: { packId: effectivePackId, botCount: savedRun.botCount },
+    const loc = buildGameLocation(effectivePackId, bc)
+    navigate(loc, {
+      state: { packId: effectivePackId, botCount: bc },
     })
   }
 
