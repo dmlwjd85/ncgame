@@ -50,9 +50,9 @@ git push -u origin main
 ## 계정 (이름 + 비밀번호)
 
 - Firebase Console → **Authentication** → **Sign-in method**에서 **이메일/비밀번호**를 사용 설정합니다.
-- Firebase Console → **Firestore Database**에서 데이터베이스를 **생성**해 두어야 합니다. (아직 없으면 회원가입 시 `permission-denied`가 납니다.)
+- Firebase Console → **Firestore Database**는 프로젝트에 **이미 있으면** 새로 만들 필요 없습니다. ncgame은 삼봉 월드와 **같은 프로젝트·같은 DB**를 씁니다.
 - 회원가입 시 표시 이름은 **Firestore** `loginByName` 문서와 연결되며, 내부적으로는 `프로젝트ID.firebaseapp.com` 도메인의 고유 가상 이메일로 Auth에 저장됩니다.
-- **Firestore 규칙**은 저장소의 `firestore.rules`를 **반드시 배포**해야 회원가입이 됩니다. (`Missing or insufficient permissions` / `permission-denied` 방지)
+- **Firestore 규칙**은 `firestore.rules`에 **삼봉 월드(`artifacts/...`)와 ncgame(`loginByName`, `users`)이 함께** 들어 있습니다. 배포하면 기존 삼봉 데이터 규칙과 ncgame이 **한 규칙 파일**로 동작합니다.
 
   ```bash
   firebase login

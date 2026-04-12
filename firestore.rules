@@ -1,11 +1,17 @@
 rules_version = '2';
+// sambong-world-2026 단일 Firestore — 삼봉 월드(artifacts) + ncgame(loginByName, users) 통합 규칙
+// 배포: ncgame 또는 2026sambong6에서 firebase deploy --only firestore (동일 프로젝트면 한 번이면 됨)
 
-// 회원가입: loginByName 읽기(중복 확인) → Auth 가입 후 users·loginByName 쓰기
-// 배포: 프로젝트 루트에서 firebase deploy --only firestore
 service cloud.firestore {
   match /databases/{database}/documents {
+    // --- 삼봉 월드 (2026sambong6 / sambongWorld.js) ---
+    match /artifacts/{appId}/public/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // --- ncgame (이름·비밀번호 회원가입) ---
     match /loginByName/{name} {
-      // 로그인 전 이름 중복 확인을 위해 비로그인 읽기 허용
       allow read: if true;
       allow create: if request.auth != null
         && request.resource.data.uid == request.auth.uid;
