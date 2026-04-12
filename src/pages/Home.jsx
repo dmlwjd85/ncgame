@@ -1,14 +1,33 @@
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useCardPacks } from '../contexts/CardPackContext'
 
 /**
- * 앱 홈 — 로그인·카드팩(ncxlxs) 요약
+ * 앱 홈 — 로그인·카드팩(ncxlxs) 선택·게임 시작
  */
 export default function Home() {
+  const navigate = useNavigate()
   const { user, loading: authLoading, signOut, isMaster } = useAuth()
   const { packs, loading: packsLoading, error: packsError, reloadPacks } =
     useCardPacks()
+  const [selectedPackId, setSelectedPackId] = useState(null)
+  const [botCount, setBotCount] = useState(1)
+
+  const effectivePackId = selectedPackId ?? packs[0]?.id ?? null
+  const selectedPack = packs.find((p) => p.id === effectivePackId)
+  const canStart =
+    user &&
+    selectedPack &&
+    selectedPack.rows.length >= 3 &&
+    selectedPack.missingColumns.length === 0
+
+  const startGame = () => {
+    if (!canStart) return
+    navigate('/game', {
+      state: { packId: effectivePackId, botCount },
+    })
+  }
 
   return (
     <div className="flex min-h-dvh flex-col bg-slate-950 px-4 py-8 text-slate-100">
@@ -20,8 +39,8 @@ export default function Home() {
           교육용 웹 보드게임
         </h1>
         <p className="mt-3 text-sm leading-relaxed text-slate-400">
-          ncxlxs 폴더의 엑셀·시트별로 카드팩이 로드됩니다. 로그인 후 게임
-          페이즈는 이후 연결됩니다.
+          ncxlxs 폴더의 엑셀·시트별로 카드팩이 로드됩니다. 로그인 후 팩을
+          고르고 가상 플레이어와 1·2페이즈 게임을 시작할 수 있습니다.
         </p>
       </header>
 
@@ -91,25 +110,79 @@ export default function Home() {
         ) : (
           <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto text-sm text-slate-300">
             {packs.map((p) => (
-              <li
-                key={p.id}
-                className="rounded-lg border border-slate-800/80 px-2 py-2"
-              >
-                <span className="text-slate-400">{p.sourceFile}</span>
-                <span className="mx-1 text-slate-600">·</span>
-                <span className="text-slate-200">{p.sheetName}</span>
-                <span className="ml-2 text-xs text-slate-500">
-                  ({p.rows.length}장
-                  {p.missingColumns.length > 0
-                    ? ` · 열 누락 ${p.missingColumns.join(', ')}`
-                    : ''}
-                  )
-                </span>
+              <li key={p.id}>
+                <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-800/80 px-2 py-2 has-[:checked]:border-emerald-500/50 has-[:checked]:bg-emerald-950/20">
+                  <input
+                    type="radio"
+                    name="pack"
+                    className="mt-1"
+                    checked={effectivePackId === p.id}
+                    onChange={() => setSelectedPackId(p.id)}
+                  />
+                  <span>
+                    <span className="text-slate-400">{p.sourceFile}</span>
+                    <span className="mx-1 text-slate-600">·</span>
+                    <span className="text-slate-200">{p.sheetName}</span>
+                    <span className="ml-2 text-xs text-slate-500">
+                      ({p.rows.length}장
+                      {p.missingColumns.length > 0
+                        ? ` · 열 누락 ${p.missingColumns.join(', ')}`
+                        : ''}
+                      )
+                    </span>
+                  </span>
+                </label>
               </li>
             ))}
           </ul>
         )}
       </section>
+
+      {user ? (
+        <section className="mx-auto mt-6 w-full max-w-md rounded-2xl border border-emerald-800/50 bg-emerald-950/20 px-4 py-4 text-left">
+          <h2 className="text-sm font-medium text-emerald-200/90">
+            게임 시작
+          </h2>
+          <p className="mt-1 text-xs text-slate-500">
+            1페이즈: 주제어·해설 매칭으로 덱 완성 · 2페이즈: 사전순 눈치게임
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+            <span className="text-slate-400">가상 플레이어</span>
+            <label className="flex items-center gap-1.5 text-slate-300">
+              <input
+                type="radio"
+                name="bots"
+                checked={botCount === 1}
+                onChange={() => setBotCount(1)}
+              />
+              1명
+            </label>
+            <label className="flex items-center gap-1.5 text-slate-300">
+              <input
+                type="radio"
+                name="bots"
+                checked={botCount === 2}
+                onChange={() => setBotCount(2)}
+              />
+              2명
+            </label>
+          </div>
+          <button
+            type="button"
+            disabled={!canStart}
+            onClick={startGame}
+            className="mt-4 w-full rounded-xl bg-emerald-600 px-4 py-3 text-center text-base font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {!selectedPack
+              ? '팩을 선택하세요'
+              : selectedPack.rows.length < 3
+                ? '이 팩은 행이 3개 미만입니다'
+                : selectedPack.missingColumns.length > 0
+                  ? '열 누락 팩은 시작할 수 없습니다'
+                  : '선택한 팩으로 플레이'}
+          </button>
+        </section>
+      ) : null}
 
       <nav className="mx-auto mt-8 flex w-full max-w-md flex-col gap-3">
         {isMaster ? (
