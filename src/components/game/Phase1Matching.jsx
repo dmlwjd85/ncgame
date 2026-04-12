@@ -81,7 +81,8 @@ export default function Phase1Matching({
 
   useEffect(() => {
     if (!successFlash) return
-    const id = window.setTimeout(() => setSuccessFlash(null), 2200)
+    /* 맞춤 직후 황금 카드를 충분히 읽을 수 있도록 */
+    const id = window.setTimeout(() => setSuccessFlash(null), 3200)
     return () => window.clearTimeout(id)
   }, [successFlash])
 

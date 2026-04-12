@@ -487,9 +487,17 @@ export default function Phase2Mind({
     return () => window.removeEventListener('keydown', onKey)
   }, [fieldInspect])
 
+  /** 생명 깎임 설명 모달이 떠 있는 동안 라운드 클리어를 미룸(겹침 방지) */
+  const pendingRoundWinRef = useRef(/** @type {null | { lives: number, cheonryan: number, center: unknown[] }} */ (null))
+
   const dismissLifePenaltyModal = useCallback(() => {
+    const pending = pendingRoundWinRef.current
     setState((s) => ({ ...s, lifePenaltyModal: null }))
-  }, [])
+    if (pending) {
+      pendingRoundWinRef.current = null
+      queueMicrotask(() => onRoundWin(pending))
+    }
+  }, [onRoundWin])
 
   /** 게임 오버 시 부모에 넘길 2페이즈 스냅샷 */
   const makeLosePayload = useCallback(
@@ -578,13 +586,16 @@ export default function Phase2Mind({
           next.lives > 0
         ) {
           endedRef.current = true
-          queueMicrotask(() =>
-            onRoundWin({
-              lives: next.lives,
-              cheonryan: next.cheonryan,
-              center: next.center,
-            }),
-          )
+          const payload = {
+            lives: next.lives,
+            cheonryan: next.cheonryan,
+            center: next.center,
+          }
+          if (next.lifePenaltyModal) {
+            pendingRoundWinRef.current = payload
+          } else {
+            queueMicrotask(() => onRoundWin(payload))
+          }
         } else if (next.lives <= 0) {
           endedRef.current = true
           const payload = makeLosePayload(next, 'lives')
@@ -597,14 +608,17 @@ export default function Phase2Mind({
             const payload = makeLosePayload({ ...next, lives: 0 }, 'time')
             queueMicrotask(() => onRoundLose(payload))
           } else {
-            queueMicrotask(() =>
-              onRoundWin({
-                lives: newLives,
-                cheonryan: next.cheonryan,
-                center: next.center,
-                timeUpPenaltyCards: penalty,
-              }),
-            )
+            const payload = {
+              lives: newLives,
+              cheonryan: next.cheonryan,
+              center: next.center,
+              timeUpPenaltyCards: penalty,
+            }
+            if (next.lifePenaltyModal) {
+              pendingRoundWinRef.current = payload
+            } else {
+              queueMicrotask(() => onRoundWin(payload))
+            }
           }
         }
 
@@ -655,13 +669,16 @@ export default function Phase2Mind({
           next.lives > 0
         ) {
           endedRef.current = true
-          queueMicrotask(() =>
-            onRoundWin({
-              lives: next.lives,
-              cheonryan: next.cheonryan,
-              center: next.center,
-            }),
-          )
+          const payload = {
+            lives: next.lives,
+            cheonryan: next.cheonryan,
+            center: next.center,
+          }
+          if (next.lifePenaltyModal) {
+            pendingRoundWinRef.current = payload
+          } else {
+            queueMicrotask(() => onRoundWin(payload))
+          }
         }
         return next
       })
@@ -729,6 +746,8 @@ export default function Phase2Mind({
   const secLeft = Math.max(0, (durationMs - state.elapsedMs) / 1000)
   const totalCards =
     state.playerHand.length + state.bot1Hand.length + state.bot2Hand.length
+  const lastFieldEntry =
+    state.center.length > 0 ? state.center[state.center.length - 1] : null
   const timerPaused =
     prepLeft > 0 ||
     postHintResumeLeft > 0 ||
@@ -952,7 +971,7 @@ export default function Phase2Mind({
 
       {state.lifePenaltyModal ? (
         <div
-          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/55 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center"
+          className="fixed inset-0 z-[78] flex items-end justify-center bg-black/55 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center"
           role="dialog"
           aria-modal="true"
           aria-labelledby="life-penalty-title"
@@ -1019,167 +1038,193 @@ export default function Phase2Mind({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap justify-center gap-2 md:gap-3 landscape:grid landscape:grid-cols-2 landscape:items-start landscape:gap-4">
-        {botCount >= 1 ? (
-          <BotStack
-            name={BOT_NAMES[0]}
-            hand={state.bot1Hand}
-            botKey="bot1"
-            hintMode={state.hintMode}
-            revealed={state.revealed}
-            onReveal={reveal}
-          />
-        ) : null}
-        {botCount >= 2 ? (
-          <BotStack
-            name={BOT_NAMES[1]}
-            hand={state.bot2Hand}
-            botKey="bot2"
-            hintMode={state.hintMode}
-            revealed={state.revealed}
-            onReveal={reveal}
-          />
-        ) : null}
-      </div>
-
-      <div className="flex w-full flex-wrap items-start justify-between gap-3">
-        <p className="min-w-0 flex-1 text-[11px] leading-snug text-slate-600 md:text-xs">
-          {orderMode === 'sheet'
-            ? '첫 카드는 아무거나 · 이후엔 엑셀(시간) 순으로 앞보다 뒤만. 타임라인에서 나(파랑)·봇(회색)이 섞이면, 그 사이에 끼울 내 카드가 있는지 살펴보세요.'
-            : '첫 카드는 아무거나 · 이후엔 국어→영어→숫자 순. 봇보다 족보상 앞이면 먼저 내야 하니, 타임라인에서 순서를 짐작해 보세요.'}
-        </p>
-        <div className="flex w-[5.5rem] shrink-0 flex-col items-center justify-center gap-1.5 rounded-2xl border border-amber-300/90 bg-gradient-to-b from-amber-50 to-amber-100/90 px-1.5 py-2 shadow-inner md:w-[6.25rem] md:gap-2 md:px-2">
-          <span className="text-center text-[9px] font-bold uppercase tracking-wide text-amber-900 md:text-[10px]">
-            천리안
-          </span>
-          <button
-            type="button"
-            disabled={state.cheonryan <= 0 || state.hintMode}
-            onClick={startCheonryan}
-            className="w-full rounded-xl border-2 border-amber-400 bg-gradient-to-b from-amber-200 to-amber-300 px-1 py-2 text-[10px] font-bold leading-tight text-amber-950 shadow-md ring-1 ring-amber-500/30 disabled:opacity-40 md:px-2 md:text-xs"
-          >
-            {state.hintMode ? '탭!' : `×${state.cheonryan}`}
-          </button>
-          {state.hintMode ? (
-            <button
-              type="button"
-              onClick={endHintMode}
-              className="text-[9px] text-amber-900/90 underline md:text-[10px]"
-            >
-              취소
-            </button>
-          ) : null}
-          <p className="text-center text-[9px] text-amber-950/80 md:text-[10px]">
-            남은 {totalCards}장
+      <div className="flex flex-col gap-4 md:gap-5">
+        <div className="text-center">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-950/75">
+            마주 앉은 상대
           </p>
-        </div>
-      </div>
-
-      {(() => {
-        const lastFieldEntry =
-          state.center.length > 0 ? state.center[state.center.length - 1] : null
-        return (
-          <div
-            key={state.shakeKey}
-            className={`mx-auto w-full max-w-sm rounded-2xl border-2 border-violet-300/90 bg-gradient-to-b from-white to-violet-50/90 px-4 py-5 text-center shadow-lg md:max-w-md md:px-6 md:py-6 ${state.shakeKey ? 'p2-shake-anim' : ''} ${state.mergeFlash ? 'p2-merge-glow' : ''}`}
-          >
-            {lastFieldEntry ? (
-              <>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-600 md:text-[11px]">
-                  방금 필드에 제출됨 · {actorLabel(lastFieldEntry.from)}
-                </p>
-                <p className="mt-3 break-words text-xl font-black leading-tight text-slate-900 md:text-2xl">
-                  {lastFieldEntry.topic}
-                </p>
-                {lastFieldEntry.explanation ? (
-                  <p className="mt-3 text-left text-sm leading-relaxed text-slate-700 md:text-base">
-                    {lastFieldEntry.explanation}
-                  </p>
-                ) : (
-                  <p className="mt-3 text-xs text-slate-400">해설 없음</p>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-slate-500 md:text-base">
-                첫 카드를 내면 여기에 온전히 표시됩니다.
-              </p>
-            )}
+          <div className="mt-2 flex flex-wrap justify-center gap-2 md:gap-3 landscape:grid landscape:grid-cols-2 landscape:items-start landscape:gap-4">
+            {botCount >= 1 ? (
+              <BotStack
+                name={BOT_NAMES[0]}
+                hand={state.bot1Hand}
+                botKey="bot1"
+                hintMode={state.hintMode}
+                revealed={state.revealed}
+                onReveal={reveal}
+              />
+            ) : null}
+            {botCount >= 2 ? (
+              <BotStack
+                name={BOT_NAMES[1]}
+                hand={state.bot2Hand}
+                botKey="bot2"
+                hintMode={state.hintMode}
+                revealed={state.revealed}
+                onReveal={reveal}
+              />
+            ) : null}
           </div>
-        )
-      })()}
+        </div>
 
-      <div className="w-full">
-        <p className="mb-1.5 text-center text-[10px] font-medium uppercase tracking-wide text-slate-500">
-          제출 순서 · 탭하여 카드 확인
-        </p>
-        <div className="max-h-[5.5rem] w-full overflow-x-auto overflow-y-auto pb-1 md:max-h-none">
-          <div className="flex min-h-[2rem] flex-wrap items-center justify-center gap-x-1 gap-y-1.5">
-            {state.center.length === 0 ? (
-              <span className="text-xs text-slate-400">—</span>
-            ) : (
-              state.center.map((entry, i) => (
-                <span
-                  key={`${String(entry.rowId ?? '')}-${entry.topic}-${i}`}
-                  className="inline-flex items-center gap-1"
+        <div className="relative rounded-[2rem] border-[7px] border-amber-900/25 p2-table-felt p-3 shadow-[inset_0_3px_48px_rgba(120,53,15,0.1)] md:p-5">
+          <div className="flex w-full flex-wrap items-start justify-between gap-3 border-b border-amber-900/15 pb-3">
+            <p className="min-w-0 flex-1 text-[11px] leading-snug text-slate-700 md:text-xs">
+              {orderMode === 'sheet'
+                ? '첫 카드는 아무거나 · 이후엔 엑셀(시간) 순. 타임라인에서 나(파랑)·봇(회색) 사이에 끼울 내 카드가 있는지 보세요.'
+                : '첫 카드는 아무거나 · 이후엔 국어→영어→숫자 순. 봇이 낼 카드보다 앞 순서면 먼저 내야 합니다.'}
+            </p>
+            <div className="flex w-[5.5rem] shrink-0 flex-col items-center justify-center gap-1.5 rounded-2xl border border-amber-300/90 bg-gradient-to-b from-amber-50 to-amber-100/90 px-1.5 py-2 shadow-inner md:w-[6.25rem] md:gap-2 md:px-2">
+              <span className="text-center text-[9px] font-bold uppercase tracking-wide text-amber-900 md:text-[10px]">
+                천리안
+              </span>
+              <button
+                type="button"
+                disabled={state.cheonryan <= 0 || state.hintMode}
+                onClick={startCheonryan}
+                className="w-full rounded-xl border-2 border-amber-400 bg-gradient-to-b from-amber-200 to-amber-300 px-1 py-2 text-[10px] font-bold leading-tight text-amber-950 shadow-md ring-1 ring-amber-500/30 disabled:opacity-40 md:px-2 md:text-xs"
+              >
+                {state.hintMode ? '탭!' : `×${state.cheonryan}`}
+              </button>
+              {state.hintMode ? (
+                <button
+                  type="button"
+                  onClick={endHintMode}
+                  className="text-[9px] text-amber-900/90 underline md:text-[10px]"
                 >
-                  {i > 0 ? (
-                    <span className="select-none text-slate-300" aria-hidden>
-                      →
+                  취소
+                </button>
+              ) : null}
+              <p className="text-center text-[9px] text-amber-950/80 md:text-[10px]">
+                남은 {totalCards}장
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-col items-center gap-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-amber-900/55">
+              테이블 중앙 · 제출 칸
+            </p>
+            <div
+              key={state.shakeKey}
+              className={`p2-play-slot flex flex-col items-center justify-center px-2 py-3 ${state.shakeKey ? 'p2-shake-anim' : ''}`}
+            >
+              {lastFieldEntry ? (
+                <div
+                  className={`w-full ${state.mergeFlash ? 'p2-merge-glow' : ''}`}
+                >
+                  <div className="p2-field-golden-card text-center">
+                    <p className="p1-enhance-badge mx-auto mb-1 !text-[0.65rem]">
+                      필드
+                    </p>
+                    <p className="text-[10px] font-semibold text-amber-900/90">
+                      {actorLabel(lastFieldEntry.from)}
+                    </p>
+                    <p className="p1-enhance-topic !mt-2 !text-[clamp(1rem,4vw,1.35rem)]">
+                      {lastFieldEntry.topic}
+                    </p>
+                    {lastFieldEntry.explanation ? (
+                      <p className="p1-enhance-exp !mt-2 !text-xs">
+                        {lastFieldEntry.explanation}
+                      </p>
+                    ) : (
+                      <p className="mt-2 text-xs text-slate-500">해설 없음</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="px-2 text-center text-xs leading-relaxed text-slate-500">
+                  점선 안에 카드가 깔립니다. 아래 패에서 탭해 제출하세요.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 w-full border-t border-amber-900/15 pt-3">
+            <p className="mb-1.5 text-center text-[10px] font-medium uppercase tracking-wide text-slate-600">
+              제출 순서 · 탭하여 1페이즈와 같은 황금 카드로 확인
+            </p>
+            <div className="max-h-[5.5rem] w-full overflow-x-auto overflow-y-auto pb-1 md:max-h-none">
+              <div className="flex min-h-[2rem] flex-wrap items-center justify-center gap-x-1 gap-y-1.5">
+                {state.center.length === 0 ? (
+                  <span className="text-xs text-slate-400">—</span>
+                ) : (
+                  state.center.map((entry, i) => (
+                    <span
+                      key={`${String(entry.rowId ?? '')}-${entry.topic}-${i}`}
+                      className="inline-flex items-center gap-1"
+                    >
+                      {i > 0 ? (
+                        <span className="select-none text-slate-300" aria-hidden>
+                          →
+                        </span>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => openFieldInspect(entry)}
+                        className={`max-w-[8.5rem] truncate rounded-lg border px-2 py-1 text-left text-[10px] font-medium transition hover:opacity-90 md:max-w-[10rem] md:text-xs ${fieldChipClass(entry)}`}
+                      >
+                        <span className="block truncate">{entry.topic}</span>
+                      </button>
                     </span>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => openFieldInspect(entry)}
-                    className={`max-w-[8.5rem] truncate rounded-lg border px-2 py-1 text-left text-[10px] font-medium transition hover:opacity-90 md:max-w-[10rem] md:text-xs ${fieldChipClass(entry)}`}
-                  >
-                    <span className="block truncate">{entry.topic}</span>
-                  </button>
-                </span>
-              ))
-            )}
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {fieldInspect ? (
         <div
-          className="fixed inset-0 z-[65] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-labelledby="field-inspect-title"
           onClick={() => setFieldInspect(null)}
         >
           <div
-            className="max-h-[min(80dvh,28rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl"
+            className="pointer-events-auto max-h-[min(85dvh,32rem)] w-full max-w-md overflow-y-auto px-2 py-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2
-              id="field-inspect-title"
-              className="text-lg font-bold text-slate-900"
-            >
-              {fieldInspect.topic}
-            </h2>
-            {fieldInspect.badges.length > 0 ? (
-              <p className="mt-1 text-xs text-amber-700">
-                {fieldInspect.badges.join(' · ')}
-              </p>
-            ) : null}
-            <p className="mt-2 text-xs text-slate-500">{fieldInspect.fromLabel}</p>
-            <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
-              {fieldInspect.explanation || '해설이 없습니다.'}
-            </p>
-            <button
-              type="button"
-              className="mt-6 w-full rounded-xl bg-slate-800 py-3 text-sm font-semibold text-white"
-              onClick={() => setFieldInspect(null)}
-            >
-              닫기
-            </button>
+            <div className="p1-enhance-burst relative flex flex-col items-center">
+              <div className="p1-enhance-rays" aria-hidden />
+              <div className="p2-field-golden-card relative z-[1] w-full text-center shadow-2xl">
+                <p className="p1-enhance-badge">1페이즈 카드</p>
+                {fieldInspect.badges.length > 0 ? (
+                  <p className="mt-1 text-[11px] font-medium text-amber-800">
+                    {fieldInspect.badges.join(' · ')}
+                  </p>
+                ) : null}
+                <p className="mt-1 text-[11px] text-slate-600">
+                  {fieldInspect.fromLabel}
+                </p>
+                <h2
+                  id="field-inspect-title"
+                  className="p1-enhance-topic !mt-3"
+                >
+                  {fieldInspect.topic}
+                </h2>
+                <p className="p1-enhance-exp !mt-2 !text-[0.85rem]">
+                  {fieldInspect.explanation || '해설이 없습니다.'}
+                </p>
+                <button
+                  type="button"
+                  className="mt-5 w-full rounded-xl bg-gradient-to-r from-amber-600 to-amber-800 py-3 text-sm font-semibold text-white shadow-md"
+                  onClick={() => setFieldInspect(null)}
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
 
       <div>
+        <p className="mb-1 text-center text-[10px] font-bold uppercase tracking-[0.15em] text-slate-600">
+          내 자리 · 손패
+        </p>
         <p className="mb-2 text-center text-[11px] text-slate-600 md:text-xs">
           카드 탭 = 제출 ·{' '}
           {orderMode === 'sheet'

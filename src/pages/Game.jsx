@@ -396,9 +396,12 @@ export default function Game() {
           }
           return next
         })
+        /* 이번 레벨 1페이즈를 모두 채운 경우 roundVersion을 올리지 않음 → 황금 연출이 지워지지 않고 3초 전환 동안 유지 */
+        if (newC.length < cardsNeededThisLevel) {
+          setRoundVersion((v) => v + 1)
+        }
         return newC
       })
-      setRoundVersion((v) => v + 1)
     },
     [cardsNeededThisLevel, refillQueueFromPool],
   )
@@ -702,9 +705,36 @@ export default function Game() {
             {!queueReady ? (
               <p className="mt-8 text-center text-slate-500">덱 준비 중…</p>
             ) : phase1Done ? (
-              <p className="mt-8 text-center text-sm text-slate-500">
-                2페이즈로 이동합니다… (3초)
-              </p>
+              (() => {
+                const last =
+                  p1Collected.length > 0
+                    ? p1Collected[p1Collected.length - 1]
+                    : null
+                return (
+                  <div
+                    className="pointer-events-none fixed inset-0 z-[88] flex flex-col items-center justify-center bg-white/92 px-4 backdrop-blur-[2px]"
+                    aria-live="polite"
+                  >
+                    {last ? (
+                      <div className="p1-enhance-burst relative flex max-h-[min(72dvh,32rem)] flex-col items-center justify-center px-2">
+                        <div className="p1-enhance-rays" aria-hidden />
+                        <div className="p1-enhance-card pointer-events-auto max-h-[min(60dvh,26rem)] overflow-y-auto shadow-2xl">
+                          <p className="p1-enhance-badge">완성!</p>
+                          <p className="p1-enhance-topic">{last.topic}</p>
+                          {last.explanation ? (
+                            <p className="p1-enhance-exp">{last.explanation}</p>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-slate-600">2페이즈로 이동합니다…</p>
+                    )}
+                    <p className="pointer-events-none mt-8 text-center text-sm font-medium text-slate-600">
+                      2페이즈로 이동합니다… (약 3초)
+                    </p>
+                  </div>
+                )
+              })()
             ) : (
               <div className="mt-4 md:mt-6">
                 <Phase1Matching
