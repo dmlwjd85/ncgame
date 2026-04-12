@@ -35,3 +35,14 @@ git push -u origin main
 ```
 
 `main` 브랜치에 푸시하면 `.github/workflows/deploy-hosting.yml`이 빌드 후 Firebase Hosting에 배포합니다. `FIREBASE_TOKEN` 시크릿이 없으면 해당 작업은 실패합니다.
+
+## 배포 주소 구분
+
+| 방식 | 예시 URL | 설명 |
+|------|-----------|------|
+| **Firebase Hosting** | `https://sambong-world-2026.web.app` | 프로젝트 루트(`/`)에 배포 |
+| **GitHub Pages** | `https://dmlwjd85.github.io/ncgame/` | 저장소 이름이 URL 경로(`/ncgame/`)가 됨 |
+
+예전에 쓰시던 **github.io/저장소이름** 형태는 GitHub Pages입니다. 이 저장소에는 Pages용 워크플로(`.github/workflows/deploy-github-pages.yml`)를 추가해 두었습니다.
+
+**처음 한 번:** GitHub 저장소 → **Settings** → **Pages** → **Build and deployment** → **Source**를 **GitHub Actions**로 선택합니다. 그다음 `main`에 푸시하면 `deploy-github-pages`가 실행되고, 위 github.io 주소에서 동작합니다.

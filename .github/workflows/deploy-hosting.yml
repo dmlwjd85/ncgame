@@ -16,8 +16,10 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: 의존성 설치 및 프로덕션 빌드
+      - name: 의존성 설치 및 프로덕션 빌드 (루트 배포용)
         run: npm ci && npm run build
+        env:
+          VITE_BASE_PATH: /
 
       - name: Firebase Hosting 배포
         run: npx firebase deploy --only hosting --project sambong-world-2026 --non-interactive

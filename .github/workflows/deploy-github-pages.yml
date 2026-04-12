@@ -1,0 +1,47 @@
+# GitHub Pages — https://사용자명.github.io/저장소이름/
+# 저장소 Settings → Pages → Build and deployment → Source: GitHub Actions 로 설정 필요
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: 의존성 설치 및 빌드 (저장소 이름 기준 하위 경로)
+        run: npm ci && npm run build
+        env:
+          # 예: 저장소 ncgame → /ncgame/ (끝에 슬래시 포함)
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
