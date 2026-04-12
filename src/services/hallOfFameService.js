@@ -4,6 +4,7 @@ import {
   getDoc,
   getDocs,
   limit,
+  onSnapshot,
   orderBy,
   query,
   setDoc,
@@ -61,4 +62,25 @@ export async function loadPackLeaderboard(packId, maxEntries = 40) {
     console.warn('[hallOfFameService] 리더보드 로드 실패', e)
     return []
   }
+}
+
+/**
+ * 팩별 명예의 전당 실시간 구독 (다른 플레이어 기록 반영)
+ * @param {(rows: object[]) => void} onData
+ * @returns {() => void} 구독 해제
+ */
+export function subscribePackLeaderboard(packId, maxEntries, onData, onError) {
+  if (!packId) return () => {}
+  const ref = collection(firestoreDb, 'ncgameHofByPack', packId, 'entries')
+  const q = query(ref, orderBy('maxLevel', 'desc'), limit(maxEntries))
+  return onSnapshot(
+    q,
+    (snap) => {
+      onData(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    },
+    onError ??
+      ((e) => {
+        console.warn('[hallOfFameService] 리더보드 구독 오류', e)
+      }),
+  )
 }

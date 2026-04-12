@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
-import { loadPackLeaderboard } from '../services/hallOfFameService'
+import { useEffect, useMemo, useState } from 'react'
+import { subscribePackLeaderboard } from '../services/hallOfFameService'
 import { formatHoFDisplayName } from '../utils/displayName'
 import { loadHallOfFame } from '../utils/hallOfFame'
 
 /**
- * 단어팩별 최고 레벨 — Firestore + 로컬
+ * 단어팩별 최고 레벨 — Firestore 실시간 + 로컬(내 기록)
  */
 export default function HallOfFamePanel({ packs }) {
   const local = loadHallOfFame()
@@ -12,37 +12,36 @@ export default function HallOfFamePanel({ packs }) {
     /** @type {Record<string, Array<{ displayName?: string, maxLevel?: number, uid?: string }>>} */
     ({}),
   )
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      if (!packs.length) {
-        setLoading(false)
-        return
-      }
-      setLoading(true)
-      const out = {}
-      await Promise.all(
-        packs.map(async (p) => {
-          out[p.id] = await loadPackLeaderboard(p.id, 30)
-        }),
-      )
-      if (!cancelled) {
-        setBoards(out)
-        setLoading(false)
-      }
-    })()
+    if (!packs.length) return
+    const unsubs = packs.map((p) =>
+      subscribePackLeaderboard(
+        p.id,
+        30,
+        (rows) => {
+          setBoards((prev) => ({ ...prev, [p.id]: rows }))
+        },
+        () => {
+          setBoards((prev) => ({ ...prev, [p.id]: [] }))
+        },
+      ),
+    )
     return () => {
-      cancelled = true
+      for (const u of unsubs) u()
     }
   }, [packs])
+
+  const waitingCloud = useMemo(() => {
+    if (!packs.length) return false
+    return packs.some((p) => !Object.prototype.hasOwnProperty.call(boards, p.id))
+  }, [packs, boards])
 
   if (!packs?.length) {
     return <p className="text-sm text-slate-500">등록된 팩이 없습니다.</p>
   }
 
-  if (loading) {
+  if (waitingCloud) {
     return <p className="text-sm text-slate-500">불러오는 중…</p>
   }
 

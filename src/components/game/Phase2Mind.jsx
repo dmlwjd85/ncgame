@@ -252,6 +252,8 @@ export default function Phase2Mind({
   onP2ComboChange,
   onCheonryanChange,
   onItemRewardPop,
+  /** 부모(보상 팝업 등) 오버레이 중 타이머 정지 */
+  overlayTimerPause = false,
   coachMode = false,
 }) {
   const durationMs = phase2SecondsForLevel(level) * 1000
@@ -269,6 +271,11 @@ export default function Phase2Mind({
 
   const endedRef = useRef(false)
   const nextBotIdxRef = useRef(0)
+  const overlayPauseRef = useRef(false)
+
+  useEffect(() => {
+    overlayPauseRef.current = overlayTimerPause
+  }, [overlayTimerPause])
 
   useEffect(() => {
     if (!state.penaltyToast) return
@@ -315,8 +322,15 @@ export default function Phase2Mind({
     const id = window.setInterval(() => {
       if (endedRef.current) return
       setState((s) => {
-        /* 천리안·틀린 제출 안내 팝업 중에는 시간·봇 스케줄 진행 안 함 */
-        if (s.hintMode || s.lifePenaltyModal) return s
+        /* 천리안·패널티·토스트·부모 오버레이 중에는 시간·봇 스케줄 진행 안 함 */
+        if (
+          s.hintMode ||
+          s.lifePenaltyModal ||
+          s.penaltyToast ||
+          overlayPauseRef.current
+        ) {
+          return s
+        }
         let next = { ...s, elapsedMs: s.elapsedMs + 50 }
         const sched = s.schedule
 
@@ -423,7 +437,8 @@ export default function Phase2Mind({
     setState((s) => {
       if (!s.hintMode) return s
       const key = `${botKey}-${cardId}`
-      return { ...s, revealed: new Set(s.revealed).add(key) }
+      /* 한 번에 한 장만 볼 수 있음 — 다른 카드는 자동으로 가림 */
+      return { ...s, revealed: new Set([key]) }
     })
   }, [])
 
@@ -434,7 +449,19 @@ export default function Phase2Mind({
   const secLeft = Math.max(0, (durationMs - state.elapsedMs) / 1000)
   const totalCards =
     state.playerHand.length + state.bot1Hand.length + state.bot2Hand.length
-  const timerPaused = state.hintMode || state.lifePenaltyModal
+  const timerPaused =
+    state.hintMode ||
+    state.lifePenaltyModal ||
+    !!state.penaltyToast ||
+    overlayTimerPause
+
+  const timerPauseHint = (() => {
+    if (state.lifePenaltyModal && !state.hintMode) return ' · 설명 확인 중'
+    if (state.hintMode) return ' · 천리안'
+    if (state.penaltyToast) return ' · 안내 확인 중'
+    if (overlayTimerPause) return ' · 보상 확인 중'
+    return ''
+  })()
   /** 초보 안내: 전체 중 이번에 낼 수 있는 가장 앞 순서 카드 */
   const coachTargetId =
     coachMode && state.playerHand.length > 0
@@ -447,7 +474,7 @@ export default function Phase2Mind({
   return (
     <div
       className={`relative flex flex-col gap-4 md:gap-5 ${
-        state.hintMode || state.lifePenaltyModal ? 'cheonryan-ring' : ''
+        timerPaused ? 'cheonryan-ring' : ''
       }`}
     >
       {state.hintMode ? (
@@ -566,8 +593,7 @@ export default function Phase2Mind({
           <div className="font-mono text-sky-700 tabular-nums">
             {timerPaused ? (
               <span className="text-amber-700">
-                일시정지 {secLeft.toFixed(1)}초
-                {state.lifePenaltyModal && !state.hintMode ? ' · 설명 확인 중' : ''}
+                일시정지 {secLeft.toFixed(1)}초{timerPauseHint}
               </span>
             ) : (
               <>{secLeft.toFixed(1)}초</>

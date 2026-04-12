@@ -11,9 +11,9 @@ import {
   phase1ComboRewards,
   phase2SecondsForLevel,
 } from '../utils/gameRules'
-import { formatHoFDisplayName } from '../utils/displayName'
 import { saveHallOfFameIfBetter } from '../utils/hallOfFame'
 import { sfxCombo } from '../utils/gameSfx'
+import { resolveDisplayNameForHoF } from '../services/authService'
 import {
   clearStagedResume,
   peekResumeFromSession,
@@ -293,14 +293,10 @@ export default function Game() {
       setLives(L)
       setCheonryan(C)
       setLastRoundTopics(center.map((c) => c.topic))
-      await saveHallOfFameIfBetter(
-        packId,
-        level,
-        formatHoFDisplayName(user?.displayName),
-        {
-          uid: user?.uid ?? null,
-        },
-      )
+      const hofName = await resolveDisplayNameForHoF(user)
+      await saveHallOfFameIfBetter(packId, level, hofName, {
+        uid: user?.uid ?? null,
+      })
       if (level >= maxLevel) {
         setSegment('cleared')
         return
@@ -483,7 +479,6 @@ export default function Game() {
             ) : (
               <div className="mt-4 md:mt-6">
                 <Phase1Matching
-                  key={roundVersion}
                   rows={currentBatch}
                   packKey={packKey}
                   combo={p1Combo}
@@ -519,6 +514,7 @@ export default function Game() {
                 onP2ComboChange={setP2Combo}
                 onCheonryanChange={setCheonryan}
                 onItemRewardPop={onItemRewardPop}
+                overlayTimerPause={!!rewardPop}
                 coachMode={coachMode}
               />
             </div>

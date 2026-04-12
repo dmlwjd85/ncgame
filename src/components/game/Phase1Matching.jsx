@@ -55,6 +55,17 @@ export default function Phase1Matching({
 
   const [topicsShuffled, setTopicsShuffled] = useState(() => [])
 
+  /** 배치(줄)가 바뀌어도 부모 콤보는 유지 — 내부 맞추기 상태만 초기화 */
+  const rowsBatchKey = useMemo(() => rows.map((r) => r.id).join(','), [rows])
+  /* eslint-disable react-hooks/set-state-in-effect -- 새 배치마다 매칭 진행도만 리셋 */
+  useEffect(() => {
+    setMatchedIds(new Set())
+    setStagedCards([])
+    setBurstId(null)
+    setRejectId(null)
+  }, [rowsBatchKey])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   /* eslint-disable react-hooks/set-state-in-effect -- 남은 주제어 행이 바뀔 때마다 랜덤 셔플 */
   useEffect(() => {
     const arr = [...activeRows]

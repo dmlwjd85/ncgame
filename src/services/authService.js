@@ -192,3 +192,21 @@ export async function updatePlayerDisplayName(user, rawName) {
     uid: user.uid,
   })
 }
+
+/**
+ * 명예의 전당 저장용 표시 이름 — Auth에 없으면 Firestore users 프로필(가입 시 저장) 사용
+ * @param {import('firebase/auth').User | null} user
+ */
+export async function resolveDisplayNameForHoF(user) {
+  if (!user) return '플레이어'
+  const fromAuth = formatHoFDisplayName(user.displayName ?? '')
+  if (fromAuth !== '플레이어') return fromAuth
+  try {
+    const snap = await getDoc(doc(firestoreDb, 'users', user.uid))
+    const fromDoc = formatHoFDisplayName(snap.data()?.displayName)
+    if (fromDoc !== '플레이어') return fromDoc
+  } catch {
+    /* noop */
+  }
+  return '플레이어'
+}

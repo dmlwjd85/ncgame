@@ -155,7 +155,10 @@ export default function Home() {
                   setNameMsg('')
                   setNameSaving(true)
                   try {
-                    await updateDisplayName(nameEdit)
+                    const trimmed = nameEdit.trim()
+                    const fallback = formatHoFDisplayName(user?.displayName ?? '')
+                    const toSave = trimmed || fallback
+                    await updateDisplayName(toSave)
                     setNameMsg('저장했어요.')
                   } catch (e) {
                     setNameMsg(e?.message ?? '저장에 실패했습니다.')
