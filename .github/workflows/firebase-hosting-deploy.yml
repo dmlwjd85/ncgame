@@ -4,9 +4,8 @@
 # - (선택) VITE_FIREBASE_* : 프로덕션 빌드용; 없으면 빌드는 되지만 클라이언트 설정이 비어 있을 수 있음
 name: Deploy Firebase Hosting
 
+# Firebase 자동 배포는 사용하지 않을 때: 수동 실행만 허용
 on:
-  push:
-    branches: [main, master]
   workflow_dispatch:
 
 permissions:

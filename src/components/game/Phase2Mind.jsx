@@ -5,7 +5,7 @@ import {
   phase1ComboRewards,
   phase2SecondsForLevel,
 } from '../../utils/gameRules'
-import { sfxMerge, sfxPenalty } from '../../utils/gameSfx'
+import { sfxMerge, sfxPenalty, sfxTick } from '../../utils/gameSfx'
 import {
   BOT_PLAY_START_DELAY_MS,
   PLAYER_AHEAD_MS,
@@ -311,14 +311,22 @@ export default function Phase2Mind({
   coachMode = false,
   /** 튜토리얼 단어팩: 내야 할 카드 강조·천리안 안내 */
   tutorialMode = false,
-  /** 2페이즈 직전 카운트다운 중 — 타이머·봇·플레이 입력 정지 */
-  prepFreeze = false,
+  /** 라운드 진입 직후 카운트다운(초). 0이면 바로 플레이. 같은 화면에서 팝업으로만 표시 */
+  prepSeconds = 5,
 }) {
   const durationMs = phase2SecondsForLevel(level) * 1000
+  const [prepLeft, setPrepLeft] = useState(() => prepSeconds)
   const prepFreezeRef = useRef(false)
   useEffect(() => {
-    prepFreezeRef.current = prepFreeze
-  }, [prepFreeze])
+    prepFreezeRef.current = prepLeft > 0
+  }, [prepLeft])
+
+  useEffect(() => {
+    if (prepLeft <= 0) return
+    sfxTick()
+    const id = window.setTimeout(() => setPrepLeft((n) => n - 1), 1000)
+    return () => window.clearTimeout(id)
+  }, [prepLeft])
 
   const tutorialBaseHint = useMemo(() => {
     if (!tutorialMode) return ''
@@ -603,12 +611,14 @@ export default function Phase2Mind({
   const totalCards =
     state.playerHand.length + state.bot1Hand.length + state.bot2Hand.length
   const timerPaused =
+    prepLeft > 0 ||
     state.hintMode ||
     state.lifePenaltyModal ||
     !!state.penaltyToast ||
     overlayTimerPause
 
   const timerPauseHint = (() => {
+    if (prepLeft > 0) return ' · 시작 대기'
     if (state.lifePenaltyModal && !state.hintMode) return ' · 설명 확인 중'
     if (state.hintMode) return ' · 천리안'
     if (state.penaltyToast) return ' · 안내 확인 중'
@@ -635,6 +645,32 @@ export default function Phase2Mind({
         timerPaused ? 'cheonryan-ring' : ''
       }`}
     >
+      {prepLeft > 0 ? (
+        <div
+          className="fixed inset-0 z-[92] flex items-center justify-center bg-black/35 p-4 backdrop-blur-[1px]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="p2-prep-title"
+        >
+          <div className="w-full max-w-sm rounded-2xl border border-sky-200/90 bg-white/96 px-5 py-6 text-center shadow-2xl">
+            <p
+              id="p2-prep-title"
+              className="text-base font-semibold leading-snug text-slate-900 md:text-lg"
+            >
+              가나다 순으로 눈치껏 내세요!
+            </p>
+            <p
+              className="mt-4 text-7xl font-black tabular-nums text-transparent md:text-8xl bg-gradient-to-br from-cyan-300 to-violet-400 bg-clip-text"
+              aria-live="polite"
+            >
+              {prepLeft}
+            </p>
+            <p className="mt-4 text-xs leading-relaxed text-slate-600 md:text-sm">
+              뒤의 2페이즈 판을 미리 살펴보세요. 숫자가 사라지면 바로 플레이할 수 있어요.
+            </p>
+          </div>
+        </div>
+      ) : null}
       {state.hintMode ? (
         <div
           className="pointer-events-none fixed inset-0 z-40 bg-amber-400/10 cheonryan-vignette"
