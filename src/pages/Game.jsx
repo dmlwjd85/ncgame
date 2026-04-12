@@ -68,7 +68,7 @@ export default function Game() {
   } = useCardPacks()
 
   const packId = resolveGamePackId(location.state, searchParams)
-  const botCount = resolveGameBotCount(location.state, searchParams)
+  const botCount = resolveGameBotCount()
 
   const resumeSnap = useMemo(() => {
     if (!packId) return null
@@ -563,7 +563,8 @@ export default function Game() {
               2페이즈 · 국어→영어→숫자 순 눈치
             </h1>
             <p className="mt-1 text-xs text-slate-600 md:text-sm">
-              가상 플레이어 {botCount}명 · {phase2SecondsForLevel(level)}초
+              가상 플레이어 1명 · 제한 {phase2SecondsForLevel(level)}초 (카드{' '}
+              {level}장 × 3초)
             </p>
             <div className="mt-4 md:mt-6">
               <Phase2Mind

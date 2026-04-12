@@ -2,10 +2,10 @@
  * 통합 .xlsx를 시트마다 별도 파일(각 파일에 시트 1개)로 나누고 manifest.json을 갱신합니다.
  *
  * 정본 엑셀 위치(우선순위):
- * 1) ncxlxs/ncxlsx.xlsx — 루트에 두면 이 파일만 단어팩 소스로 사용
- * 2) 위 파일이 없으면 ncxlxs/_sources/*.xlsx 전부
- * 루트 정본이 있을 때는 _sources/ncxlsx.xlsx와 내용이 겹치므로 _sources 쪽 동일 이름은 건너뜁니다.
- * 루트 정본은 분할 후 _sources/ncxlsx.xlsx로 복사해 두어 경로를 맞춥니다.
+ * 1) ncxlxs/_sources/ncxlsx.xlsx — 있으면 최우선(시트명 = 단어팩 이름)
+ * 2) 없으면 ncxlxs/ncxlsx.xlsx
+ * 3) 그 외 ncxlxs/_sources/*.xlsx
+ * 분할 전에 정본끼리 서로 미러 복사해 두어 루트·소스 경로를 맞춥니다.
  *
  * 실행: node scripts/split-ncxlxs-one-sheet-per-file.mjs
  */
@@ -26,15 +26,36 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const ncxlxsRoot = join(__dirname, '..', 'ncxlxs')
 const sourcesDir = join(ncxlxsRoot, '_sources')
 const rootNcxlsx = join(ncxlxsRoot, 'ncxlsx.xlsx')
+const sourcesNcxlsx = join(sourcesDir, 'ncxlsx.xlsx')
+
+/** 루트·_sources 정본 엑셀 동기화(한쪽만 있으면 다른 쪽으로 복사) */
+function syncNcxlsxMirrors() {
+  const hasSources = existsSync(sourcesNcxlsx)
+  const hasRoot = existsSync(rootNcxlsx)
+  if (hasSources) {
+    mkdirSync(ncxlxsRoot, { recursive: true })
+    copyFileSync(sourcesNcxlsx, rootNcxlsx)
+    console.log('미러:', rootNcxlsx, '←', sourcesNcxlsx)
+    return
+  }
+  if (hasRoot) {
+    mkdirSync(sourcesDir, { recursive: true })
+    copyFileSync(rootNcxlsx, sourcesNcxlsx)
+    console.log('미러:', sourcesNcxlsx, '←', rootNcxlsx)
+  }
+}
 
 /**
  * 분할할 통합 엑셀 경로 목록(파일 단위)
  */
 function listSourceWorkbookPaths() {
   const paths = []
-  const hasRoot = existsSync(rootNcxlsx)
+  const hasSourcesMain = existsSync(sourcesNcxlsx)
+  const hasRootMain = existsSync(rootNcxlsx)
 
-  if (hasRoot) {
+  if (hasSourcesMain) {
+    paths.push(sourcesNcxlsx)
+  } else if (hasRootMain) {
     paths.push(rootNcxlsx)
   }
 
@@ -48,7 +69,7 @@ function listSourceWorkbookPaths() {
       )
       .sort()
     for (const n of names) {
-      if (hasRoot && n === 'ncxlsx.xlsx') continue
+      if (n === 'ncxlsx.xlsx') continue
       paths.push(join(sourcesDir, n))
     }
   }
@@ -69,13 +90,8 @@ function parentSlug(filename) {
 
 function main() {
   const outNames = []
+  syncNcxlsxMirrors()
   const sourcePaths = listSourceWorkbookPaths()
-
-  if (existsSync(rootNcxlsx)) {
-    mkdirSync(sourcesDir, { recursive: true })
-    copyFileSync(rootNcxlsx, join(sourcesDir, 'ncxlsx.xlsx'))
-    console.log('미러:', join(sourcesDir, 'ncxlsx.xlsx'), '←', rootNcxlsx)
-  }
 
   for (const srcPath of sourcePaths) {
     const src = basename(srcPath)
@@ -103,7 +119,7 @@ function main() {
 
   if (outNames.length === 0) {
     console.error(
-      '분할할 소스 엑셀이 없습니다. ncxlxs/ncxlsx.xlsx 또는 ncxlxs/_sources/*.xlsx 를 두세요.',
+      '분할할 소스 엑셀이 없습니다. ncxlxs/_sources/ncxlsx.xlsx 또는 ncxlxs/ncxlsx.xlsx 를 두세요.',
     )
     process.exit(1)
   }

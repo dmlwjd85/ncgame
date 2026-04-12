@@ -25,7 +25,6 @@ export default function Home() {
     useCardPacks()
   const [tab, setTab] = useState(/** @type {'play'|'hof'} */ ('play'))
   const [selectedPackId, setSelectedPackId] = useState(null)
-  const [botCount, setBotCount] = useState(1)
   const [rulesOpen, setRulesOpen] = useState(false)
   const [jokboOpen, setJokboOpen] = useState(false)
   const [nameEdit, setNameEdit] = useState('')
@@ -63,15 +62,14 @@ export default function Home() {
     if (!effectivePackId || !canStart) return
     clearStagedResume()
     clearRunSave()
-    const loc = buildGameLocation(effectivePackId, botCount)
+    const loc = buildGameLocation(effectivePackId)
     navigate(loc, {
-      state: { packId: effectivePackId, botCount },
+      state: { packId: effectivePackId, botCount: 1 },
     })
   }
 
   const continueGame = () => {
     if (!effectivePackId || !canStart || !savedRun) return
-    const bc = savedRun.botCount === 2 ? 2 : 1
     try {
       sessionStorage.setItem(
         `ncgame-resume-${effectivePackId}`,
@@ -81,9 +79,9 @@ export default function Home() {
       /* noop */
     }
     clearRunSave()
-    const loc = buildGameLocation(effectivePackId, bc)
+    const loc = buildGameLocation(effectivePackId)
     navigate(loc, {
-      state: { packId: effectivePackId, botCount: bc },
+      state: { packId: effectivePackId, botCount: 1 },
     })
   }
 
@@ -275,26 +273,9 @@ export default function Home() {
                       족보 보기
                     </button>
                   </div>
-                  <div className="flex items-center justify-center gap-4 text-sm text-slate-700">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="bots"
-                        checked={botCount === 1}
-                        onChange={() => setBotCount(1)}
-                      />
-                      친구 1명
-                    </label>
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="bots"
-                        checked={botCount === 2}
-                        onChange={() => setBotCount(2)}
-                      />
-                      친구 2명
-                    </label>
-                  </div>
+                  <p className="text-center text-xs text-slate-500">
+                    가상 플레이어 1명과 대전합니다.
+                  </p>
                   {canResume ? (
                     <div className="flex w-full flex-col gap-2">
                       <button

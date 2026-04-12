@@ -145,6 +145,6 @@ for (const name of Object.keys(SHEETS)) {
 }
 
 const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' })
-writeFileSync(rootXlsx, buf)
-copyFileSync(rootXlsx, sourcesXlsx)
-console.log('작성:', rootXlsx, '·', sourcesXlsx, '시트:', Object.keys(SHEETS).join(', '))
+writeFileSync(sourcesXlsx, buf)
+copyFileSync(sourcesXlsx, rootXlsx)
+console.log('작성:', sourcesXlsx, '·', rootXlsx, '시트:', Object.keys(SHEETS).join(', '))

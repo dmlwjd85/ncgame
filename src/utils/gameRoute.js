@@ -17,24 +17,20 @@ export function resolveGamePackId(routeState, searchParams) {
 }
 
 /**
- * @param {object | null | undefined} routeState
- * @param {URLSearchParams} searchParams
+ * 가상 플레이어는 1명만 사용합니다(구 URL의 bots=2는 무시).
  */
-export function resolveGameBotCount(routeState, searchParams) {
-  if (routeState?.botCount === 2) return 2
-  if (searchParams.get('bots') === '2') return 2
+export function resolveGameBotCount() {
   return 1
 }
 
 /**
  * 홈에서 게임으로 이동할 때 state와 URL을 함께 넣어 새로고침해도 팩이 유지되게 함
  * @param {string} packId
- * @param {1|2} botCount
  */
-export function buildGameLocation(packId, botCount) {
+export function buildGameLocation(packId) {
   const qs = new URLSearchParams()
   qs.set('pack', packId)
-  qs.set('bots', String(botCount))
+  qs.set('bots', '1')
   return {
     pathname: '/game',
     search: `?${qs.toString()}`,
