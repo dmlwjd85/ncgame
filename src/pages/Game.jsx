@@ -116,6 +116,19 @@ export default function Game() {
   const [cheonryan, setCheonryan] = useState(() => resumeSnap?.cheonryan ?? 1)
   const [p1Combo, setP1Combo] = useState(() => resumeSnap?.p1Combo ?? 0)
 
+  /** 1페이즈 현재 배치에서 이미 맞춘 실제 카드 id */
+  const [p1BatchMatchedIds, setP1BatchMatchedIds] = useState(
+    () => new Set(),
+  )
+  /** 매칭할 때마다 뜻 슬롯 3개 재구성 */
+  const [p1DistractorVersion, setP1DistractorVersion] = useState(0)
+  /** 이번 배치에서 이미 맞춘 뜻(해설) 문자열 — 슬롯 재구성 시 제외 */
+  const [p1UsedExplanations, setP1UsedExplanations] = useState(
+    /** @type {string[]} */ ([]),
+  )
+  /** 현재 배치에서 handleP1BatchComplete 중복 호출 방지 */
+  const p1BatchCompleteFiredRef = useRef(false)
+
   const [queue, setQueue] = useState(/** @type {object[]} */ ([]))
   const [queueReady, setQueueReady] = useState(false)
   const [roundVersion, setRoundVersion] = useState(0)
@@ -234,51 +247,117 @@ export default function Game() {
   const need = cardsNeededThisLevel - p1Collected.length
 
   /**
-   * 1페이즈: 위 뜻 선택지 3개 = 정답(이번 큐) + 팩에서 고른 **다른 해설** 2개, 순서는 섞음.
-   * 아래 주제어는 take장만.
+   * 1페이즈: 위 뜻 3칸 — 아직 맞추지 않은 단어의 정답 해설 + 오답 해설, 매칭할 때마다 새로 섞음.
+   * 사용된 해설은 제외하고 다른 해설로 채움.
    */
-  const p1DisplayRows = useMemo(() => {
+  const p1Slots = useMemo(() => {
     if (need <= 0 || queue.length === 0) return []
-    const take = Math.min(need, queue.length, 3)
-    const real = queue
-      .slice(0, take)
+    const batchTake = Math.min(need, queue.length, 3)
+    const batchReal = queue
+      .slice(0, batchTake)
       .map((r) => ({ ...r, _p1Filler: /** @type {const} */ (false) }))
-    const usedExp = new Set(real.map((r) => String(r.explanation).trim()))
-    const usedIds = new Set(real.map((r) => String(r.id)))
-    const pool = shuffleRows(
-      validRows.filter(
-        (r) =>
-          r.topic &&
-          r.explanation &&
-          !usedIds.has(String(r.id)) &&
-          !usedExp.has(String(r.explanation).trim()),
-      ),
+    const unmatched = batchReal.filter(
+      (r) => !p1BatchMatchedIds.has(String(r.id)),
     )
-    const out = [...real]
-    while (out.length < 3 && pool.length > 0) {
+
+    /* 배치 클리어 직전 한 프레임: 슬롯 재계산 스킵 */
+    if (unmatched.length === 0 && batchReal.length > 0) {
+      return []
+    }
+
+    const correctParts = unmatched.map((r) => ({
+      explanation: String(r.explanation ?? '').trim(),
+      correctRowId: String(r.id),
+      _p1Filler: false,
+    }))
+
+    const excluded = new Set([
+      ...correctParts.map((c) => c.explanation),
+      ...p1UsedExplanations,
+    ])
+
+    const pool = shuffleRows(
+      validRows.filter((r) => {
+        const exp = String(r.explanation ?? '').trim()
+        return r.topic && exp && !excluded.has(exp)
+      }),
+    )
+
+    const distractors = []
+    let guard = 0
+    while (distractors.length < 3 - correctParts.length && guard < 500) {
+      guard += 1
       const r = pool.pop()
       if (!r) break
-      if (usedExp.has(String(r.explanation).trim())) continue
-      usedExp.add(String(r.explanation).trim())
-      out.push({
-        ...r,
-        id: `p1dist-${level}-rv${roundVersion}-${out.length}-${r.id}`,
+      const exp = String(r.explanation ?? '').trim()
+      if (!exp || excluded.has(exp)) continue
+      excluded.add(exp)
+      distractors.push({
+        explanation: exp,
+        correctRowId: null,
         _p1Filler: true,
       })
     }
     let fb = 0
-    while (out.length < 3 && validRows.length > 0) {
+    while (distractors.length < 3 - correctParts.length && validRows.length > 0) {
       const r = validRows[fb % validRows.length]
       fb += 1
-      if (!r?.explanation) break
-      out.push({
-        ...r,
-        id: `p1dist-fb-${level}-rv${roundVersion}-${out.length}-${r.id}`,
+      const exp = String(r?.explanation ?? '').trim()
+      if (!exp || excluded.has(exp)) continue
+      excluded.add(exp)
+      distractors.push({
+        explanation: exp,
+        correctRowId: null,
         _p1Filler: true,
       })
     }
-    return shuffleRows(out)
-  }, [need, queue, validRows, level, roundVersion])
+
+    const combined = shuffleRows([...correctParts, ...distractors]).slice(0, 3)
+    return combined.map((item, i) => ({
+      id: `p1slot-${level}-rv${roundVersion}-dv${p1DistractorVersion}-${i}`,
+      explanation: item.explanation,
+      correctRowId: item.correctRowId,
+      _p1Filler: item._p1Filler,
+    }))
+  }, [
+    need,
+    queue,
+    validRows,
+    level,
+    roundVersion,
+    p1DistractorVersion,
+    p1BatchMatchedIds,
+    p1UsedExplanations,
+  ])
+
+  const p1TopicRows = useMemo(() => {
+    if (need <= 0 || queue.length === 0) return []
+    const batchTake = Math.min(need, queue.length, 3)
+    return queue
+      .slice(0, batchTake)
+      .map((r) => ({ ...r, _p1Filler: false }))
+      .filter((r) => !p1BatchMatchedIds.has(String(r.id)))
+  }, [need, queue, p1BatchMatchedIds])
+
+  const handleP1RealMatch = useCallback((row, explanationText) => {
+    const t = String(explanationText).trim()
+    setP1UsedExplanations((prev) => (prev.includes(t) ? prev : [...prev, t]))
+    setP1DistractorVersion((v) => v + 1)
+    setP1BatchMatchedIds((prev) => {
+      const next = new Set(prev)
+      next.add(String(row.id))
+      return next
+    })
+  }, [])
+
+  /* eslint-disable react-hooks/set-state-in-effect -- 새 배치마다 맞춤 진행·해설 풀 초기화 */
+  useEffect(() => {
+    setP1BatchMatchedIds(new Set())
+    setP1UsedExplanations([])
+    setP1DistractorVersion(0)
+    p1BatchCompleteFiredRef.current = false
+  }, [roundVersion])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const phase1Done =
     p1Collected.length >= cardsNeededThisLevel && queueReady
@@ -317,13 +396,33 @@ export default function Game() {
     [cardsNeededThisLevel, refillQueueFromPool],
   )
 
-  /* eslint-disable react-hooks/set-state-in-effect -- 1페이즈 완료 시에만 2페이즈로 전환 */
+  useEffect(() => {
+    if (segment !== 'p1' || !queueReady || need <= 0) return
+    const batchTake = Math.min(need, queue.length, 3)
+    if (batchTake === 0) return
+    const batch = queue.slice(0, batchTake)
+    if (p1BatchMatchedIds.size < batchTake) return
+    const allDone = batch.every((r) => p1BatchMatchedIds.has(String(r.id)))
+    if (!allDone || p1BatchCompleteFiredRef.current) return
+    p1BatchCompleteFiredRef.current = true
+    handleP1BatchComplete(batch.map((r) => ({ ...r, _p1Filler: false })))
+  }, [
+    segment,
+    queueReady,
+    need,
+    queue,
+    p1BatchMatchedIds,
+    handleP1BatchComplete,
+  ])
+
   useEffect(() => {
     if (segment !== 'p1' || !phase1Done || !queueReady) return
-    setP1Combo(0)
-    setSegment('p2')
+    const t = window.setTimeout(() => {
+      setP1Combo(0)
+      setSegment('p2')
+    }, 3000)
+    return () => window.clearTimeout(t)
   }, [segment, phase1Done, queueReady])
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   /** 콤보 아이템 지급 시 튀어나오는 하이라이트(1·2페이즈 공통) */
   const [rewardPop, setRewardPop] = useState(
@@ -597,18 +696,20 @@ export default function Game() {
               <p className="mt-8 text-center text-slate-500">덱 준비 중…</p>
             ) : phase1Done ? (
               <p className="mt-8 text-center text-sm text-slate-500">
-                2페이즈로 넘어가는 중…
+                2페이즈로 이동합니다… (3초)
               </p>
             ) : (
               <div className="mt-4 md:mt-6">
                 <Phase1Matching
-                  rows={p1DisplayRows}
+                  slots={p1Slots}
+                  topicRows={p1TopicRows}
                   packKey={packKey}
+                  roundVersion={roundVersion}
                   combo={p1Combo}
                   coachMode={coachMode || tutorialMode}
                   tutorialMode={tutorialMode}
                   onMatchAttempt={onMatchAttempt}
-                  onBatchComplete={handleP1BatchComplete}
+                  onRealMatch={handleP1RealMatch}
                 />
               </div>
             )}
@@ -647,7 +748,7 @@ export default function Game() {
             </div>
             {showLevelClearPopup ? (
               <div
-                className="fixed top-1/2 right-[max(0.75rem,env(safe-area-inset-right))] z-[100] w-[min(92vw,20rem)] -translate-y-1/2 rounded-2xl border border-amber-300/90 bg-gradient-to-r from-amber-50 via-white to-sky-50 px-4 py-4 text-center shadow-lg shadow-amber-900/15 ring-2 ring-amber-200/60"
+                className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-1/2 z-[100] w-[min(92vw,20rem)] -translate-x-1/2 rounded-2xl border border-amber-300/90 bg-gradient-to-r from-amber-50 via-white to-sky-50 px-4 py-4 text-center shadow-lg shadow-amber-900/15 ring-2 ring-amber-200/60"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="level-clear-title"

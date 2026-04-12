@@ -571,3 +571,49 @@ body {
   line-height: 1.45;
   color: #475569;
 }
+
+/* 2페이즈: 낸 카드 미리보기 — 순서 맞춤 시 강조 */
+@keyframes p2-card-pop-key {
+  0% {
+    transform: translateY(18px) scale(0.88);
+    opacity: 0;
+    filter: blur(4px);
+  }
+  45% {
+    transform: translateY(0) scale(1.06);
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes p2-card-perfect-ring-key {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(251, 191, 36, 0.75),
+      0 12px 36px rgba(234, 179, 8, 0.45);
+  }
+  70% {
+    box-shadow:
+      0 0 0 12px rgba(251, 191, 36, 0),
+      0 16px 44px rgba(234, 179, 8, 0.35);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(251, 191, 36, 0),
+      0 8px 28px rgba(234, 179, 8, 0.25);
+  }
+}
+
+.p2-card-play-pop {
+  animation: p2-card-pop-key 0.55s cubic-bezier(0.34, 1.45, 0.64, 1) both;
+}
+
+.p2-card-play-pop-perfect {
+  animation:
+    p2-card-pop-key 0.55s cubic-bezier(0.34, 1.45, 0.64, 1) both,
+    p2-card-perfect-ring-key 0.85s ease-out 0.05s both;
+}

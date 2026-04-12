@@ -7,7 +7,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { sfxMerge } from '../../utils/gameSfx'
 
 /**
@@ -22,65 +22,61 @@ function comboTier(combo) {
 }
 
 /**
- * 1페이즈: 위 해설 ↔ 아래 주제어 · 맞추면 아래 대기 칸으로 합쳐짐 · 틀리면 튕김
+ * 1페이즈: 위 뜻 슬롯 3개(정답·오답 섞임, 매칭마다 갱신) ↔ 아래 주제어
  */
 export default function Phase1Matching({
-  rows,
-  onMatchAttempt,
-  onBatchComplete,
+  /** @type {Array<{ id: string, explanation: string, correctRowId: string | null, _p1Filler?: boolean }>} */
+  slots,
+  /** @type {object[]} */
+  topicRows,
   packKey,
+  roundVersion,
   combo = 0,
   coachMode = false,
-  /** 튜토리얼 단어팩: 맞출 카드 강조·안내 */
   tutorialMode = false,
+  onMatchAttempt,
+  onRealMatch,
 }) {
-  const [matchedIds, setMatchedIds] = useState(() => new Set())
+  const [matchedSlotIds, setMatchedSlotIds] = useState(() => new Set())
   const [burstId, setBurstId] = useState(/** @type {string|null} */ (null))
   const [rejectId, setRejectId] = useState(/** @type {string|null} */ (null))
-  /** 맞춘 카드가 아래로 합쳐져 쌓임 */
   const [stagedCards, setStagedCards] = useState(
     /** @type {Array<{ key: string, topic: string, explanation: string }>} */ ([]),
   )
-  /** 매칭 성공 시 강화 성공 느낌의 카드 팝업 */
   const [successFlash, setSuccessFlash] = useState(
     /** @type {{ topic: string, explanation: string } | null} */ (null),
   )
+
+  /** 하스스톤 느낌 드래그 연결선 */
+  const [dragLine, setDragLine] = useState(
+    /** @type {{ x1: number, y1: number, x2: number, y2: number } | null} */ (null),
+  )
+  const dragStartRef = useRef(/** @type {{ x: number, y: number } | null} */ (null))
+
   const tier = comboTier(combo)
 
-  /** 초보·튜토리얼: 아직 맞추지 않은 카드 중 첫 번째(행 순서) */
+  const slotsKey = useMemo(() => slots.map((s) => s.id).join('|'), [slots])
+
+  /** 초보·튜토리얼: 아직 맞출 주제어 중 첫 줄 */
   const coachTargetKey = useMemo(() => {
     if (!coachMode && !tutorialMode) return null
-    const next = rows.find(
-      (r) => !r._p1Filler && !matchedIds.has(rowKey(packKey, r)),
-    )
+    const next = topicRows[0]
     return next ? String(rowKey(packKey, next)) : null
-  }, [coachMode, tutorialMode, rows, matchedIds, packKey])
+  }, [coachMode, tutorialMode, topicRows, packKey])
 
-  /** 이번에 맞출 실제 카드(아래 주제어 개수 = 레벨 진행 장수) */
-  const realRows = useMemo(
-    () => rows.filter((r) => !r._p1Filler),
-    [rows],
-  )
-  const realRowCount = realRows.length
-
-  const activeTopicRows = useMemo(
-    () =>
-      realRows.filter((r) => !matchedIds.has(rowKey(packKey, r))),
-    [realRows, matchedIds, packKey],
-  )
-
-  const [topicsShuffled, setTopicsShuffled] = useState(() => [])
-
-  /** 배치(줄)가 바뀌어도 부모 콤보는 유지 — 내부 맞추기 상태만 초기화 */
-  const rowsBatchKey = useMemo(() => rows.map((r) => r.id).join(','), [rows])
-  /* eslint-disable react-hooks/set-state-in-effect -- 새 배치마다 매칭 진행도만 리셋 */
+  /* eslint-disable react-hooks/set-state-in-effect -- 새 슬롯 배치마다 슬롯 체크만 초기화 */
   useEffect(() => {
-    setMatchedIds(new Set())
-    setStagedCards([])
+    setMatchedSlotIds(new Set())
     setBurstId(null)
     setRejectId(null)
+  }, [slotsKey])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  /* eslint-disable react-hooks/set-state-in-effect -- 새 배치(라운드)마다 모음 초기화 */
+  useEffect(() => {
+    setStagedCards([])
     setSuccessFlash(null)
-  }, [rowsBatchKey])
+  }, [roundVersion])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
@@ -89,15 +85,17 @@ export default function Phase1Matching({
     return () => window.clearTimeout(id)
   }, [successFlash])
 
-  /* eslint-disable react-hooks/set-state-in-effect -- 남은 주제어(실제 행만) 바뀔 때마다 셔플 */
+  const [topicsShuffled, setTopicsShuffled] = useState(() => [])
+
+  /* eslint-disable react-hooks/set-state-in-effect -- 주제어 줄 셔플 */
   useEffect(() => {
-    const arr = [...activeTopicRows]
+    const arr = [...topicRows]
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1))
       ;[arr[i], arr[j]] = [arr[j], arr[i]]
     }
     setTopicsShuffled(arr)
-  }, [activeTopicRows])
+  }, [topicRows])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const sensors = useSensors(
@@ -118,8 +116,56 @@ export default function Phase1Matching({
     window.setTimeout(() => setRejectId(null), 520)
   }, [])
 
+  const pointerMoveCleanupRef = useRef(/** @type {(() => void) | null} */ (null))
+
+  const clearDragLine = useCallback(() => {
+    pointerMoveCleanupRef.current?.()
+    pointerMoveCleanupRef.current = null
+    dragStartRef.current = null
+    setDragLine(null)
+  }, [])
+
+  const handleDragStart = useCallback(
+    (_event) => {
+      const id =
+        _event.active?.id != null ? String(_event.active.id) : ''
+      const el = document.getElementById(`p1-topic-${id}`)
+      if (el) {
+        const r = el.getBoundingClientRect()
+        dragStartRef.current = {
+          x: r.left + r.width / 2,
+          y: r.top + r.height / 2,
+        }
+        setDragLine({
+          x1: dragStartRef.current.x,
+          y1: dragStartRef.current.y,
+          x2: dragStartRef.current.x,
+          y2: dragStartRef.current.y,
+        })
+        const move = (e) => {
+          if (!dragStartRef.current) return
+          setDragLine({
+            x1: dragStartRef.current.x,
+            y1: dragStartRef.current.y,
+            x2: e.clientX,
+            y2: e.clientY,
+          })
+        }
+        const stop = () => {
+          window.removeEventListener('pointermove', move)
+        }
+        window.addEventListener('pointermove', move)
+        window.addEventListener('pointerup', stop, { once: true })
+        window.addEventListener('pointercancel', stop, { once: true })
+        pointerMoveCleanupRef.current = stop
+      }
+    },
+    [],
+  )
+
   const handleDragEnd = useCallback(
     (event) => {
+      clearDragLine()
       const { active, over } = event
       const aid = active?.id != null ? String(active.id) : ''
 
@@ -128,50 +174,95 @@ export default function Phase1Matching({
         bumpReject(aid)
         return
       }
-      const ok = active.id === over.id
+
+      const topicRow = topicRows.find(
+        (r) => String(rowKey(packKey, r)) === aid,
+      )
+      const slot = slots.find((s) => String(s.id) === String(over.id))
+
+      if (!topicRow || !slot) {
+        onMatchAttempt(false)
+        bumpReject(aid)
+        return
+      }
+
+      const ok =
+        slot.correctRowId != null &&
+        String(slot.correctRowId) === String(topicRow.id)
+
       if (!ok) {
         onMatchAttempt(false)
         bumpReject(aid)
         return
       }
 
-      const row = rows.find((r) => String(rowKey(packKey, r)) === aid)
       sfxMerge()
-      if (row) {
-        setSuccessFlash({
-          topic: String(row.topic ?? '').trim() || '—',
-          explanation: String(row.explanation ?? '').trim(),
-        })
-      }
-      if (row && !row._p1Filler) {
-        setStagedCards((prev) => [
-          ...prev,
-          {
-            key: aid,
-            topic: row.topic,
-            explanation: row.explanation,
-          },
-        ])
-      }
+      setSuccessFlash({
+        topic: String(topicRow.topic ?? '').trim() || '—',
+        explanation: String(topicRow.explanation ?? '').trim(),
+      })
+      setStagedCards((prev) => [
+        ...prev,
+        {
+          key: aid,
+          topic: topicRow.topic,
+          explanation: topicRow.explanation,
+        },
+      ])
       setBurstId(aid)
       window.setTimeout(() => setBurstId(null), 420)
       onMatchAttempt(true)
-      setMatchedIds((prev) => {
-        const next = new Set(prev).add(aid)
-        /* 위는 3칸·아래는 실제 장수만 — 완료는 실제 행을 다 맞췄을 때 */
-        if (realRowCount > 0 && next.size === realRowCount) {
-          queueMicrotask(() => onBatchComplete(rows))
-        }
-        return next
-      })
+      onRealMatch(topicRow, slot.explanation)
+      setMatchedSlotIds((prev) => new Set(prev).add(String(slot.id)))
     },
-    [onMatchAttempt, onBatchComplete, rows, packKey, bumpReject, realRowCount],
+    [clearDragLine, onMatchAttempt, onRealMatch, topicRows, slots, packKey, bumpReject],
   )
 
-  if (rows.length === 0) return null
+  const coachFirstId =
+    topicRows[0] != null ? String(topicRows[0].id) : null
+
+  if (slots.length === 0) return null
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={clearDragLine}
+    >
+      {dragLine ? (
+        <svg
+          className="pointer-events-none fixed inset-0 z-[75]"
+          aria-hidden
+        >
+          <defs>
+            <linearGradient id="p1-drag-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.95" />
+              <stop offset="55%" stopColor="#fbbf24" stopOpacity="1" />
+              <stop offset="100%" stopColor="#f97316" stopOpacity="0.9" />
+            </linearGradient>
+            <filter id="p1-drag-glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="2" result="b" />
+              <feMerge>
+                <feMergeNode in="b" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          <line
+            x1={dragLine.x1}
+            y1={dragLine.y1}
+            x2={dragLine.x2}
+            y2={dragLine.y2}
+            stroke="url(#p1-drag-grad)"
+            strokeWidth={5}
+            strokeLinecap="round"
+            filter="url(#p1-drag-glow)"
+          />
+          <circle cx={dragLine.x2} cy={dragLine.y2} r={7} fill="#fef08a" />
+        </svg>
+      ) : null}
+
       <div
         className={`relative flex flex-col gap-4 transition duration-300 md:gap-5 p1-tier-${tier}`}
       >
@@ -183,7 +274,7 @@ export default function Phase1Matching({
           단어를 끌어와 맞는 뜻을 합쳐 카드를 완성하세요!
         </p>
         <p className="relative text-center text-xs text-slate-500 md:text-sm">
-          위 뜻 칸 3개 중 짝을 맞추면 돼요.
+          맞출 때마다 위 뜻 3칸이 새로 섞여요. (정답 포함)
         </p>
         {(coachMode || tutorialMode) && coachTargetKey ? (
           <p
@@ -197,14 +288,18 @@ export default function Phase1Matching({
           </p>
         ) : null}
         <div className="relative flex flex-col gap-3">
-          {rows.map((row) => (
-            <ExplanationDrop
-              key={rowKey(packKey, row)}
-              id={String(rowKey(packKey, row))}
-              matched={matchedIds.has(rowKey(packKey, row))}
-              text={row.explanation}
+          {slots.map((slot) => (
+            <SlotDrop
+              key={slot.id}
+              slot={slot}
+              matched={matchedSlotIds.has(String(slot.id))}
               tier={tier}
-              coachHighlight={coachTargetKey === String(rowKey(packKey, row))}
+              coachHighlight={
+                (coachMode || tutorialMode) &&
+                coachFirstId != null &&
+                slot.correctRowId != null &&
+                String(slot.correctRowId) === coachFirstId
+              }
               tutorialPulse={tutorialMode}
             />
           ))}
@@ -215,7 +310,6 @@ export default function Phase1Matching({
             <TopicBadge
               key={rowKey(packKey, row)}
               id={String(rowKey(packKey, row))}
-              disabled={matchedIds.has(rowKey(packKey, row))}
               label={row.topic}
               burst={burstId === String(rowKey(packKey, row))}
               reject={rejectId === String(rowKey(packKey, row))}
@@ -289,57 +383,11 @@ function rowKey(packKey, row) {
   return `${packKey}-${row.id}`
 }
 
-function TopicBadge({
-  id,
-  label,
-  disabled,
-  burst,
-  reject,
-  tier,
-  coachHighlight,
-  tutorialPulse = false,
-}) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({ id, disabled })
-
-  const style = transform
-    ? {
-        transform: `translate3d(${transform.x}px,${transform.y}px,0)`,
-        opacity: isDragging ? 0.75 : 1,
-      }
-    : undefined
-
-  if (disabled) return null
-
-  return (
-    <button
-      ref={setNodeRef}
-      type="button"
-      style={style}
-      className={`touch-none select-none rounded-full border px-4 py-2.5 text-sm font-semibold shadow-lg transition active:cursor-grabbing active:touch-none p1-badge-${tier} ${
-        coachHighlight
-          ? tutorialPulse
-            ? 'animate-pulse ring-4 ring-amber-400 ring-offset-2 shadow-[0_0_0_4px_rgba(251,191,36,0.35)]'
-            : 'ring-4 ring-amber-400 ring-offset-2'
-          : ''
-      } ${burst ? 'p1-burst' : ''} ${reject ? 'p1-reject-bounce' : ''}`}
-      {...listeners}
-      {...attributes}
-    >
-      {label}
-    </button>
-  )
-}
-
-function ExplanationDrop({
-  id,
-  text,
-  matched,
-  tier,
-  coachHighlight,
-  tutorialPulse = false,
-}) {
-  const { setNodeRef, isOver } = useDroppable({ id, disabled: matched })
+function SlotDrop({ slot, matched, tier, coachHighlight, tutorialPulse }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: slot.id,
+    disabled: matched,
+  })
 
   if (matched) {
     return (
@@ -367,7 +415,47 @@ function ExplanationDrop({
             : 'border-slate-300 bg-white/95 text-slate-800 shadow-sm'
       }`}
     >
-      {text}
+      {slot.explanation}
     </div>
+  )
+}
+
+function TopicBadge({
+  id,
+  label,
+  burst,
+  reject,
+  tier,
+  coachHighlight,
+  tutorialPulse = false,
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({ id })
+
+  const style = transform
+    ? {
+        transform: `translate3d(${transform.x}px,${transform.y}px,0)`,
+        opacity: isDragging ? 0.75 : 1,
+      }
+    : undefined
+
+  return (
+    <button
+      id={`p1-topic-${id}`}
+      ref={setNodeRef}
+      type="button"
+      style={style}
+      className={`touch-none select-none rounded-full border px-4 py-2.5 text-sm font-semibold shadow-lg transition active:cursor-grabbing active:touch-none p1-badge-${tier} ${
+        coachHighlight
+          ? tutorialPulse
+            ? 'animate-pulse ring-4 ring-amber-400 ring-offset-2 shadow-[0_0_0_4px_rgba(251,191,36,0.35)]'
+            : 'ring-4 ring-amber-400 ring-offset-2'
+          : ''
+      } ${burst ? 'p1-burst' : ''} ${reject ? 'p1-reject-bounce' : ''}`}
+      {...listeners}
+      {...attributes}
+    >
+      {label}
+    </button>
   )
 }

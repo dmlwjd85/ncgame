@@ -378,6 +378,13 @@ export default function Phase2Mind({
     }),
   )
 
+  /** 플레이어가 낸 카드(1페이즈 완성 카드) 미리보기 */
+  const [playCardPop, setPlayCardPop] = useState(
+    /** @type {{ topic: string, explanation: string, perfect: boolean } | null} */ (
+      null
+    ),
+  )
+
   const endedRef = useRef(false)
   const nextBotIdxRef = useRef(0)
   const overlayPauseRef = useRef(false)
@@ -544,6 +551,17 @@ export default function Phase2Mind({
       if (prepFreezeRef.current) return
       if (endedRef.current) return
       setState((s) => {
+        const expected = globalMinValidCard(s)
+        const perfect =
+          expected != null && String(expected.id) === String(card.id)
+        queueMicrotask(() => {
+          setPlayCardPop({
+            topic: card.topic,
+            explanation: card.explanation ?? '',
+            perfect,
+          })
+          window.setTimeout(() => setPlayCardPop(null), 900)
+        })
         const prevP2 = s.p2Combo ?? 0
         const next = applyPlayerPlayWithRules(s, card)
         if (!next.lifePenaltyModal && !next.penaltyToast) {
@@ -705,6 +723,33 @@ export default function Phase2Mind({
         timerPaused ? 'cheonryan-ring' : ''
       }`}
     >
+      {playCardPop ? (
+        <div
+          className="pointer-events-none fixed bottom-[max(6rem,env(safe-area-inset-bottom))] left-1/2 z-[88] w-[min(92vw,18rem)] -translate-x-1/2"
+          aria-live="polite"
+          role="status"
+        >
+          <div
+            className={`p2-card-play-pop rounded-2xl border-2 px-4 py-3 text-center shadow-2xl ${
+              playCardPop.perfect
+                ? 'border-amber-400 bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50 p2-card-play-pop-perfect'
+                : 'border-slate-300 bg-white/95'
+            }`}
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              {playCardPop.perfect ? '순서 적중!' : '제출'}
+            </p>
+            <p className="mt-1 text-lg font-black text-slate-900">
+              {playCardPop.topic}
+            </p>
+            {playCardPop.explanation ? (
+              <p className="mt-1 line-clamp-3 text-xs leading-snug text-slate-600">
+                {playCardPop.explanation}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       {/* 우측 상단: 타이머·준비/재개 카운트다운 — 전체 화면 딤 없이 판이 보이게 */}
       {!hideTimerHud ? (
         <div
