@@ -9,11 +9,18 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 /**
+ * 콤보 구간별 이펙트 단계 (1…)
+ * @param {number} combo
+ */
+function comboTier(combo) {
+  if (combo >= 15) return 4
+  if (combo >= 10) return 3
+  if (combo >= 5) return 2
+  return 1
+}
+
+/**
  * 주제어 뱃지 → 해설 카드 드롭 매칭 (1페이즈)
- * @param {{ id: string|number, topic: string, explanation: string }[]} rows — 현재 라운드 행(최대 3개)
- * @param {(ok: boolean) => void} onMatchAttempt — 정답/오답(콤보용)
- * @param {(batch: object[]) => void} onBatchComplete — 이번 라운드 전체 정답 시
- * @param {string} packKey
  * 부모에서 key(라운드마다 증가)로 리마운트해 매칭 상태를 초기화합니다.
  */
 export default function Phase1Matching({
@@ -21,8 +28,11 @@ export default function Phase1Matching({
   onMatchAttempt,
   onBatchComplete,
   packKey,
+  combo = 0,
 }) {
   const [matchedIds, setMatchedIds] = useState(() => new Set())
+  const [burstId, setBurstId] = useState(/** @type {string|null} */ (null))
+  const tier = comboTier(combo)
 
   const activeRows = useMemo(
     () => rows.filter((r) => !matchedIds.has(rowKey(packKey, r))),
@@ -56,6 +66,8 @@ export default function Phase1Matching({
       const ok = active.id === over.id
       onMatchAttempt(ok)
       if (ok) {
+        setBurstId(String(active.id))
+        window.setTimeout(() => setBurstId(null), 420)
         setMatchedIds((prev) => {
           const next = new Set(prev).add(String(active.id))
           if (next.size === rows.length) {
@@ -72,27 +84,37 @@ export default function Phase1Matching({
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="flex flex-col gap-6">
-        <p className="text-center text-sm text-slate-400">
+      <div
+        className={`relative flex flex-col gap-6 transition duration-300 p1-tier-${tier}`}
+      >
+        <div
+          className={`pointer-events-none absolute inset-0 rounded-3xl opacity-40 blur-3xl transition bg-gradient-to-br p1-tier-glow-${tier}`}
+          aria-hidden
+        />
+        <p className="relative text-center text-sm text-slate-300">
           주제어를 끌어 같은 뜻의 해설 칸에 놓으세요.
         </p>
-        <div className="flex min-h-[100px] flex-wrap justify-center gap-2">
+        <div className="relative flex min-h-[100px] flex-wrap justify-center gap-2">
           {topicsShuffled.map((row) => (
             <TopicBadge
               key={rowKey(packKey, row)}
               id={String(rowKey(packKey, row))}
               disabled={matchedIds.has(rowKey(packKey, row))}
               label={row.topic}
+              burst={burstId === String(rowKey(packKey, row))}
+              tier={tier}
             />
           ))}
         </div>
-        <div className="flex flex-col gap-3">
+        <div className="relative flex flex-col gap-3">
           {rows.map((row) => (
             <ExplanationDrop
               key={rowKey(packKey, row)}
               id={String(rowKey(packKey, row))}
               matched={matchedIds.has(rowKey(packKey, row))}
               text={row.explanation}
+              topic={row.topic}
+              tier={tier}
             />
           ))}
         </div>
@@ -105,14 +127,14 @@ function rowKey(packKey, row) {
   return `${packKey}-${row.id}`
 }
 
-function TopicBadge({ id, label, disabled }) {
+function TopicBadge({ id, label, disabled, burst, tier }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id, disabled })
 
   const style = transform
     ? {
         transform: `translate3d(${transform.x}px,${transform.y}px,0)`,
-        opacity: isDragging ? 0.7 : 1,
+        opacity: isDragging ? 0.75 : 1,
       }
     : undefined
 
@@ -123,7 +145,9 @@ function TopicBadge({ id, label, disabled }) {
       ref={setNodeRef}
       type="button"
       style={style}
-      className="touch-manipulation rounded-full border border-emerald-500/50 bg-emerald-900/40 px-4 py-2 text-sm font-medium text-emerald-100 shadow-lg active:cursor-grabbing"
+      className={`touch-manipulation rounded-full border px-4 py-2 text-sm font-semibold shadow-lg transition active:cursor-grabbing p1-badge-${tier} ${
+        burst ? 'p1-burst' : ''
+      }`}
       {...listeners}
       {...attributes}
     >
@@ -132,13 +156,19 @@ function TopicBadge({ id, label, disabled }) {
   )
 }
 
-function ExplanationDrop({ id, text, matched }) {
+function ExplanationDrop({ id, text, matched, topic, tier }) {
   const { setNodeRef, isOver } = useDroppable({ id, disabled: matched })
 
   if (matched) {
     return (
-      <div className="rounded-xl border border-emerald-600/40 bg-emerald-950/50 px-3 py-3 text-sm text-emerald-200/80 line-through">
-        {text}
+      <div
+        className={`rounded-2xl border px-4 py-4 text-sm leading-relaxed transition p1-drop-done-${tier}`}
+      >
+        <p className="text-xs font-medium uppercase tracking-wider text-emerald-400/80">
+          합침
+        </p>
+        <p className="mt-1 font-semibold text-emerald-100">{topic}</p>
+        <p className="mt-1 text-emerald-200/70 line-through opacity-70">{text}</p>
       </div>
     )
   }
@@ -146,10 +176,10 @@ function ExplanationDrop({ id, text, matched }) {
   return (
     <div
       ref={setNodeRef}
-      className={`min-h-[4rem] rounded-xl border-2 border-dashed px-3 py-3 text-left text-sm leading-relaxed transition ${
+      className={`min-h-[4.5rem] rounded-2xl border-2 border-dashed px-4 py-4 text-left text-sm leading-relaxed transition ${
         isOver
-          ? 'border-emerald-400 bg-emerald-950/30'
-          : 'border-slate-600 bg-slate-900/80 text-slate-200'
+          ? 'border-cyan-400/80 bg-cyan-950/40 shadow-[0_0_24px_rgba(34,211,238,0.2)]'
+          : 'border-white/15 bg-slate-900/60 text-slate-200'
       }`}
     >
       {text}

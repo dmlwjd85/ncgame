@@ -1,6 +1,5 @@
 @import 'tailwindcss';
 
-/* 모바일 퍼스트 기본 레이아웃 (교육용 보드게임 UI 기반) */
 html,
 body,
 #root {
@@ -10,4 +9,114 @@ body,
 body {
   margin: 0;
   -webkit-tap-highlight-color: transparent;
+  font-family:
+    'Noto Sans KR',
+    'DM Sans',
+    system-ui,
+    sans-serif;
+}
+
+/* 1페이즈 매칭 — 콤보 단계별 색·글로우 */
+.p1-tier-glow-1 {
+  background: linear-gradient(
+    135deg,
+    rgba(16, 185, 129, 0.15),
+    rgba(59, 130, 246, 0.08)
+  );
+}
+
+.p1-tier-glow-2 {
+  background: linear-gradient(
+    135deg,
+    rgba(52, 211, 153, 0.25),
+    rgba(99, 102, 241, 0.15)
+  );
+}
+
+.p1-tier-glow-3 {
+  background: linear-gradient(
+    135deg,
+    rgba(251, 191, 36, 0.2),
+    rgba(168, 85, 247, 0.2)
+  );
+}
+
+.p1-tier-glow-4 {
+  background: linear-gradient(
+    135deg,
+    rgba(251, 113, 133, 0.25),
+    rgba(56, 189, 248, 0.25)
+  );
+}
+
+.p1-badge-1 {
+  border-color: rgba(52, 211, 153, 0.45);
+  background: linear-gradient(145deg, rgba(6, 78, 59, 0.85), rgba(15, 23, 42, 0.9));
+  color: #d1fae5;
+}
+
+.p1-badge-2 {
+  border-color: rgba(34, 211, 238, 0.5);
+  background: linear-gradient(145deg, rgba(8, 47, 73, 0.9), rgba(30, 27, 75, 0.85));
+  color: #ecfeff;
+  box-shadow: 0 0 20px rgba(34, 211, 238, 0.15);
+}
+
+.p1-badge-3 {
+  border-color: rgba(251, 191, 36, 0.55);
+  background: linear-gradient(145deg, rgba(69, 26, 3, 0.9), rgba(88, 28, 135, 0.75));
+  color: #fef3c7;
+  box-shadow: 0 0 24px rgba(251, 191, 36, 0.2);
+}
+
+.p1-badge-4 {
+  border-color: rgba(244, 114, 182, 0.6);
+  background: linear-gradient(145deg, rgba(88, 28, 28, 0.85), rgba(30, 58, 138, 0.85));
+  color: #fce7f3;
+  box-shadow:
+    0 0 28px rgba(244, 114, 182, 0.25),
+    0 0 40px rgba(56, 189, 248, 0.15);
+}
+
+.p1-drop-done-1 {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(6, 78, 59, 0.35);
+}
+
+.p1-drop-done-2 {
+  border-color: rgba(34, 211, 238, 0.4);
+  background: rgba(8, 47, 73, 0.45);
+}
+
+.p1-drop-done-3 {
+  border-color: rgba(251, 191, 36, 0.45);
+  background: rgba(69, 26, 3, 0.4);
+}
+
+.p1-drop-done-4 {
+  border-color: rgba(244, 114, 182, 0.5);
+  background: linear-gradient(
+    135deg,
+    rgba(88, 28, 28, 0.35),
+    rgba(30, 58, 138, 0.35)
+  );
+}
+
+@keyframes p1-burst-key {
+  0% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  40% {
+    transform: scale(1.08);
+    filter: brightness(1.35);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+.p1-burst {
+  animation: p1-burst-key 0.42s ease-out;
 }
