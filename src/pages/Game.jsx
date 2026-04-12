@@ -112,7 +112,7 @@ export default function Game() {
   )
 
   const [segment, setSegment] = useState(
-    /** @type {'p1'|'p2'|'level_clear'|'cleared'|'over'} */ ('p1'),
+    /** @type {'p1'|'p2'|'cleared'|'over'} */ ('p1'),
   )
   const [level, setLevel] = useState(() => resumeSnap?.level ?? 1)
   const [lives, setLives] = useState(() =>
@@ -145,6 +145,8 @@ export default function Game() {
   const [levelClearBanner, setLevelClearBanner] = useState(
     /** @type {string | null} */ (null),
   )
+  /** 레벨 클리어 시 2페이즈 위에 팝업만 띄움(별도 화면 전환 없음) */
+  const [showLevelClearPopup, setShowLevelClearPopup] = useState(false)
 
   const refillQueueFromPool = useCallback(() => {
     const used = usedRowIdsRef.current
@@ -375,9 +377,10 @@ export default function Game() {
         setLevelClearBanner(null)
       }
       if (level >= maxLevel) {
+        setShowLevelClearPopup(false)
         setSegment('cleared')
       } else {
-        setSegment('level_clear')
+        setShowLevelClearPopup(true)
       }
       /* 명예의 전당은 화면 전환을 막지 않고 백그라운드 저장(클리어 화면 3초 타이머가 바로 돌아가게 함) */
       void (async () => {
@@ -396,6 +399,7 @@ export default function Game() {
 
   const continueNextLevel = useCallback(() => {
     setLevelClearBanner(null)
+    setShowLevelClearPopup(false)
     setLevel((l) => l + 1)
     setP1Collected([])
     setRoundVersion((v) => v + 1)
@@ -403,14 +407,14 @@ export default function Game() {
     setSegment('p1')
   }, [])
 
-  /* 2페이즈 레벨 클리어 후 축하·정렬 화면을 고정 시간 보여 준 뒤 자동으로 다음 레벨 */
+  /* 2페이즈 위 클리어 팝업을 고정 시간 보여 준 뒤 자동으로 다음 레벨 */
   useEffect(() => {
-    if (segment !== 'level_clear') return
+    if (!showLevelClearPopup) return
     const id = window.setTimeout(() => {
       continueNextLevel()
     }, LEVEL_CLEAR_DISPLAY_MS)
     return () => window.clearTimeout(id)
-  }, [segment, continueNextLevel])
+  }, [showLevelClearPopup, continueNextLevel])
 
   const saveAndExitToHome = useCallback(() => {
     saveRunSave({
@@ -618,7 +622,7 @@ export default function Game() {
         ) : null}
 
         {segment === 'p2' ? (
-          <>
+          <div className="relative">
             <h1 className="text-lg font-semibold tracking-tight text-slate-900 md:text-xl">
               2페이즈 · 국어→영어→숫자 순 눈치
             </h1>
@@ -646,54 +650,62 @@ export default function Game() {
                 tutorialMode={tutorialMode}
               />
             </div>
-          </>
-        ) : null}
-
-        {segment === 'level_clear' ? (
-          <div className="py-8 text-center md:py-12">
-            <p className="text-lg font-semibold text-sky-700 md:text-xl">
-              레벨 {level} 클리어!
-            </p>
-            <p className="mt-2 text-xs text-slate-600 md:text-sm">
-              이번 라운드에서 제출된 카드 순서입니다.{' '}
-              {LEVEL_CLEAR_DISPLAY_MS / 1000}초 뒤 다음 레벨로 넘어가요.
-            </p>
-            {levelClearBanner ? (
-              <p className="mx-auto mt-3 max-w-md rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950 md:text-sm">
-                {levelClearBanner}
-              </p>
-            ) : null}
-            <div className="mx-auto mt-6 flex max-h-[45dvh] flex-wrap justify-center gap-2 overflow-y-auto rounded-2xl border border-sky-200/80 bg-white/90 px-3 py-4 text-left shadow-inner">
-              {lastRoundTopics.length === 0 ? (
-                <span className="text-slate-500">—</span>
-              ) : (
-                lastRoundTopics.map((t, i) => (
-                  <span
-                    key={`${t}-${i}`}
-                    className="inline-flex items-center gap-1 rounded-lg bg-violet-100 px-2 py-1 text-xs text-violet-900 md:text-sm"
+            {showLevelClearPopup ? (
+              <div
+                className="absolute inset-0 z-[100] flex items-start justify-center overflow-y-auto rounded-2xl bg-black/45 p-3 pt-6 backdrop-blur-[1px] md:items-center md:pt-8"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="level-clear-popup-title"
+              >
+                <div className="w-full max-w-lg rounded-2xl border border-sky-200/90 bg-white/97 px-4 py-5 text-center shadow-2xl md:px-6 md:py-6">
+                  <p
+                    id="level-clear-popup-title"
+                    className="text-lg font-semibold text-sky-700 md:text-xl"
                   >
-                    <span className="font-mono text-violet-600">{i + 1}.</span>
-                    {t}
-                  </span>
-                ))
-              )}
-            </div>
-            <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-              <button
-                type="button"
-                className="w-full max-w-xs rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-600 px-8 py-3 text-sm font-semibold text-white shadow-lg sm:w-auto"
-                onClick={continueNextLevel}
-              >
-                다음 레벨 ({level + 1})
-              </button>
-              <button
-                type="button"
-                className="w-full max-w-xs rounded-2xl border border-slate-300 bg-white px-8 py-3 text-sm font-semibold text-slate-800 shadow-sm sm:w-auto"
-                onClick={saveAndExitToHome}
-              >
-                저장하고 종료하기
-              </button>
-            </div>
+                    레벨 {level} 클리어!
+                  </p>
+                  <p className="mt-2 text-xs text-slate-600 md:text-sm">
+                    {LEVEL_CLEAR_DISPLAY_MS / 1000}초 뒤 다음 레벨로 넘어갑니다.
+                  </p>
+                  {levelClearBanner ? (
+                    <p className="mx-auto mt-3 max-w-md rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950 md:text-sm">
+                      {levelClearBanner}
+                    </p>
+                  ) : null}
+                  <div className="mx-auto mt-4 flex max-h-[36dvh] flex-wrap justify-center gap-2 overflow-y-auto rounded-xl border border-sky-200/80 bg-sky-50/80 px-3 py-3 text-left shadow-inner">
+                    {lastRoundTopics.length === 0 ? (
+                      <span className="text-slate-500">—</span>
+                    ) : (
+                      lastRoundTopics.map((t, i) => (
+                        <span
+                          key={`${t}-${i}`}
+                          className="inline-flex items-center gap-1 rounded-lg bg-violet-100 px-2 py-1 text-xs text-violet-900 md:text-sm"
+                        >
+                          <span className="font-mono text-violet-600">{i + 1}.</span>
+                          {t}
+                        </span>
+                      ))
+                    )}
+                  </div>
+                  <div className="mt-5 flex flex-col items-stretch gap-2 sm:flex-row sm:justify-center sm:gap-3">
+                    <button
+                      type="button"
+                      className="w-full rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg sm:w-auto"
+                      onClick={continueNextLevel}
+                    >
+                      바로 다음 레벨 ({level + 1})
+                    </button>
+                    <button
+                      type="button"
+                      className="w-full rounded-2xl border border-slate-300 bg-white px-6 py-2.5 text-sm font-semibold text-slate-800 shadow-sm sm:w-auto"
+                      onClick={saveAndExitToHome}
+                    >
+                      저장하고 종료하기
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
