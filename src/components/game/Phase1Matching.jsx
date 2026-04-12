@@ -130,10 +130,10 @@ export default function Phase1Matching({
           className={`pointer-events-none absolute inset-0 rounded-3xl opacity-40 blur-3xl transition bg-gradient-to-br p1-tier-glow-${tier}`}
           aria-hidden
         />
-        <p className="relative text-center text-sm leading-relaxed text-slate-300">
+        <p className="relative text-center text-sm leading-relaxed text-slate-700">
           위에는 뜻이 있어요.{' '}
-          <span className="text-slate-200">아래 단어</span>를 잠깐 누른 뒤, 맞는
-          뜻 칸으로 <span className="text-cyan-200/90">위로 끌어 올려</span>{' '}
+          <span className="font-medium text-slate-900">아래 단어</span>를 잠깐 누른 뒤, 맞는
+          뜻 칸으로 <span className="font-semibold text-sky-600">위로 끌어 올려</span>{' '}
           놓으세요.
         </p>
         <div className="relative flex flex-col gap-3">
@@ -162,8 +162,8 @@ export default function Phase1Matching({
           ))}
         </div>
 
-        <div className="relative rounded-2xl border border-emerald-500/25 bg-slate-950/70 px-3 py-3 shadow-inner md:px-4 md:py-4">
-          <p className="text-center text-[11px] font-medium text-emerald-300/90 md:text-xs">
+        <div className="relative rounded-2xl border border-emerald-200 bg-white/95 px-3 py-3 shadow-md md:px-4 md:py-4">
+          <p className="text-center text-[11px] font-medium text-emerald-700 md:text-xs">
             내 카드 대기 — 맞춘 카드가 여기로 합쳐져요
           </p>
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -175,12 +175,12 @@ export default function Phase1Matching({
               stagedCards.map((c) => (
                 <div
                   key={c.key}
-                  className="p1-staged-card rounded-xl border border-emerald-500/35 bg-gradient-to-br from-emerald-950/90 to-slate-900/95 px-3 py-2.5 shadow-md"
+                  className="p1-staged-card rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white px-3 py-2.5 shadow-sm"
                 >
-                  <p className="text-sm font-bold text-white md:text-base">
+                  <p className="text-sm font-bold text-slate-900 md:text-base">
                     {c.topic}
                   </p>
-                  <p className="mt-1 text-xs leading-relaxed text-slate-200 md:text-sm">
+                  <p className="mt-1 text-xs leading-relaxed text-slate-700 md:text-sm">
                     {c.explanation}
                   </p>
                 </div>
@@ -234,10 +234,10 @@ function ExplanationDrop({ id, text, matched, tier }) {
       <div
         className={`flex min-h-[3rem] items-center gap-2 rounded-xl border px-3 py-2 transition p1-drop-done-${tier}`}
       >
-        <span className="text-lg text-emerald-400" aria-hidden>
+        <span className="text-lg text-emerald-600" aria-hidden>
           ✓
         </span>
-        <p className="text-xs text-emerald-200/90 md:text-sm">
+        <p className="text-xs text-emerald-800 md:text-sm">
           맞춤 — 카드는 아래 대기 칸으로 내려갔어요
         </p>
       </div>
@@ -249,8 +249,8 @@ function ExplanationDrop({ id, text, matched, tier }) {
       ref={setNodeRef}
       className={`min-h-[4.5rem] rounded-2xl border-2 border-dashed px-4 py-4 text-left text-sm leading-relaxed transition ${
         isOver
-          ? 'border-cyan-400/80 bg-cyan-950/40 text-slate-100 shadow-[0_0_24px_rgba(34,211,238,0.2)]'
-          : 'border-white/20 bg-slate-800/90 text-slate-100'
+          ? 'border-sky-400 bg-sky-50 text-slate-900 shadow-[0_0_20px_rgba(14,165,233,0.25)]'
+          : 'border-slate-300 bg-white/95 text-slate-800 shadow-sm'
       }`}
     >
       {text}

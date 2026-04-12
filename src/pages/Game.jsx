@@ -13,6 +13,7 @@ import {
 } from '../utils/gameRules'
 import { formatHoFDisplayName } from '../utils/displayName'
 import { saveHallOfFameIfBetter } from '../utils/hallOfFame'
+import { sfxCombo } from '../utils/gameSfx'
 import {
   clearStagedResume,
   peekResumeFromSession,
@@ -90,8 +91,11 @@ export default function Game() {
   const [lastRoundTopics, setLastRoundTopics] = useState(/** @type {string[]} */ ([]))
   const [p2GameOver, setP2GameOver] = useState(/** @type {unknown} */ (null))
   const [deckNotice, setDeckNotice] = useState(/** @type {string | null} */ (null))
+  /** 콤보 타격 이펙트용 키(값이 바뀔 때마다 애니메이션 재생) */
+  const [comboFxKey, setComboFxKey] = useState(0)
   /** 1페이즈에서 이미 꺼낸 카드 id — 부족 시 제외 덱, 전부 소진 시 초기화 */
   const usedRowIdsRef = useRef(/** @type {Set<string>} */ (new Set()))
+  const prevComboRef = useRef(p1Combo)
 
   const packKey = pack?.id ?? ''
 
@@ -130,6 +134,20 @@ export default function Game() {
     setQueue(shuffleRows(validRows))
     setQueueReady(true)
   }, [pack, queueReady, validRows, packId, resumeSnap])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  /* eslint-disable react-hooks/set-state-in-effect -- 1페이즈 콤보 증가 시 타격감 연출 */
+  useEffect(() => {
+    if (segment !== 'p1') {
+      prevComboRef.current = p1Combo
+      return
+    }
+    if (p1Combo > prevComboRef.current && p1Combo >= 1) {
+      setComboFxKey((k) => k + 1)
+      sfxCombo(p1Combo)
+    }
+    prevComboRef.current = p1Combo
+  }, [p1Combo, segment])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const cardsNeededThisLevel = level
@@ -268,9 +286,9 @@ export default function Game() {
 
   if (!pack) {
     return (
-      <div className="game-shell flex min-h-dvh items-center justify-center px-4 text-slate-300">
+      <div className="game-shell flex min-h-dvh items-center justify-center px-4 text-slate-700">
         <p>카드팩을 찾을 수 없습니다.</p>
-        <Link className="mt-4 block text-cyan-400 underline" to="/">
+        <Link className="mt-4 block text-sky-700 underline" to="/">
           홈으로
         </Link>
       </div>
@@ -279,9 +297,9 @@ export default function Game() {
 
   if (maxLevel < 1) {
     return (
-      <div className="game-shell flex min-h-dvh items-center justify-center px-4 text-amber-200">
+      <div className="game-shell flex min-h-dvh items-center justify-center px-4 text-amber-900">
         <p>이 팩은 유효한 행이 없어 게임을 시작할 수 없습니다.</p>
-        <Link className="mt-4 block text-cyan-400 underline" to="/">
+        <Link className="mt-4 block text-sky-700 underline" to="/">
           홈으로
         </Link>
       </div>
@@ -289,56 +307,65 @@ export default function Game() {
   }
 
   return (
-    <div className="game-shell min-h-dvh px-[max(1rem,env(safe-area-inset-left))] pb-[max(1rem,env(safe-area-inset-bottom))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(0.75rem,env(safe-area-inset-top))] text-slate-100">
+    <div className="game-shell min-h-dvh px-[max(1rem,env(safe-area-inset-left))] pb-[max(1rem,env(safe-area-inset-bottom))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(0.75rem,env(safe-area-inset-top))] text-slate-800">
+      {segment === 'p1' && comboFxKey > 0 ? (
+        <div key={comboFxKey} className="combo-hit-overlay" aria-hidden>
+          <div className="combo-hit-burst">
+            <span className="combo-hit-num">{p1Combo}</span>
+            <span className="combo-hit-label">콤보</span>
+          </div>
+        </div>
+      ) : null}
+
       <div className="mx-auto w-full max-w-lg game-max-w-tablet landscape:max-w-4xl">
         <header className="mb-4 flex items-center justify-between gap-2 md:mb-6">
           <Link
             to="/"
-            className="text-xs font-medium text-cyan-400/90 underline decoration-cyan-500/40 underline-offset-4 md:text-sm"
+            className="text-xs font-medium text-sky-700 underline decoration-sky-400/70 underline-offset-4 md:text-sm"
           >
             ← 홈
           </Link>
-          <div className="text-right text-[10px] text-slate-400 md:text-xs">
-            <p className="font-medium text-slate-200">{pack.sheetName}</p>
+          <div className="text-right text-[10px] text-slate-600 md:text-xs">
+            <p className="font-medium text-slate-800">{pack.sheetName}</p>
             <p>
               {Math.min(level, maxLevel)}단계 · {phase2SecondsForLevel(level)}초
             </p>
           </div>
         </header>
 
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5 backdrop-blur-md md:px-4 md:py-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-200/80 bg-white/85 px-3 py-2.5 shadow-md shadow-amber-900/5 md:px-4 md:py-3">
           <div className="text-xs md:text-sm">
-            <span className="text-slate-500">라이프 </span>
-            <span className="text-rose-300">
+            <span className="text-slate-600">라이프 </span>
+            <span className="text-rose-500">
               {'♥'.repeat(Math.min(MAX_LIVES, lives))}
             </span>
-            <span className="text-slate-600">
+            <span className="text-rose-200">
               {'♡'.repeat(Math.max(0, MAX_LIVES - Math.min(MAX_LIVES, lives)))}
             </span>
           </div>
           <div className="text-xs md:text-sm">
-            <span className="text-slate-500">천리안 </span>
-            <span className="font-semibold text-amber-200">{cheonryan}</span>
+            <span className="text-slate-600">천리안 </span>
+            <span className="font-semibold text-amber-600">{cheonryan}</span>
           </div>
           <div className="text-xs md:text-sm">
-            <span className="text-slate-500">콤보 </span>
-            <span className="font-semibold text-emerald-300">{p1Combo}</span>
+            <span className="text-slate-600">콤보 </span>
+            <span className="font-semibold text-emerald-600">{p1Combo}</span>
           </div>
         </div>
 
         {segment === 'p1' ? (
           <>
-            <h1 className="text-lg font-semibold tracking-tight text-white md:text-xl">
+            <h1 className="text-lg font-semibold tracking-tight text-slate-900 md:text-xl">
               1페이즈 · 아래 낱말 → 위 해설
             </h1>
-            <p className="mt-1 text-xs text-slate-400 md:text-sm">
+            <p className="mt-1 text-xs text-slate-600 md:text-sm">
               이번 레벨 {cardsNeededThisLevel}장 ({p1Collected.length}/
               {cardsNeededThisLevel}) · 대기 {queue.length}장
             </p>
             {deckNotice ? (
               <p
                 role="status"
-                className="mt-3 rounded-xl border border-amber-500/35 bg-amber-950/40 px-3 py-2 text-center text-xs text-amber-100 md:text-sm"
+                className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-center text-xs text-amber-900 md:text-sm"
               >
                 {deckNotice}
               </p>
@@ -369,10 +396,10 @@ export default function Game() {
 
         {segment === 'p2' ? (
           <>
-            <h1 className="text-lg font-semibold tracking-tight text-white md:text-xl">
+            <h1 className="text-lg font-semibold tracking-tight text-slate-900 md:text-xl">
               2페이즈 · 국어→영어→숫자 순 눈치
             </h1>
-            <p className="mt-1 text-xs text-slate-400 md:text-sm">
+            <p className="mt-1 text-xs text-slate-600 md:text-sm">
               가상 플레이어 {botCount}명 · {phase2SecondsForLevel(level)}초
             </p>
             <div className="mt-4 md:mt-6">
@@ -394,22 +421,22 @@ export default function Game() {
 
         {segment === 'level_clear' ? (
           <div className="py-8 text-center md:py-12">
-            <p className="text-lg font-semibold text-cyan-200 md:text-xl">
+            <p className="text-lg font-semibold text-sky-700 md:text-xl">
               레벨 {level} 클리어!
             </p>
-            <p className="mt-2 text-xs text-slate-500 md:text-sm">
+            <p className="mt-2 text-xs text-slate-600 md:text-sm">
               이번 라운드에서 제출된 카드 순서입니다.
             </p>
-            <div className="mx-auto mt-6 flex max-h-[45dvh] flex-wrap justify-center gap-2 overflow-y-auto rounded-2xl border border-white/10 bg-black/30 px-3 py-4 text-left">
+            <div className="mx-auto mt-6 flex max-h-[45dvh] flex-wrap justify-center gap-2 overflow-y-auto rounded-2xl border border-sky-200/80 bg-white/90 px-3 py-4 text-left shadow-inner">
               {lastRoundTopics.length === 0 ? (
                 <span className="text-slate-500">—</span>
               ) : (
                 lastRoundTopics.map((t, i) => (
                   <span
                     key={`${t}-${i}`}
-                    className="inline-flex items-center gap-1 rounded-lg bg-violet-500/15 px-2 py-1 text-xs text-violet-100 md:text-sm"
+                    className="inline-flex items-center gap-1 rounded-lg bg-violet-100 px-2 py-1 text-xs text-violet-900 md:text-sm"
                   >
-                    <span className="font-mono text-violet-400/80">{i + 1}.</span>
+                    <span className="font-mono text-violet-600">{i + 1}.</span>
                     {t}
                   </span>
                 ))
@@ -425,7 +452,7 @@ export default function Game() {
               </button>
               <button
                 type="button"
-                className="w-full max-w-xs rounded-2xl border border-white/25 bg-white/10 px-8 py-3 text-sm font-semibold text-slate-100 backdrop-blur sm:w-auto"
+                className="w-full max-w-xs rounded-2xl border border-slate-300 bg-white px-8 py-3 text-sm font-semibold text-slate-800 shadow-sm sm:w-auto"
                 onClick={saveAndExitToHome}
               >
                 저장하고 종료하기
@@ -436,15 +463,15 @@ export default function Game() {
 
         {segment === 'cleared' ? (
           <div className="py-12 text-center md:py-16">
-            <p className="bg-gradient-to-r from-cyan-200 to-violet-300 bg-clip-text text-2xl font-bold text-transparent md:text-3xl">
+            <p className="bg-gradient-to-r from-sky-600 to-violet-600 bg-clip-text text-2xl font-bold text-transparent md:text-3xl">
               전체 클리어!
             </p>
-            <p className="mt-3 text-sm text-slate-400">
+            <p className="mt-3 text-sm text-slate-600">
               레벨 {maxLevel}까지 완주했습니다.
             </p>
             <button
               type="button"
-              className="mt-8 rounded-2xl border border-white/20 bg-white/5 px-6 py-3 text-slate-200 backdrop-blur"
+              className="mt-8 rounded-2xl border border-slate-300 bg-white px-6 py-3 text-slate-800 shadow-md"
               onClick={() => navigate('/', { replace: true })}
             >
               처음으로
@@ -454,8 +481,8 @@ export default function Game() {
 
         {segment === 'over' ? (
           <div className="py-8 text-center md:py-12">
-            <p className="text-xl font-semibold text-rose-200 md:text-2xl">게임 오버</p>
-            <p className="mt-2 text-sm text-slate-400">
+            <p className="text-xl font-semibold text-rose-600 md:text-2xl">게임 오버</p>
+            <p className="mt-2 text-sm text-slate-600">
               레벨 {level}
               {p2GameOver?.reason === 'time'
                 ? ' — 시간이 부족했습니다.'
@@ -469,20 +496,20 @@ export default function Game() {
             {p2GameOver?.snapshot ? (
               <div className="mx-auto mt-6 max-w-lg space-y-6 text-left">
                 {p2GameOver?.lastPenalty ? (
-                  <section className="rounded-2xl border border-rose-500/30 bg-rose-950/25 px-3 py-3 text-left text-sm text-rose-50">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-wide text-rose-200/90">
+                  <section className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-left text-sm text-rose-950">
+                    <h3 className="text-[11px] font-semibold uppercase tracking-wide text-rose-700">
                       마지막 생명 변동
                     </h3>
-                    <p className="mt-2 text-slate-200">
+                    <p className="mt-2 text-slate-800">
                       나와야 했던 카드: 「
                       {p2GameOver.lastPenalty.expectedTopic || '—'}」
                     </p>
-                    <p className="mt-1 text-slate-200">
+                    <p className="mt-1 text-slate-800">
                       잘못 낸 카드: 「{p2GameOver.lastPenalty.wrongTopic}」(
                       {p2GameOver.lastPenalty.wrongFromLabel})
                     </p>
                     {p2GameOver.lastPenalty.forcedCards?.length > 0 ? (
-                      <p className="mt-2 text-slate-300">
+                      <p className="mt-2 text-slate-700">
                         먼저 깔린 카드 {p2GameOver.lastPenalty.forcedCards.length}장
                         {p2GameOver.lastPenalty.forcedCards.map((row, i) => (
                           <span key={`${row.topic}-${i}`}>
@@ -499,7 +526,7 @@ export default function Game() {
                   <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     필드에 깔린 순서
                   </h3>
-                  <div className="mt-2 max-h-[38dvh] overflow-y-auto rounded-2xl border border-white/10 bg-black/30 px-3 py-3 text-sm text-slate-100">
+                  <div className="mt-2 max-h-[38dvh] overflow-y-auto rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 shadow-inner">
                     {p2GameOver.snapshot.center.length === 0 ? (
                       <span className="text-slate-500">—</span>
                     ) : (
@@ -509,7 +536,7 @@ export default function Game() {
                             key={`${c.topic}-${i}-${c.from}-${i}`}
                             className="break-words pl-1"
                           >
-                            <span className="font-medium text-violet-200">
+                            <span className="font-medium text-violet-800">
                               「{c.topic}」
                             </span>
                             <span className="text-slate-500">
@@ -527,7 +554,7 @@ export default function Game() {
                   <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     손에 남은 카드 (국어→영어→숫자 순)
                   </h3>
-                  <div className="mt-2 space-y-4 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-4">
+                  <div className="mt-2 space-y-4 rounded-2xl border border-amber-200/80 bg-white/90 px-3 py-4 shadow-sm">
                     {(
                       [
                         { label: '나', hand: p2GameOver.snapshot.playerHand },
@@ -575,7 +602,7 @@ export default function Game() {
 
             <button
               type="button"
-              className="mt-8 rounded-2xl border border-white/20 bg-white/5 px-6 py-3 text-slate-200 backdrop-blur"
+              className="mt-8 rounded-2xl border border-slate-300 bg-white px-6 py-3 text-slate-800 shadow-md"
               onClick={() => navigate('/', { replace: true })}
             >
               처음으로

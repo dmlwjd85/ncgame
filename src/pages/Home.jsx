@@ -84,9 +84,9 @@ export default function Home() {
   }
 
   return (
-    <div className="game-shell relative min-h-dvh overflow-hidden text-slate-100">
+    <div className="game-shell relative min-h-dvh overflow-hidden text-slate-800">
       <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_100%_60%_at_50%_-10%,rgba(56,189,248,0.1),transparent)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_100%_55%_at_50%_-8%,rgba(253,224,71,0.35),transparent)]"
         aria-hidden
       />
 
@@ -94,7 +94,7 @@ export default function Home() {
         {/* 상단: 로그인 · 회원가입 (게스트) / 간단 프로필 */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-xl font-bold text-white md:text-2xl">
+            <h1 className="truncate text-xl font-bold text-slate-900 md:text-2xl">
               가나다 눈치게임
             </h1>
           </div>
@@ -102,12 +102,12 @@ export default function Home() {
             <span className="text-xs text-slate-500">…</span>
           ) : user ? (
             <div className="flex items-center gap-2">
-              <span className="max-w-[140px] truncate text-sm text-slate-300">
+              <span className="max-w-[140px] truncate text-sm text-slate-700">
                 {formatHoFDisplayName(user.displayName)}
               </span>
               <button
                 type="button"
-                className="rounded-xl border border-white/15 px-3 py-1.5 text-xs text-slate-300"
+                className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700"
                 onClick={() => void signOut()}
               >
                 나가기
@@ -122,7 +122,7 @@ export default function Home() {
                 로그인
               </Link>
               <Link
-                className="rounded-xl border border-white/20 px-4 py-2 text-sm font-medium text-slate-100"
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800"
                 to="/register"
               >
                 회원가입
@@ -132,8 +132,8 @@ export default function Home() {
         </div>
 
         {user ? (
-          <div className="mx-auto mt-4 w-full rounded-2xl border border-white/10 bg-slate-900/45 px-3 py-3 backdrop-blur-sm">
-            <p className="text-[11px] text-slate-500">
+          <div className="mx-auto mt-4 w-full rounded-2xl border border-amber-200/90 bg-white/95 px-3 py-3 shadow-md">
+            <p className="text-[11px] text-slate-600">
               명예의 전당 표시 이름 (최대 {DISPLAY_NAME_MAX_LEN}글자)
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -144,7 +144,7 @@ export default function Home() {
                 onChange={(e) =>
                   setNameEdit(formatHoFDisplayName(e.target.value))
                 }
-                className="min-w-[8rem] flex-1 rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-500/50"
+                className="min-w-[8rem] flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-500"
                 autoComplete="nickname"
               />
               <button
@@ -173,13 +173,13 @@ export default function Home() {
           </div>
         ) : null}
 
-        <div className="mx-auto mt-6 flex w-full rounded-2xl border border-white/10 bg-white/5 p-1 backdrop-blur-md">
+        <div className="mx-auto mt-6 flex w-full rounded-2xl border border-slate-200 bg-white/90 p-1 shadow-md">
           <button
             type="button"
             className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition ${
               tab === 'play'
-                ? 'bg-gradient-to-r from-cyan-600/90 to-violet-600/90 text-white shadow-lg'
-                : 'text-slate-400'
+                ? 'bg-gradient-to-r from-sky-500 to-violet-500 text-white shadow-md'
+                : 'text-slate-500'
             }`}
             onClick={() => setTab('play')}
           >
@@ -189,8 +189,8 @@ export default function Home() {
             type="button"
             className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition ${
               tab === 'hof'
-                ? 'bg-gradient-to-r from-amber-600/90 to-rose-600/80 text-white shadow-lg'
-                : 'text-slate-400'
+                ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-md'
+                : 'text-slate-500'
             }`}
             onClick={() => setTab('hof')}
           >
@@ -200,11 +200,11 @@ export default function Home() {
 
         {tab === 'play' ? (
           <>
-            <section className="mx-auto mt-5 w-full rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-4 backdrop-blur-md">
+            <section className="mx-auto mt-5 w-full rounded-2xl border border-slate-200 bg-white/95 px-4 py-4 shadow-md">
               <div className="mb-3 flex items-center justify-end">
                 <button
                   type="button"
-                  className="text-xs text-cyan-400/90 underline underline-offset-2"
+                  className="text-xs text-sky-700 underline underline-offset-2"
                   onClick={() => void reloadPacks()}
                 >
                   새로고침
@@ -224,7 +224,7 @@ export default function Home() {
                     const broken = p.missingColumns.length > 0
                     return (
                       <li key={p.id}>
-                        <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 px-3 py-3 transition has-[:checked]:border-cyan-500/50 has-[:checked]:bg-cyan-950/25">
+                        <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 transition has-[:checked]:border-sky-400 has-[:checked]:bg-sky-50">
                           <input
                             type="radio"
                             name="pack"
@@ -233,7 +233,7 @@ export default function Home() {
                             onChange={() => setSelectedPackId(p.id)}
                           />
                           <div className="min-w-0 flex-1">
-                            <p className="font-medium text-slate-100">{p.sheetName}</p>
+                            <p className="font-medium text-slate-900">{p.sheetName}</p>
                             <p className="text-xs text-slate-500">
                               최대 {ml}단계 · 카드 {v}장
                               {broken ? ' · 설정 필요' : ''}
@@ -251,24 +251,24 @@ export default function Home() {
               selectedPack &&
               maxLv >= 1 &&
               selectedPack.missingColumns.length === 0 ? (
-                <section className="mx-auto mt-4 w-full space-y-3 rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-950/35 to-violet-950/25 px-4 py-5 backdrop-blur-md">
+                <section className="mx-auto mt-4 w-full space-y-3 rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-violet-50 px-4 py-5 shadow-md">
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      className="rounded-xl border border-white/15 bg-white/5 py-3 text-sm font-medium text-slate-100"
+                      className="rounded-xl border border-slate-300 bg-white py-3 text-sm font-medium text-slate-800 shadow-sm"
                       onClick={() => setRulesOpen(true)}
                     >
                       게임 설명서 보기
                     </button>
                     <button
                       type="button"
-                      className="rounded-xl border border-white/15 bg-white/5 py-3 text-sm font-medium text-slate-100"
+                      className="rounded-xl border border-slate-300 bg-white py-3 text-sm font-medium text-slate-800 shadow-sm"
                       onClick={() => setJokboOpen(true)}
                     >
                       족보 보기
                     </button>
                   </div>
-                  <div className="flex items-center justify-center gap-4 text-sm text-slate-300">
+                  <div className="flex items-center justify-center gap-4 text-sm text-slate-700">
                     <label className="flex items-center gap-2">
                       <input
                         type="radio"
@@ -302,7 +302,7 @@ export default function Home() {
                         type="button"
                         disabled={!canStart}
                         onClick={goGame}
-                        className="w-full rounded-2xl border border-white/20 bg-white/5 py-3 text-base font-semibold text-slate-100 disabled:opacity-40"
+                        className="w-full rounded-2xl border border-slate-300 bg-white py-3 text-base font-semibold text-slate-800 shadow-sm disabled:opacity-40"
                       >
                         새로 시작
                       </button>
@@ -335,8 +335,8 @@ export default function Home() {
             ) : null}
           </>
         ) : (
-          <section className="mx-auto mt-6 w-full rounded-2xl border border-amber-500/20 bg-slate-900/50 px-4 py-5 backdrop-blur-md">
-            <h2 className="text-sm font-semibold text-amber-100">명예의 전당</h2>
+          <section className="mx-auto mt-6 w-full rounded-2xl border border-amber-200 bg-white/95 px-4 py-5 shadow-md">
+            <h2 className="text-sm font-semibold text-amber-900">명예의 전당</h2>
             <div className="mt-4">
               {packsLoading ? (
                 <p className="text-sm text-slate-500">불러오는 중…</p>
@@ -351,7 +351,7 @@ export default function Home() {
           <nav className="mx-auto mt-auto w-full pt-8">
             <Link
               to="/admin"
-              className="block rounded-2xl border border-amber-500/25 bg-amber-950/20 py-3 text-center text-sm text-amber-100"
+              className="block rounded-2xl border border-amber-300 bg-amber-50 py-3 text-center text-sm text-amber-900"
             >
               관리자
             </Link>

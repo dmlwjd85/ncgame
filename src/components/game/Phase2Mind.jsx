@@ -419,7 +419,7 @@ export default function Phase2Mind({
       {state.penaltyToast ? (
         <div
           role="alert"
-          className="rounded-2xl border border-rose-500/40 bg-rose-950/80 px-4 py-3 text-sm leading-relaxed text-rose-100 shadow-lg shadow-rose-900/30"
+          className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-relaxed text-rose-900 shadow-md"
         >
           {state.penaltyToast}
         </div>
@@ -432,27 +432,27 @@ export default function Phase2Mind({
           aria-modal="true"
           aria-labelledby="life-penalty-title"
         >
-          <div className="max-h-[min(78dvh,32rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-rose-500/35 bg-slate-950/95 p-5 shadow-2xl">
+          <div className="max-h-[min(78dvh,32rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-rose-200 bg-white p-5 shadow-2xl">
             <h2
               id="life-penalty-title"
-              className="text-base font-bold text-rose-100"
+              className="text-base font-bold text-rose-800"
             >
               {state.lifePenaltyModal.livesLost > 0
                 ? `생명 ${state.lifePenaltyModal.livesLost}칸이 깎였어요`
                 : '순서가 맞지 않았어요'}
             </h2>
-            <div className="mt-4 space-y-3 text-sm leading-relaxed text-slate-200">
+            <div className="mt-4 space-y-3 text-sm leading-relaxed text-slate-800">
               <p>
-                <span className="text-slate-400">이번에 나와야 했던 카드(전체 중 가장 앞 순서)</span>
+                <span className="text-slate-500">이번에 나와야 했던 카드(전체 중 가장 앞 순서)</span>
                 <br />
-                <span className="font-semibold text-cyan-200">
+                <span className="font-semibold text-sky-700">
                   「{state.lifePenaltyModal.expectedTopic || '—'}」
                 </span>
               </p>
               <p>
-                <span className="text-slate-400">잘못 낸 카드</span>
+                <span className="text-slate-500">잘못 낸 카드</span>
                 <br />
-                <span className="font-semibold text-amber-100">
+                <span className="font-semibold text-amber-800">
                   「{state.lifePenaltyModal.wrongTopic}」
                 </span>
                 <span className="text-slate-500">
@@ -462,10 +462,10 @@ export default function Phase2Mind({
               </p>
               {state.lifePenaltyModal.forcedCards.length > 0 ? (
                 <div>
-                  <p className="text-slate-400">
+                  <p className="text-slate-600">
                     그보다 앞 순서라서 먼저 깔린 카드(모든 손에서)
                   </p>
-                  <ul className="mt-2 list-inside list-disc space-y-1 text-slate-100">
+                  <ul className="mt-2 list-inside list-disc space-y-1 text-slate-800">
                     {state.lifePenaltyModal.forcedCards.map((row, i) => (
                       <li key={`${row.topic}-${i}-${row.from}`}>
                         「{row.topic}」 ({row.fromLabel})
@@ -490,11 +490,11 @@ export default function Phase2Mind({
         </div>
       ) : null}
 
-      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900/90 to-violet-950/40 px-3 py-3 shadow-lg shadow-violet-900/20 md:px-4">
+      <div className="relative overflow-hidden rounded-2xl border border-amber-200/90 bg-gradient-to-br from-white via-amber-50/80 to-sky-50/90 px-3 py-3 shadow-md md:px-4">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs md:text-sm">
           <div className="flex items-center gap-2 md:gap-3">
-            <span className="text-slate-400">라이프</span>
-            <span className="text-base tracking-widest text-rose-300 md:text-lg">
+            <span className="text-slate-600">라이프</span>
+            <span className="text-base tracking-widest text-rose-500 md:text-lg">
               {(() => {
                 const d = Math.min(DISPLAY_HEARTS, Math.max(0, state.lives))
                 return (
@@ -507,12 +507,12 @@ export default function Phase2Mind({
             </span>
           </div>
           <div>
-            <span className="text-slate-400">천리안 </span>
-            <span className="font-semibold text-amber-200">{state.cheonryan}</span>
+            <span className="text-slate-600">천리안 </span>
+            <span className="font-semibold text-amber-600">{state.cheonryan}</span>
           </div>
-          <div className="font-mono text-cyan-300 tabular-nums">
+          <div className="font-mono text-sky-700 tabular-nums">
             {timerPaused ? (
-              <span className="text-amber-200">일시정지 {secLeft.toFixed(1)}초</span>
+              <span className="text-amber-700">일시정지 {secLeft.toFixed(1)}초</span>
             ) : (
               <>{secLeft.toFixed(1)}초</>
             )}
@@ -525,12 +525,12 @@ export default function Phase2Mind({
           }}
         />
         {state.lastTopic ? (
-          <p className="mt-2 text-center text-[11px] text-slate-400 md:text-xs">
+          <p className="mt-2 text-center text-[11px] text-slate-600 md:text-xs">
             필드 끝 주제어{' '}
-            <span className="text-slate-100">{state.lastTopic}</span>
+            <span className="font-medium text-slate-900">{state.lastTopic}</span>
           </p>
         ) : (
-          <p className="mt-2 text-center text-[11px] text-slate-500 md:text-xs">
+          <p className="mt-2 text-center text-[11px] text-slate-600 md:text-xs">
             첫 카드는 아무거나 낼 수 있어요. 이후는 국어→영어→숫자 순으로 앞보다
             뒤만 낼 수 있어요.
           </p>
@@ -562,24 +562,24 @@ export default function Phase2Mind({
 
       <div
         key={state.shakeKey}
-        className={`min-h-[72px] rounded-2xl border border-violet-400/25 bg-gradient-to-b from-violet-950/50 to-slate-950/80 px-2 py-3 text-center shadow-inner md:min-h-[88px] md:px-3 md:py-4 ${state.shakeKey ? 'p2-shake-anim' : ''} ${state.mergeFlash ? 'p2-merge-glow' : ''}`}
+        className={`min-h-[72px] rounded-2xl border border-violet-200 bg-gradient-to-b from-violet-50 to-white px-2 py-3 text-center shadow-inner md:min-h-[88px] md:px-3 md:py-4 ${state.shakeKey ? 'p2-shake-anim' : ''} ${state.mergeFlash ? 'p2-merge-glow' : ''}`}
       >
-        <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-violet-300/80 md:text-[11px]">
+        <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-violet-700 md:text-[11px]">
           필드 · 국어→영어→숫자 순
         </p>
-        <p className="mt-2 text-xs leading-relaxed text-slate-100 md:text-sm">
+        <p className="mt-2 text-xs leading-relaxed text-slate-800 md:text-sm">
           {state.center.length === 0
             ? '—'
             : state.center.map((c, i) => (
                 <span key={`${c.topic}-${i}-${c.forced ? 'f' : 'n'}-${c.wrongTap ? 'w' : ''}`}>
-                  {i > 0 ? <span className="text-slate-600"> → </span> : null}
+                  {i > 0 ? <span className="text-slate-400"> → </span> : null}
                   <span
                     className={`rounded-md px-1.5 py-0.5 transition ${
                       c.wrongTap
-                        ? 'bg-rose-600/35 text-rose-50 ring-2 ring-amber-300/70'
+                        ? 'bg-rose-200 text-rose-900 ring-2 ring-amber-400'
                         : c.forced
-                          ? 'bg-amber-500/25 text-amber-100 line-through decoration-amber-200/50'
-                          : 'bg-violet-500/15 text-violet-100'
+                          ? 'bg-amber-100 text-amber-900 line-through decoration-amber-600/60'
+                          : 'bg-violet-100 text-violet-900'
                     }`}
                   >
                     {c.topic}
@@ -590,11 +590,11 @@ export default function Phase2Mind({
       </div>
 
       <div>
-        <p className="mb-2 text-center text-[11px] text-slate-400 md:text-xs">
+        <p className="mb-2 text-center text-[11px] text-slate-600 md:text-xs">
           내 카드 — 탭하면 바로 제출 · 이번에 낼 수 있는 가장 앞 순서(전체)와 같아야
           해요
         </p>
-        <div className="max-h-[min(52dvh,28rem)] w-full overflow-y-auto rounded-2xl border border-slate-500/40 bg-slate-950/30 p-2 sm:p-3">
+        <div className="max-h-[min(52dvh,28rem)] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-inner sm:p-3">
           <div className="grid w-full grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">
             {state.playerHand.map((c) => (
               <button
@@ -622,7 +622,7 @@ export default function Phase2Mind({
           type="button"
           disabled={state.cheonryan <= 0 || state.hintMode}
           onClick={startCheonryan}
-          className="rounded-xl border border-amber-400/40 bg-amber-950/40 px-3 py-2 text-xs font-medium text-amber-100 shadow-md disabled:opacity-40 md:px-4 md:text-sm"
+          className="rounded-xl border border-amber-300 bg-amber-100 px-3 py-2 text-xs font-medium text-amber-900 shadow-md disabled:opacity-40 md:px-4 md:text-sm"
         >
           천리안 {state.hintMode ? '· 카드 탭' : `×${state.cheonryan}`}
         </button>
@@ -630,12 +630,12 @@ export default function Phase2Mind({
           <button
             type="button"
             onClick={endHintMode}
-            className="text-[11px] text-slate-400 underline md:text-xs"
+            className="text-[11px] text-slate-600 underline md:text-xs"
           >
             닫기 · 타이머 재개
           </button>
         ) : null}
-        <p className="text-[11px] text-slate-500 md:text-xs">
+        <p className="text-[11px] text-slate-600 md:text-xs">
           남은 {totalCards}장 · Lv.{level}
         </p>
       </div>
@@ -669,11 +669,11 @@ function applyBotScheduledPlay(state, bot, card) {
 
 function BotStack({ name, hand, botKey, hintMode, revealed, onReveal }) {
   return (
-    <div className="w-full min-w-0 rounded-xl border border-white/10 bg-slate-900/70 px-2 py-2 shadow-md md:min-w-[140px] md:px-3">
-      <p className="text-center text-[10px] font-medium text-slate-400 md:text-[11px]">
+    <div className="w-full min-w-0 rounded-xl border border-sky-200 bg-white/95 px-2 py-2 shadow-md md:min-w-[140px] md:px-3">
+      <p className="text-center text-[10px] font-medium text-slate-700 md:text-[11px]">
         {name}
       </p>
-      <p className="text-center text-[9px] text-slate-600 md:text-[10px]">족보 자동</p>
+      <p className="text-center text-[9px] text-slate-500 md:text-[10px]">족보 자동</p>
       <div className="mt-2 flex flex-wrap gap-1">
         {hand.map((c) => {
           const rid = `${botKey}-${c.id}`
@@ -684,8 +684,8 @@ function BotStack({ name, hand, botKey, hintMode, revealed, onReveal }) {
               type="button"
               className={`h-12 w-10 rounded-lg border text-[9px] md:h-14 md:w-11 md:text-[10px] ${
                 hintMode
-                  ? 'border-amber-400/80 bg-amber-950/50 shadow-[0_0_12px_rgba(251,191,36,0.25)]'
-                  : 'border-slate-600 bg-slate-800/90'
+                  ? 'border-amber-400 bg-amber-100 shadow-[0_0_12px_rgba(251,191,36,0.35)]'
+                  : 'border-slate-300 bg-white text-slate-800'
               }`}
               onClick={() => onReveal(botKey, c.id)}
             >

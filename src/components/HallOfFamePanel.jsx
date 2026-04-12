@@ -54,26 +54,26 @@ export default function HallOfFamePanel({ packs }) {
         return (
           <li
             key={p.id}
-            className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm backdrop-blur-sm md:px-4"
+            className="rounded-2xl border border-amber-200/80 bg-white px-3 py-3 text-sm shadow-sm md:px-4"
           >
             <div className="flex items-start justify-between gap-2">
-              <p className="min-w-0 truncate font-medium text-slate-100">{p.sheetName}</p>
+              <p className="min-w-0 truncate font-medium text-slate-900">{p.sheetName}</p>
               {rec ? (
-                <p className="shrink-0 font-mono text-sm font-bold text-amber-200">
+                <p className="shrink-0 font-mono text-sm font-bold text-amber-700">
                   나 Lv.{rec.maxLevel}
                 </p>
               ) : (
-                <p className="shrink-0 text-xs text-slate-600">—</p>
+                <p className="shrink-0 text-xs text-slate-500">—</p>
               )}
             </div>
             {board.length > 0 ? (
-              <ol className="mt-2 space-y-1 border-t border-white/5 pt-2 text-[11px] text-slate-400 md:text-xs">
+              <ol className="mt-2 space-y-1 border-t border-slate-100 pt-2 text-[11px] text-slate-600 md:text-xs">
                 {board.map((row, i) => (
                   <li key={row.uid || `${p.id}-${i}`} className="flex justify-between gap-2">
                     <span className="truncate">
                       {i + 1}. {formatHoFDisplayName(row.displayName)}
                     </span>
-                    <span className="shrink-0 font-mono text-amber-200/90">
+                    <span className="shrink-0 font-mono text-amber-700">
                       Lv.{row.maxLevel ?? '—'}
                     </span>
                   </li>

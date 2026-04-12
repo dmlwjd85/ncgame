@@ -72,3 +72,15 @@ export function sfxVictoryBlip() {
   beep(392, 0.08, 'triangle', 0.07)
   window.setTimeout(() => beep(523.25, 0.12, 'sine', 0.08), 70)
 }
+
+/** 1페이즈 콤보 — 단계가 올라갈수록 살짝 높은 음으로 타격감 */
+export function sfxCombo(combo) {
+  const n = Math.max(1, Math.min(combo, 30))
+  const base = 380 + n * 14
+  beep(base, 0.055, 'triangle', 0.11)
+  window.setTimeout(() => beep(base * 1.22, 0.065, 'sine', 0.1), 38)
+  window.setTimeout(() => beep(base * 1.48, 0.08, 'sine', 0.085), 88)
+  if (n >= 5) {
+    window.setTimeout(() => beep(base * 1.75, 0.1, 'triangle', 0.06), 140)
+  }
+}

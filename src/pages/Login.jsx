@@ -31,23 +31,23 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-dvh bg-slate-950 px-4 py-10 text-slate-100">
+    <div className="game-shell min-h-dvh px-4 py-10 text-slate-800">
       <div className="mx-auto w-full max-w-sm">
         <h1 className="text-xl font-semibold">로그인</h1>
-        <p className="mt-2 text-sm text-slate-400">
-          가입 시 설정한 <span className="text-slate-200">이름</span>과{' '}
-          <span className="text-slate-200">비밀번호</span>를 입력하세요.
+        <p className="mt-2 text-sm text-slate-600">
+          가입 시 설정한 <span className="font-medium text-slate-900">이름</span>과{' '}
+          <span className="font-medium text-slate-900">비밀번호</span>를 입력하세요.
         </p>
 
         <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
           <div>
-            <label className="block text-sm text-slate-400" htmlFor="login-name">
+            <label className="block text-sm text-slate-600" htmlFor="login-name">
               이름
             </label>
             <input
               id="login-name"
               autoComplete="username"
-              className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-base text-slate-100 outline-none focus:border-emerald-500/60"
+              className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-base text-slate-900 outline-none focus:border-sky-500"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
@@ -55,7 +55,7 @@ export default function Login() {
           </div>
           <div>
             <label
-              className="block text-sm text-slate-400"
+              className="block text-sm text-slate-600"
               htmlFor="login-password"
             >
               비밀번호
@@ -64,7 +64,7 @@ export default function Login() {
               id="login-password"
               type="password"
               autoComplete="current-password"
-              className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-base text-slate-100 outline-none focus:border-emerald-500/60"
+              className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-base text-slate-900 outline-none focus:border-sky-500"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -72,7 +72,7 @@ export default function Login() {
           </div>
 
           {error ? (
-            <p className="rounded-lg border border-rose-500/40 bg-rose-950/40 px-3 py-2 text-sm text-rose-200">
+            <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
               {error}
             </p>
           ) : null}
@@ -80,7 +80,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={pending}
-            className="rounded-2xl bg-emerald-600 py-3 text-base font-medium text-white transition enabled:hover:bg-emerald-500 disabled:opacity-60"
+            className="rounded-2xl bg-gradient-to-r from-sky-500 to-emerald-600 py-3 text-base font-medium text-white shadow-md transition enabled:hover:opacity-95 disabled:opacity-60"
           >
             {pending ? '처리 중…' : '로그인'}
           </button>
@@ -88,7 +88,7 @@ export default function Login() {
 
         <p className="mt-6 text-center text-sm text-slate-500">
           계정이 없으면{' '}
-          <Link className="text-emerald-400 underline" to="/register">
+          <Link className="text-sky-700 underline" to="/register">
             회원가입
           </Link>
         </p>

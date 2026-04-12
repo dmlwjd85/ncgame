@@ -30,7 +30,7 @@ export default function P2PrepCountdown({ level, playerCards = [], onComplete })
 
   return (
     <div className="flex min-h-[50dvh] flex-col items-center justify-center gap-5 px-2 text-center">
-      <p className="text-base font-semibold leading-relaxed text-white md:text-xl">
+      <p className="text-base font-semibold leading-relaxed text-slate-900 md:text-xl">
         국어→영어→숫자 순으로 눈치껏 카드를 내세요!
       </p>
       <p
@@ -39,8 +39,8 @@ export default function P2PrepCountdown({ level, playerCards = [], onComplete })
       >
         {n > 0 ? n : '…'}
       </p>
-      <div className="w-full max-w-md rounded-2xl border border-emerald-500/25 bg-slate-950/60 px-3 py-4 text-left shadow-inner">
-        <p className="text-center text-[11px] font-medium text-emerald-300/90 md:text-xs">
+      <div className="w-full max-w-md rounded-2xl border border-emerald-200 bg-white/95 px-3 py-4 text-left shadow-md">
+        <p className="text-center text-[11px] font-medium text-emerald-800 md:text-xs">
           이번 라운드 내 카드 ({playerCards.length}장)
         </p>
         <div className="mt-3 flex max-h-[36dvh] flex-wrap justify-center gap-2 overflow-y-auto">
@@ -50,13 +50,13 @@ export default function P2PrepCountdown({ level, playerCards = [], onComplete })
             playerCards.map((c) => (
               <div
                 key={c.id}
-                className="min-w-[5rem] max-w-[9rem] rounded-xl border border-emerald-400/30 bg-gradient-to-br from-emerald-950/80 to-slate-900/90 px-2.5 py-2 shadow-md"
+                className="min-w-[5rem] max-w-[9rem] rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white px-2.5 py-2 shadow-sm"
               >
-                <span className="block text-xs font-semibold text-emerald-100 md:text-sm">
+                <span className="block text-xs font-semibold text-emerald-900 md:text-sm">
                   {c.topic}
                 </span>
                 {c.explanation ? (
-                  <span className="mt-1 line-clamp-2 text-[10px] text-emerald-200/55 md:text-[11px]">
+                  <span className="mt-1 line-clamp-2 text-[10px] text-emerald-800/80 md:text-[11px]">
                     {c.explanation}
                   </span>
                 ) : null}
@@ -65,7 +65,7 @@ export default function P2PrepCountdown({ level, playerCards = [], onComplete })
           )}
         </div>
       </div>
-      <p className="max-w-xs text-xs text-slate-500 md:text-sm">
+      <p className="max-w-xs text-xs text-slate-600 md:text-sm">
         제한 시간 {phase2SecondsForLevel(level)}초 · 천리안 사용 시 타이머가 잠시 멈춥니다
       </p>
     </div>
