@@ -295,7 +295,8 @@ export default function Phase2Mind({
     const id = window.setInterval(() => {
       if (endedRef.current) return
       setState((s) => {
-        if (s.hintMode) return s
+        /* 천리안·틀린 제출 안내 팝업 중에는 시간·봇 스케줄 진행 안 함 */
+        if (s.hintMode || s.lifePenaltyModal) return s
         let next = { ...s, elapsedMs: s.elapsedMs + 50 }
         const sched = s.schedule
 
@@ -401,17 +402,23 @@ export default function Phase2Mind({
   const secLeft = Math.max(0, (durationMs - state.elapsedMs) / 1000)
   const totalCards =
     state.playerHand.length + state.bot1Hand.length + state.bot2Hand.length
-  const timerPaused = state.hintMode
+  const timerPaused = state.hintMode || state.lifePenaltyModal
 
   return (
     <div
       className={`relative flex flex-col gap-4 md:gap-5 ${
-        state.hintMode ? 'cheonryan-ring' : ''
+        state.hintMode || state.lifePenaltyModal ? 'cheonryan-ring' : ''
       }`}
     >
       {state.hintMode ? (
         <div
           className="pointer-events-none fixed inset-0 z-40 bg-amber-400/10 cheonryan-vignette"
+          aria-hidden
+        />
+      ) : null}
+      {state.lifePenaltyModal && !state.hintMode ? (
+        <div
+          className="pointer-events-none fixed inset-0 z-[35] bg-rose-400/5 cheonryan-vignette"
           aria-hidden
         />
       ) : null}
@@ -512,7 +519,10 @@ export default function Phase2Mind({
           </div>
           <div className="font-mono text-sky-700 tabular-nums">
             {timerPaused ? (
-              <span className="text-amber-700">일시정지 {secLeft.toFixed(1)}초</span>
+              <span className="text-amber-700">
+                일시정지 {secLeft.toFixed(1)}초
+                {state.lifePenaltyModal && !state.hintMode ? ' · 설명 확인 중' : ''}
+              </span>
             ) : (
               <>{secLeft.toFixed(1)}초</>
             )}

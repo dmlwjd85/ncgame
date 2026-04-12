@@ -1,5 +1,6 @@
 /**
- * ncxlxs용 추가 단어팩 .xlsx 생성 (주제어·해설·팩이름·난이도)
+ * ncxlxs용 추가 단어팩 통합 .xlsx 생성 (주제어·해설·팩이름·난이도)
+ * 출력: ncxlxs/_sources/pack_extra_elementary.xlsx — 이후 split 스크립트로 시트당 파일 분할
  * 실행: node scripts/gen-extra-packs.mjs
  */
 import * as XLSX from 'xlsx'
@@ -8,7 +9,8 @@ import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const outDir = join(__dirname, '..', 'ncxlxs')
+/** 통합 원본은 split 스크립트 입력용으로 _sources에 둡니다 */
+const outDir = join(__dirname, '..', 'ncxlxs', '_sources')
 
 /** @type {Record<string, Array<{ t: string, e: string, d: string }>>} */
 const PACKS = {

@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const xlsxPath = join(__dirname, '..', 'ncxlxs', 'ncxlsx.xlsx')
+const xlsxPath = join(__dirname, '..', 'ncxlxs', '_sources', 'ncxlsx.xlsx')
 
 const PACK = '6학년 사회필수'
 
