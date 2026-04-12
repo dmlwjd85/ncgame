@@ -712,7 +712,7 @@ export default function Game() {
                     : null
                 return (
                   <div
-                    className="pointer-events-none fixed inset-0 z-[88] flex flex-col items-center justify-center bg-white/92 px-4 backdrop-blur-[2px]"
+                    className="fixed inset-0 z-[88] flex flex-col items-center justify-center bg-white/92 px-4 backdrop-blur-[2px]"
                     aria-live="polite"
                   >
                     {last ? (
