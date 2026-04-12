@@ -16,7 +16,26 @@ import {
   scheduleBotFireTimesFromFloors,
 } from '../../utils/phase2Utils'
 
-const BOT_NAMES = ['가상 플레이어 A', '가상 플레이어 B']
+const BOT_NAMES = ['A봇', 'B봇']
+
+/** 천리안 버튼용 눈 아이콘 */
+function EyeIcon({ className = 'h-4 w-4' }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
 
 /** 필드(타임라인) 한 장 — 팝업·해설 표시용 */
 function centerEntryFromCard(card, from, extra = {}) {
@@ -120,8 +139,8 @@ function collectForcedBeforeWrong(state, lastPlayed, wrongCard, orderMode = 'top
 
 function actorLabel(from) {
   if (from === 'player') return '나'
-  if (from === 'bot1') return '가상 플레이어 A'
-  return '가상 플레이어 B'
+  if (from === 'bot1') return 'A봇'
+  return 'B봇'
 }
 
 /** 타임라인 칩 색 — 나 / 봇 / 강제 / 오제출 구분 */
@@ -398,7 +417,7 @@ export default function Phase2Mind({
 
   const tutorialBaseHint = useMemo(() => {
     if (!tutorialMode) return ''
-    return '튜토리얼: 상단 「천리안」 버튼으로 상대 패를 잠깐 볼 수 있어요. 카드를 뒤집은 뒤 3초 뒤에 시간이 다시 흘러요.'
+    return '눈 아이콘 천리안으로 상대 패를 잠깐 확인할 수 있어요.'
   }, [tutorialMode])
 
   /** 천리안 탭/취소 후 안내(기본 문구 위에 덮어씀) */
@@ -744,8 +763,6 @@ export default function Phase2Mind({
   }, [tutorialMode])
 
   const secLeft = Math.max(0, (durationMs - state.elapsedMs) / 1000)
-  const totalCards =
-    state.playerHand.length + state.bot1Hand.length + state.bot2Hand.length
   const lastFieldEntry =
     state.center.length > 0 ? state.center[state.center.length - 1] : null
   const timerPaused =
@@ -806,7 +823,7 @@ export default function Phase2Mind({
 
   return (
     <div
-      className={`relative flex flex-col gap-4 md:gap-5 ${
+      className={`relative flex flex-col gap-3 md:gap-4 ${
         timerPaused ? 'cheonryan-ring' : ''
       }`}
     >
@@ -840,7 +857,7 @@ export default function Phase2Mind({
       {/* 우측 상단: 타이머·준비/재개 카운트다운 — 전체 화면 딤 없이 판이 보이게 */}
       {!hideTimerHud ? (
         <div
-          className="pointer-events-none fixed top-[max(0.35rem,env(safe-area-inset-top))] right-[max(0.35rem,env(safe-area-inset-right))] z-[85] flex flex-col items-end gap-1"
+          className="pointer-events-none fixed top-[max(0.35rem,env(safe-area-inset-top))] right-[max(0.35rem,env(safe-area-inset-right))] z-[85] flex flex-col items-end gap-0.5"
           aria-live="polite"
         >
           {prepLeft > 0 ? (
@@ -881,7 +898,7 @@ export default function Phase2Mind({
           ) : (
             <>
               <div
-                className={`rounded-xl border px-2.5 py-1.5 text-right shadow-md ${
+                className={`pointer-events-none rounded-xl border px-2.5 py-1.5 text-right shadow-md ${
                   urgentSec != null
                     ? 'border-rose-400 bg-rose-50/95 ring-2 ring-rose-400/70 animate-pulse'
                     : 'border-slate-200/90 bg-white/92 ring-1 ring-slate-200/70'
@@ -911,11 +928,32 @@ export default function Phase2Mind({
                   </p>
                 ) : null}
               </div>
-              <div className="h-1 w-[6.75rem] overflow-hidden rounded-full bg-slate-200/95 ring-1 ring-slate-300/50">
+              <div className="pointer-events-none h-1 w-[6.75rem] overflow-hidden rounded-full bg-slate-200/95 ring-1 ring-slate-300/50">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-sky-500 to-violet-500 transition-[width] duration-100 ease-linear"
                   style={{ width: `${gaugePct}%` }}
                 />
+              </div>
+              <div className="pointer-events-auto flex max-w-[min(92vw,14rem)] flex-nowrap items-center justify-end gap-1.5">
+                <button
+                  type="button"
+                  disabled={state.cheonryan <= 0 || state.hintMode}
+                  onClick={startCheonryan}
+                  className="flex min-w-0 shrink items-center justify-center gap-1 rounded-full border border-amber-400/90 bg-gradient-to-b from-amber-100 to-amber-200/95 py-1 pl-2 pr-2.5 text-[11px] font-bold text-amber-950 shadow-md ring-1 ring-amber-500/25 disabled:opacity-40"
+                >
+                  <EyeIcon className="h-3.5 w-3.5 shrink-0 text-amber-900" />
+                  <span>천리안</span>
+                  <span className="tabular-nums text-amber-800">{state.cheonryan}</span>
+                </button>
+                {state.hintMode ? (
+                  <button
+                    type="button"
+                    onClick={endHintMode}
+                    className="shrink-0 text-[10px] font-medium text-amber-900 underline underline-offset-2"
+                  >
+                    취소
+                  </button>
+                ) : null}
               </div>
             </>
           )}
@@ -1038,76 +1076,35 @@ export default function Phase2Mind({
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-4 md:gap-5">
-        <div className="text-center">
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-950/75">
-            마주 앉은 상대
-          </p>
-          <div className="mt-2 flex flex-wrap justify-center gap-2 md:gap-3 landscape:grid landscape:grid-cols-2 landscape:items-start landscape:gap-4">
-            {botCount >= 1 ? (
-              <BotStack
-                name={BOT_NAMES[0]}
-                hand={state.bot1Hand}
-                botKey="bot1"
-                hintMode={state.hintMode}
-                revealed={state.revealed}
-                onReveal={reveal}
-              />
-            ) : null}
-            {botCount >= 2 ? (
-              <BotStack
-                name={BOT_NAMES[1]}
-                hand={state.bot2Hand}
-                botKey="bot2"
-                hintMode={state.hintMode}
-                revealed={state.revealed}
-                onReveal={reveal}
-              />
-            ) : null}
-          </div>
+      <div className="flex flex-col gap-3 md:gap-4">
+        <div className="flex flex-wrap justify-center gap-2 md:gap-3 landscape:grid landscape:grid-cols-2 landscape:items-start landscape:gap-4">
+          {botCount >= 1 ? (
+            <BotStack
+              name={BOT_NAMES[0]}
+              hand={state.bot1Hand}
+              botKey="bot1"
+              hintMode={state.hintMode}
+              revealed={state.revealed}
+              onReveal={reveal}
+            />
+          ) : null}
+          {botCount >= 2 ? (
+            <BotStack
+              name={BOT_NAMES[1]}
+              hand={state.bot2Hand}
+              botKey="bot2"
+              hintMode={state.hintMode}
+              revealed={state.revealed}
+              onReveal={reveal}
+            />
+          ) : null}
         </div>
 
-        <div className="relative rounded-[2rem] border-[7px] border-amber-900/25 p2-table-felt p-3 shadow-[inset_0_3px_48px_rgba(120,53,15,0.1)] md:p-5">
-          <div className="flex w-full flex-wrap items-start justify-between gap-3 border-b border-amber-900/15 pb-3">
-            <p className="min-w-0 flex-1 text-[11px] leading-snug text-slate-700 md:text-xs">
-              {orderMode === 'sheet'
-                ? '첫 카드는 아무거나 · 이후엔 엑셀(시간) 순. 타임라인에서 나(파랑)·봇(회색) 사이에 끼울 내 카드가 있는지 보세요.'
-                : '첫 카드는 아무거나 · 이후엔 국어→영어→숫자 순. 봇이 낼 카드보다 앞 순서면 먼저 내야 합니다.'}
-            </p>
-            <div className="flex w-[5.5rem] shrink-0 flex-col items-center justify-center gap-1.5 rounded-2xl border border-amber-300/90 bg-gradient-to-b from-amber-50 to-amber-100/90 px-1.5 py-2 shadow-inner md:w-[6.25rem] md:gap-2 md:px-2">
-              <span className="text-center text-[9px] font-bold uppercase tracking-wide text-amber-900 md:text-[10px]">
-                천리안
-              </span>
-              <button
-                type="button"
-                disabled={state.cheonryan <= 0 || state.hintMode}
-                onClick={startCheonryan}
-                className="w-full rounded-xl border-2 border-amber-400 bg-gradient-to-b from-amber-200 to-amber-300 px-1 py-2 text-[10px] font-bold leading-tight text-amber-950 shadow-md ring-1 ring-amber-500/30 disabled:opacity-40 md:px-2 md:text-xs"
-              >
-                {state.hintMode ? '탭!' : `×${state.cheonryan}`}
-              </button>
-              {state.hintMode ? (
-                <button
-                  type="button"
-                  onClick={endHintMode}
-                  className="text-[9px] text-amber-900/90 underline md:text-[10px]"
-                >
-                  취소
-                </button>
-              ) : null}
-              <p className="text-center text-[9px] text-amber-950/80 md:text-[10px]">
-                남은 {totalCards}장
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-col items-center gap-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-amber-900/55">
-              테이블 중앙 · 제출 칸
-            </p>
+        <div className="relative mx-auto w-full max-w-[min(100%,21rem)] rounded-[1.75rem] border-[6px] border-amber-900/25 p2-table-felt p-2.5 shadow-[inset_0_3px_48px_rgba(120,53,15,0.1)] md:max-w-[min(100%,23rem)] md:p-4">
+          <div className="flex flex-col items-center gap-2">
             <div
               key={state.shakeKey}
-              className={`p2-play-slot flex flex-col items-center justify-center px-2 py-3 ${state.shakeKey ? 'p2-shake-anim' : ''}`}
+              className={`p2-play-slot flex w-full flex-col items-center justify-center px-1 py-2 ${state.shakeKey ? 'p2-shake-anim' : ''}`}
             >
               {lastFieldEntry ? (
                 <div
@@ -1133,43 +1130,40 @@ export default function Phase2Mind({
                   </div>
                 </div>
               ) : (
-                <p className="px-2 text-center text-xs leading-relaxed text-slate-500">
-                  점선 안에 카드가 깔립니다. 아래 패에서 탭해 제출하세요.
+                <p className="px-2 text-center text-xs leading-snug text-slate-600">
+                  {orderMode === 'sheet'
+                    ? '시간·사건 순으로 눈치껏 내세요!'
+                    : '가나다 순으로 눈치껏 내세요!'}
                 </p>
               )}
             </div>
           </div>
 
-          <div className="mt-4 w-full border-t border-amber-900/15 pt-3">
-            <p className="mb-1.5 text-center text-[10px] font-medium uppercase tracking-wide text-slate-600">
-              제출 순서 · 탭하여 1페이즈와 같은 황금 카드로 확인
-            </p>
-            <div className="max-h-[5.5rem] w-full overflow-x-auto overflow-y-auto pb-1 md:max-h-none">
-              <div className="flex min-h-[2rem] flex-wrap items-center justify-center gap-x-1 gap-y-1.5">
-                {state.center.length === 0 ? (
-                  <span className="text-xs text-slate-400">—</span>
-                ) : (
-                  state.center.map((entry, i) => (
-                    <span
-                      key={`${String(entry.rowId ?? '')}-${entry.topic}-${i}`}
-                      className="inline-flex items-center gap-1"
+          <div className="mt-2 w-full border-t border-amber-900/15 pt-2">
+            <div className="flex min-h-[1.75rem] w-full flex-wrap items-center justify-center gap-x-1 gap-y-1">
+              {state.center.length === 0 ? (
+                <span className="text-xs text-slate-400">—</span>
+              ) : (
+                state.center.map((entry, i) => (
+                  <span
+                    key={`${String(entry.rowId ?? '')}-${entry.topic}-${i}`}
+                    className="inline-flex items-center gap-1"
+                  >
+                    {i > 0 ? (
+                      <span className="select-none text-slate-300" aria-hidden>
+                        →
+                      </span>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => openFieldInspect(entry)}
+                      className={`max-w-[7.5rem] truncate rounded-lg border px-1.5 py-0.5 text-left text-[10px] font-medium transition hover:opacity-90 md:max-w-[9rem] md:text-xs ${fieldChipClass(entry)}`}
                     >
-                      {i > 0 ? (
-                        <span className="select-none text-slate-300" aria-hidden>
-                          →
-                        </span>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={() => openFieldInspect(entry)}
-                        className={`max-w-[8.5rem] truncate rounded-lg border px-2 py-1 text-left text-[10px] font-medium transition hover:opacity-90 md:max-w-[10rem] md:text-xs ${fieldChipClass(entry)}`}
-                      >
-                        <span className="block truncate">{entry.topic}</span>
-                      </button>
-                    </span>
-                  ))
-                )}
-              </div>
+                      <span className="block truncate">{entry.topic}</span>
+                    </button>
+                  </span>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -1222,14 +1216,8 @@ export default function Phase2Mind({
       ) : null}
 
       <div>
-        <p className="mb-1 text-center text-[10px] font-bold uppercase tracking-[0.15em] text-slate-600">
-          내 자리 · 손패
-        </p>
-        <p className="mb-2 text-center text-[11px] text-slate-600 md:text-xs">
-          카드 탭 = 제출 ·{' '}
-          {orderMode === 'sheet'
-            ? '순서는 엑셀에 적힌 사건 시간 순'
-            : '순서는 국어→영어→숫자(가나다)'}
+        <p className="mb-1.5 text-center text-sm font-semibold text-slate-800">
+          내가 가진 카드
         </p>
         {tutorialMode && coachTargetId != null ? (
           <p
@@ -1249,8 +1237,8 @@ export default function Phase2Mind({
             노란 테두리부터 탭
           </p>
         ) : null}
-        <div className="max-h-[min(52dvh,28rem)] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-inner sm:p-3">
-          <div className="grid w-full grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">
+        <div className="max-h-[min(48dvh,26rem)] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-inner sm:p-2.5">
+          <div className="grid w-full grid-cols-3 gap-2 sm:gap-2.5">
             {playerHandSorted.map((c) => (
               <button
                 key={c.id}

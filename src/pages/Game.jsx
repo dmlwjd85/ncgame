@@ -48,8 +48,8 @@ function sortHandForP2Snapshot(hand, orderMode) {
 
 function fieldActorLabel(from) {
   if (from === 'player') return '나'
-  if (from === 'bot1') return '가상 A'
-  if (from === 'bot2') return '가상 B'
+  if (from === 'bot1') return 'A봇'
+  if (from === 'bot2') return 'B봇'
   return String(from)
 }
 
@@ -666,7 +666,7 @@ export default function Game() {
           </div>
         </header>
 
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-200/80 bg-white/85 px-3 py-2.5 shadow-md shadow-amber-900/5 md:px-4 md:py-3">
+        <div className="mb-3 flex flex-wrap items-center gap-4 rounded-2xl border border-amber-200/80 bg-white/85 px-3 py-2.5 shadow-md shadow-amber-900/5 md:px-4 md:py-3">
           <div className="text-xs md:text-sm">
             <span className="text-slate-600">라이프 </span>
             <span className="text-rose-500">
@@ -675,10 +675,6 @@ export default function Game() {
             <span className="text-rose-200">
               {'♡'.repeat(Math.max(0, MAX_LIVES - Math.min(MAX_LIVES, lives)))}
             </span>
-          </div>
-          <div className="text-xs md:text-sm">
-            <span className="text-slate-600">천리안 </span>
-            <span className="font-semibold text-amber-600">{cheonryan}</span>
           </div>
           <div className="text-xs md:text-sm">
             <span className="text-slate-600">콤보 </span>
@@ -756,23 +752,23 @@ export default function Game() {
         {segment === 'p2' ? (
           <div className="relative">
             <h1 className="text-lg font-semibold tracking-tight text-slate-900 md:text-xl">
-              {phase2OrderMode === 'sheet'
-                ? '2페이즈 · 사건 시간 순 눈치'
-                : '2페이즈 · 국어→영어→숫자 순 눈치'}
+              {phase2OrderMode === 'sheet' ? (
+                <>
+                  시간 순 눈치게임 시작!
+                  <span className="mt-1 block text-[11px] font-normal leading-snug text-slate-500 md:text-xs">
+                    (엑셀·사건 순)
+                  </span>
+                </>
+              ) : (
+                <>
+                  가나다 순 눈치게임 시작!
+                  <span className="mt-1 block text-[11px] font-normal leading-snug text-slate-500 md:text-xs">
+                    (한글→영문→숫자)
+                  </span>
+                </>
+              )}
             </h1>
-            <p className="mt-1 text-xs text-slate-600 md:text-sm">
-              가상 플레이어 1명 · 제한 {phase2SecondsForLevel(level)}초 (카드{' '}
-              {level}장 × 6초)
-            </p>
-            {phase2OrderMode === 'sheet' ? (
-              <p
-                role="status"
-                className="mt-3 rounded-xl border border-violet-300/90 bg-violet-50 px-3 py-2.5 text-center text-sm font-medium leading-snug text-violet-950 shadow-sm ring-1 ring-violet-200/70"
-              >
-                사건 시간 순서로 카드를 내세요.
-              </p>
-            ) : null}
-            <div className="mt-4 md:mt-6">
+            <div className="mt-3 md:mt-4">
               <Phase2Mind
                 key={`${level}-${roundVersion}-p2`}
                 level={level}
@@ -921,12 +917,12 @@ export default function Game() {
                     {(
                       [
                         { label: '나', hand: p2GameOver.snapshot.playerHand },
-                        { label: '가상 플레이어 A', hand: p2GameOver.snapshot.bot1Hand },
+                        { label: 'A봇', hand: p2GameOver.snapshot.bot1Hand },
                       ].concat(
                         p2GameOver.snapshot.botCount >= 2
                           ? [
                               {
-                                label: '가상 플레이어 B',
+                                label: 'B봇',
                                 hand: p2GameOver.snapshot.bot2Hand,
                               },
                             ]
