@@ -33,6 +33,9 @@ import {
 } from '../utils/gameRoute'
 import { isTutorialPack } from '../utils/tutorialPack'
 
+/** 레벨 클리어 요약 화면 표시 시간(ms) — 이후 자동으로 다음 레벨 */
+const LEVEL_CLEAR_DISPLAY_MS = 3000
+
 function shuffleRows(rows) {
   const a = [...rows]
   for (let i = a.length - 1; i > 0; i--) {
@@ -331,7 +334,7 @@ export default function Game() {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const onRoundWin = useCallback(
-    async ({ lives: L, cheonryan: C, center, timeUpPenaltyCards }) => {
+    ({ lives: L, cheonryan: C, center, timeUpPenaltyCards }) => {
       setLives(L)
       setCheonryan(C)
       setLastRoundTopics(center.map((c) => c.topic))
@@ -342,15 +345,22 @@ export default function Game() {
       } else {
         setLevelClearBanner(null)
       }
-      const hofName = await resolveDisplayNameForHoF(user)
-      await saveHallOfFameIfBetter(packId, level, hofName, {
-        uid: user?.uid ?? null,
-      })
       if (level >= maxLevel) {
         setSegment('cleared')
-        return
+      } else {
+        setSegment('level_clear')
       }
-      setSegment('level_clear')
+      /* 명예의 전당은 화면 전환을 막지 않고 백그라운드 저장(클리어 화면 3초 타이머가 바로 돌아가게 함) */
+      void (async () => {
+        try {
+          const hofName = await resolveDisplayNameForHoF(user)
+          await saveHallOfFameIfBetter(packId, level, hofName, {
+            uid: user?.uid ?? null,
+          })
+        } catch {
+          /* 저장 실패해도 진행은 유지 */
+        }
+      })()
     },
     [packId, level, maxLevel, user],
   )
@@ -364,14 +374,14 @@ export default function Game() {
     setSegment('p1')
   }, [])
 
-  /* 2페이즈 레벨 클리어 후 축하·정렬 화면을 3초 보여 준 뒤 자동으로 다음 레벨 */
+  /* 2페이즈 레벨 클리어 후 축하·정렬 화면을 고정 시간 보여 준 뒤 자동으로 다음 레벨 */
   useEffect(() => {
     if (segment !== 'level_clear') return
     const id = window.setTimeout(() => {
       continueNextLevel()
-    }, 3000)
+    }, LEVEL_CLEAR_DISPLAY_MS)
     return () => window.clearTimeout(id)
-  }, [segment, roundVersion, continueNextLevel])
+  }, [segment, continueNextLevel])
 
   const saveAndExitToHome = useCallback(() => {
     saveRunSave({
@@ -619,7 +629,8 @@ export default function Game() {
               레벨 {level} 클리어!
             </p>
             <p className="mt-2 text-xs text-slate-600 md:text-sm">
-              이번 라운드에서 제출된 카드 순서입니다. 3초 뒤 다음 레벨로 넘어가요.
+              이번 라운드에서 제출된 카드 순서입니다.{' '}
+              {LEVEL_CLEAR_DISPLAY_MS / 1000}초 뒤 다음 레벨로 넘어가요.
             </p>
             {levelClearBanner ? (
               <p className="mx-auto mt-3 max-w-md rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950 md:text-sm">
