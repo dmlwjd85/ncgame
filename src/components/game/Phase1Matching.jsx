@@ -52,9 +52,17 @@ export default function Phase1Matching({
     return next ? String(rowKey(packKey, next)) : null
   }, [coachMode, tutorialMode, rows, matchedIds, packKey])
 
-  const activeRows = useMemo(
-    () => rows.filter((r) => !matchedIds.has(rowKey(packKey, r))),
-    [rows, matchedIds, packKey],
+  /** 이번에 맞출 실제 카드(아래 주제어 개수 = 레벨 진행 장수) */
+  const realRows = useMemo(
+    () => rows.filter((r) => !r._p1Filler),
+    [rows],
+  )
+  const realRowCount = realRows.length
+
+  const activeTopicRows = useMemo(
+    () =>
+      realRows.filter((r) => !matchedIds.has(rowKey(packKey, r))),
+    [realRows, matchedIds, packKey],
   )
 
   const [topicsShuffled, setTopicsShuffled] = useState(() => [])
@@ -70,15 +78,15 @@ export default function Phase1Matching({
   }, [rowsBatchKey])
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  /* eslint-disable react-hooks/set-state-in-effect -- 남은 주제어 행이 바뀔 때마다 랜덤 셔플 */
+  /* eslint-disable react-hooks/set-state-in-effect -- 남은 주제어(실제 행만) 바뀔 때마다 셔플 */
   useEffect(() => {
-    const arr = [...activeRows]
+    const arr = [...activeTopicRows]
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1))
       ;[arr[i], arr[j]] = [arr[j], arr[i]]
     }
     setTopicsShuffled(arr)
-  }, [activeRows])
+  }, [activeTopicRows])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const sensors = useSensors(
@@ -133,13 +141,14 @@ export default function Phase1Matching({
       onMatchAttempt(true)
       setMatchedIds((prev) => {
         const next = new Set(prev).add(aid)
-        if (next.size === rows.length) {
+        /* 위는 3칸·아래는 실제 장수만 — 완료는 실제 행을 다 맞췄을 때 */
+        if (realRowCount > 0 && next.size === realRowCount) {
           queueMicrotask(() => onBatchComplete(rows))
         }
         return next
       })
     },
-    [onMatchAttempt, onBatchComplete, rows, packKey, bumpReject],
+    [onMatchAttempt, onBatchComplete, rows, packKey, bumpReject, realRowCount],
   )
 
   if (rows.length === 0) return null
@@ -154,10 +163,10 @@ export default function Phase1Matching({
           aria-hidden
         />
         <p className="relative text-center text-sm leading-relaxed text-slate-700">
-          위에는 뜻이 있어요.{' '}
-          <span className="font-medium text-slate-900">아래 단어</span>를 잠깐 누른 뒤, 맞는
-          뜻 칸으로 <span className="font-semibold text-sky-600">위로 끌어 올려</span>{' '}
-          놓으세요.
+          위 뜻 칸은 항상 3개예요.{' '}
+          <span className="font-medium text-slate-900">아래 단어</span>는 이번에 맞출 만큼만
+          있어요. 단어를 눌러 맞는 뜻 칸으로{' '}
+          <span className="font-semibold text-sky-600">위로 끌어 올려</span> 놓으세요.
         </p>
         {(coachMode || tutorialMode) && coachTargetKey ? (
           <p

@@ -227,9 +227,8 @@ export default function Game() {
   const need = cardsNeededThisLevel - p1Collected.length
 
   /**
-   * 1페이즈 한 묶음: 이번에 모을 실제 카드만 queue에서 가져오고,
-   * 남은 줄이 3미만이면 단어팩에서 아무 줄이나 골라(_p1Filler) **항상 3줄** 유지
-   * (1장·2장 남아도 읽기 연습이 끊기지 않도록).
+   * 1페이즈: 위 해설 칸은 항상 3개, 아래 주제어 배지는 이번에 맞출 실제 장수(take)만.
+   * take는 레벨 진행(need)에 맞춰 최대 3장씩 묶음.
    */
   const p1DisplayRows = useMemo(() => {
     if (need <= 0 || queue.length === 0) return []
@@ -237,18 +236,16 @@ export default function Game() {
     const real = queue
       .slice(0, take)
       .map((r) => ({ ...r, _p1Filler: /** @type {const} */ (false) }))
-    if (real.length >= 3) return real
-
     const allOk = validRows.filter((r) => r.topic && r.explanation)
     const out = [...real]
     let padIdx = 0
     while (out.length < 3 && allOk.length > 0) {
       padIdx += 1
       const pool = shuffleRows([...allOk])
-      const r = pool[(padIdx + out.length * 7) % pool.length]
+      const r = pool[(padIdx * 11) % pool.length]
       out.push({
         ...r,
-        id: `p1pad-${level}-rv${roundVersion}-n${padIdx}-src${r.id}`,
+        id: `p1exp-pad-${level}-rv${roundVersion}-${padIdx}-${r.id}`,
         _p1Filler: true,
       })
     }
