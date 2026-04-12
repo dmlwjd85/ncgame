@@ -431,12 +431,11 @@ export default function Phase2Mind({
           }
           const globalMin = globalMinValidCard(next)
           const comboBefore = next.p2Combo ?? 0
-          if (globalMin && globalMin.id === card.id) {
-            next = applyBotSuccessPlay(next, scheduledBot, card)
-          } else {
-            next = applyWrongSubmission(next, card, scheduledBot)
-            queueMicrotask(() => sfxPenalty())
+          /* 족보상 지금 낼 수 있는 카드일 때만 제출 — 차례가 아니면 오답 처리 없이 다음 틱까지 대기 */
+          if (!globalMin || globalMin.id !== card.id) {
+            break
           }
+          next = applyBotSuccessPlay(next, scheduledBot, card)
           const comboAfter = next.p2Combo ?? 0
           if (comboAfter > comboBefore) {
             const r = phase1ComboRewards(comboAfter)
@@ -445,7 +444,7 @@ export default function Phase2Mind({
             }
           }
           nextBotIdxRef.current += 1
-          /* 봇 오답 시 모달·패널티 한 번에 하나만 처리 */
+          /* 봇 연속 처리 시 모달 한 번에 하나만 */
           if (next.lifePenaltyModal) break
         }
 
