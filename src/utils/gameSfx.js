@@ -73,6 +73,18 @@ export function sfxVictoryBlip() {
   window.setTimeout(() => beep(523.25, 0.12, 'sine', 0.08), 70)
 }
 
+/** 레벨 클리어 — 짧은 팡파레(상승 화음 느낌) */
+export function sfxLevelClearFanfare() {
+  const notes = [523.25, 659.25, 783.99, 987.77, 1174.66]
+  notes.forEach((f, i) => {
+    window.setTimeout(() => beep(f, 0.14, 'sine', 0.09), i * 95)
+  })
+  window.setTimeout(() => {
+    beep(1046.5, 0.18, 'triangle', 0.1)
+    window.setTimeout(() => beep(1318.51, 0.22, 'sine', 0.09), 130)
+  }, notes.length * 95 + 40)
+}
+
 /** 1페이즈 콤보 — 단계가 올라갈수록 살짝 높은 음으로 타격감 */
 export function sfxCombo(combo) {
   const n = Math.max(1, Math.min(combo, 30))
