@@ -13,6 +13,11 @@ import {
 } from '../utils/gameRules'
 import { formatHoFDisplayName } from '../utils/displayName'
 import { saveHallOfFameIfBetter } from '../utils/hallOfFame'
+import {
+  clearStagedResume,
+  peekResumeFromSession,
+  saveRunSave,
+} from '../utils/gameRunSave'
 
 function shuffleRows(rows) {
   const a = [...rows]
@@ -34,6 +39,11 @@ export default function Game() {
   const { packId, botCount: bc } = location.state || {}
   const botCount = bc === 2 ? 2 : 1
 
+  const resumeSnap = useMemo(() => {
+    if (!packId) return null
+    return peekResumeFromSession(packId)
+  }, [packId])
+
   const pack = useMemo(
     () => packs.find((p) => p.id === packId),
     [packs, packId],
@@ -52,10 +62,14 @@ export default function Game() {
   const [segment, setSegment] = useState(
     /** @type {'p1'|'p2'|'level_clear'|'cleared'|'over'} */ ('p1'),
   )
-  const [level, setLevel] = useState(1)
-  const [lives, setLives] = useState(MAX_LIVES)
-  const [cheonryan, setCheonryan] = useState(1)
-  const [p1Combo, setP1Combo] = useState(0)
+  const [level, setLevel] = useState(() => resumeSnap?.level ?? 1)
+  const [lives, setLives] = useState(() =>
+    resumeSnap
+      ? Math.min(MAX_LIVES, Math.max(0, resumeSnap.lives))
+      : MAX_LIVES,
+  )
+  const [cheonryan, setCheonryan] = useState(() => resumeSnap?.cheonryan ?? 1)
+  const [p1Combo, setP1Combo] = useState(() => resumeSnap?.p1Combo ?? 0)
 
   const [queue, setQueue] = useState(/** @type {object[]} */ ([]))
   const [queueReady, setQueueReady] = useState(false)
@@ -82,13 +96,27 @@ export default function Game() {
     return shuffleRows(unused)
   }, [validRows])
 
-  /* eslint-disable react-hooks/set-state-in-effect -- 덱 셔플 초기화 */
+  /* eslint-disable react-hooks/set-state-in-effect -- 덱 셔플 초기화·이어하기 복원 */
   useEffect(() => {
     if (!pack || queueReady) return
+    if (resumeSnap && String(resumeSnap.packId) === String(packId)) {
+      usedRowIdsRef.current = new Set(resumeSnap.usedRowIds.map(String))
+      const byId = new Map(validRows.map((r) => [String(r.id), r]))
+      const q = resumeSnap.queueRowIds
+        .map((id) => byId.get(String(id)))
+        .filter(Boolean)
+      const pool = shuffleRows(
+        validRows.filter((r) => !usedRowIdsRef.current.has(String(r.id))),
+      )
+      setQueue(q.length > 0 ? q : pool)
+      clearStagedResume()
+      setQueueReady(true)
+      return
+    }
     usedRowIdsRef.current = new Set()
     setQueue(shuffleRows(validRows))
     setQueueReady(true)
-  }, [pack, queueReady, validRows])
+  }, [pack, queueReady, validRows, packId, resumeSnap])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const cardsNeededThisLevel = level
@@ -200,6 +228,21 @@ export default function Game() {
     setP1Combo(0)
     setSegment('p1')
   }, [])
+
+  const saveAndExitToHome = useCallback(() => {
+    saveRunSave({
+      v: 1,
+      packId,
+      botCount,
+      level: level + 1,
+      lives,
+      cheonryan,
+      p1Combo,
+      usedRowIds: [...usedRowIdsRef.current],
+      queueRowIds: queue.map((r) => r.id),
+    })
+    navigate('/', { replace: true })
+  }, [packId, botCount, level, lives, cheonryan, p1Combo, queue, navigate])
 
   const onRoundLose = useCallback(() => {
     setSegment('over')
@@ -313,7 +356,7 @@ export default function Game() {
         {segment === 'p2' ? (
           <>
             <h1 className="text-lg font-semibold tracking-tight text-white md:text-xl">
-              2페이즈 · 사전순 눈치
+              2페이즈 · 국어→영어→숫자 순 눈치
             </h1>
             <p className="mt-1 text-xs text-slate-400 md:text-sm">
               가상 플레이어 {botCount}명 · {phase2SecondsForLevel(level)}초
@@ -329,6 +372,7 @@ export default function Game() {
                 initialCheonryan={cheonryan}
                 onRoundWin={onRoundWin}
                 onRoundLose={onRoundLose}
+                onLivesChange={setLives}
               />
             </div>
           </>
@@ -357,13 +401,22 @@ export default function Game() {
                 ))
               )}
             </div>
-            <button
-              type="button"
-              className="mt-8 rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-600 px-8 py-3 text-sm font-semibold text-white shadow-lg"
-              onClick={continueNextLevel}
-            >
-              다음 레벨 ({level + 1})
-            </button>
+            <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+              <button
+                type="button"
+                className="w-full max-w-xs rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-600 px-8 py-3 text-sm font-semibold text-white shadow-lg sm:w-auto"
+                onClick={continueNextLevel}
+              >
+                다음 레벨 ({level + 1})
+              </button>
+              <button
+                type="button"
+                className="w-full max-w-xs rounded-2xl border border-white/25 bg-white/10 px-8 py-3 text-sm font-semibold text-slate-100 backdrop-blur sm:w-auto"
+                onClick={saveAndExitToHome}
+              >
+                저장하고 종료하기
+              </button>
+            </div>
           </div>
         ) : null}
 

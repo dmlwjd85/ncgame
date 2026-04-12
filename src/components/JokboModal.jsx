@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { compareTopicOrder } from '../utils/koCompare'
 
 /**
- * 선택한 팩의 단어를 가나다 순·번호로 표시 (팝업)
+ * 선택한 팩의 단어를 국어→영어→숫자 순으로 표시 (팝업)
  */
 export default function JokboModal({ open, pack, onClose }) {
   const topicsSorted = useMemo(() => {
@@ -32,7 +32,7 @@ export default function JokboModal({ open, pack, onClose }) {
             족보
           </h2>
           <p className="mt-1 text-xs text-slate-500">
-            가나다 순 · 총 {topicsSorted.length}개
+            국어→영어→숫자 순 · 총 {topicsSorted.length}개
           </p>
         </div>
         <ol className="flex-1 list-decimal overflow-y-auto py-2 pl-9 pr-4 text-sm leading-relaxed text-slate-200 marker:text-cyan-500/90">

@@ -31,7 +31,7 @@ export default function P2PrepCountdown({ level, playerCards = [], onComplete })
   return (
     <div className="flex min-h-[50dvh] flex-col items-center justify-center gap-5 px-2 text-center">
       <p className="text-base font-semibold leading-relaxed text-white md:text-xl">
-        가나다 순으로 눈치껏 카드를 내세요!!
+        국어→영어→숫자 순으로 눈치껏 카드를 내세요!
       </p>
       <p
         className="text-7xl font-black tabular-nums text-transparent md:text-8xl bg-gradient-to-br from-cyan-300 to-violet-400 bg-clip-text"
@@ -66,8 +66,7 @@ export default function P2PrepCountdown({ level, playerCards = [], onComplete })
         </div>
       </div>
       <p className="max-w-xs text-xs text-slate-500 md:text-sm">
-        제한 시간 {phase2SecondsForLevel(level)}초 · 마지막 2초는 플레이어 반응용 · 천리안
-        사용 시 타이머 정지
+        제한 시간 {phase2SecondsForLevel(level)}초 · 천리안 사용 시 타이머가 잠시 멈춥니다
       </p>
     </div>
   )

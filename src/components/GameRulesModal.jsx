@@ -34,8 +34,8 @@ export default function GameRulesModal({ open, onClose }) {
           <li>
             <span className="font-semibold text-violet-300">② 순서 맞추기</span>
             <br />
-            사전 책 순서(가나다 순)로, 작은 단어부터 차례로 카드를 내요. 타이밍이
-            중요해요.
+            국어(한글) → 영어 → 숫자 순으로, 앞선 카드보다 뒤에 오는 주제어만 낼 수
+            있어요. 타이밍이 중요해요.
           </li>
           <li>
             <span className="font-semibold text-rose-300">하트</span>가 모두

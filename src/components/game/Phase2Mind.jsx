@@ -34,6 +34,109 @@ function removeFromHand(hand, card) {
   return hand.filter((c) => c.id !== card.id)
 }
 
+/** 모든 손패에서, 이번 턴에 낼 수 있는(필드보다 뒤인) 카드 중 주제어 최소 1장 */
+function globalMinValidCard(state) {
+  const last = state.lastTopic
+  const all = [
+    ...state.playerHand.map((card) => ({ card, from: 'player' })),
+    ...state.bot1Hand.map((card) => ({ card, from: 'bot1' })),
+    ...state.bot2Hand.map((card) => ({ card, from: 'bot2' })),
+  ]
+  const valid =
+    last == null
+      ? all
+      : all.filter((x) => compareTopicOrder(x.card.topic, last) > 0)
+  if (valid.length === 0) return null
+  valid.sort((a, b) => {
+    const o = compareTopicOrder(a.card.topic, b.card.topic)
+    if (o !== 0) return o
+    return String(a.card.id).localeCompare(String(b.card.id))
+  })
+  return valid[0].card
+}
+
+/**
+ * 잘못 낸 카드 W보다 앞(주제어 순서상 작음)이면서,
+ * 필드 마지막보다 뒤인 카드 — 모든 플레이어 손에서 강제 제출 대상
+ */
+function collectForcedBeforeWrong(state, lastTopic, wrongTopic) {
+  const parts = [
+    ...state.playerHand.map((card) => ({ from: 'player', card })),
+    ...state.bot1Hand.map((card) => ({ from: 'bot1', card })),
+    ...state.bot2Hand.map((card) => ({ from: 'bot2', card })),
+  ]
+  return parts.filter(({ card }) => {
+    if (lastTopic == null) {
+      return compareTopicOrder(card.topic, wrongTopic) < 0
+    }
+    return (
+      compareTopicOrder(card.topic, lastTopic) > 0 &&
+      compareTopicOrder(card.topic, wrongTopic) < 0
+    )
+  })
+}
+
+function applyWrongSubmission(state, playedCard, playedFrom) {
+  const last = state.lastTopic
+  const w = playedCard.topic
+
+  let forced = collectForcedBeforeWrong(state, last, w).filter(
+    (x) => x.card.id !== playedCard.id,
+  )
+  forced.sort((a, b) => {
+    const o = compareTopicOrder(a.card.topic, b.card.topic)
+    if (o !== 0) return o
+    return String(a.card.id).localeCompare(String(b.card.id))
+  })
+
+  let playerHand = [...state.playerHand]
+  let bot1Hand = [...state.bot1Hand]
+  let bot2Hand = [...state.bot2Hand]
+  let center = [...state.center]
+
+  for (const { from, card: c } of forced) {
+    center = [...center, { topic: c.topic, from, forced: true }]
+    if (from === 'player') playerHand = removeFromHand(playerHand, c)
+    else if (from === 'bot1') bot1Hand = removeFromHand(bot1Hand, c)
+    else bot2Hand = removeFromHand(bot2Hand, c)
+  }
+
+  const pen = forced.length
+
+  center = [
+    ...center,
+    {
+      topic: w,
+      from: playedFrom,
+      forced: true,
+      wrongTap: true,
+    },
+  ]
+  if (playedFrom === 'player') playerHand = removeFromHand(playerHand, playedCard)
+  else if (playedFrom === 'bot1') bot1Hand = removeFromHand(bot1Hand, playedCard)
+  else bot2Hand = removeFromHand(bot2Hand, playedCard)
+
+  const autoNames = forced.map((x) => `「${x.card.topic}」`).join(', ')
+  const reason =
+    pen > 0
+      ? `먼저 나와야 할 카드 ${pen}장${autoNames ? `(${autoNames})` : ''}이 모두에게서 깔렸어요. 생명 ${pen}칸이 깎였어요.`
+      : '순서가 맞지 않아요. 강제로 깔린 카드가 없어 생명은 깎이지 않았어요.'
+
+  return {
+    ...state,
+    center,
+    lastTopic: w,
+    playerHand,
+    bot1Hand,
+    bot2Hand,
+    lives: Math.max(0, state.lives - pen),
+    hintMode: false,
+    revealed: new Set(),
+    penaltyToast: reason,
+    shakeKey: (state.shakeKey ?? 0) + 1,
+  }
+}
+
 function buildRoundState({
   playerCards,
   poolRows,
@@ -73,30 +176,24 @@ function buildRoundState({
 }
 
 /**
- * 순서 오류: 제출한 카드까지 앞순번을 강제 제출.
- * 생명은 잘못 낸 카드(마지막 한 장)를 제외한 강제 제출 장수만큼 차감.
+ * 전역 최소 주제어만 정답. 오답 시 그보다 앞 순서 카드는 모든 손에서 강제 제출,
+ * 생명은 강제로 깔린 장수만큼만 차감(잘못 낸 한 장은 생명에 포함하지 않음).
  */
 function applyPlayerPlayWithRules(state, card) {
-  const lastTopic = state.lastTopic
   const hand = state.playerHand
+  if (!hand.some((c) => c.id === card.id)) {
+    return { ...state, penaltyToast: '손에 없는 카드예요.' }
+  }
 
-  const valid = hand.filter(
-    (c) =>
-      lastTopic == null || compareTopicOrder(c.topic, lastTopic) > 0,
-  )
-  const sortedValid = [...valid].sort((a, b) =>
-    compareTopicOrder(a.topic, b.topic),
-  )
-
-  if (sortedValid.length === 0) {
+  const globalMin = globalMinValidCard(state)
+  if (!globalMin) {
     return {
       ...state,
-      penaltyToast:
-        '낼 수 있는 카드가 없습니다. 필드 순서를 다시 확인해 주세요.',
+      penaltyToast: '낼 수 있는 카드가 없어요.',
     }
   }
 
-  if (sortedValid[0].id === card.id) {
+  if (globalMin.id === card.id) {
     const t = card.topic
     return {
       ...state,
@@ -110,97 +207,7 @@ function applyPlayerPlayWithRules(state, card) {
     }
   }
 
-  const idx = sortedValid.findIndex((c) => c.id === card.id)
-
-  if (idx > 0) {
-    const chain = sortedValid.slice(0, idx + 1)
-    let center = [...state.center]
-    let playerHand = [...state.playerHand]
-    let last = lastTopic
-    for (let i = 0; i < chain.length; i++) {
-      const c = chain[i]
-      const isWrongTap = i === idx
-      center = [
-        ...center,
-        {
-          topic: c.topic,
-          from: 'player',
-          forced: true,
-          wrongTap: isWrongTap,
-        },
-      ]
-      last = c.topic
-      playerHand = playerHand.filter((x) => x.id !== c.id)
-    }
-    const pen = idx
-    const autoNames = chain
-      .slice(0, idx)
-      .map((c) => `「${c.topic}」`)
-      .join(', ')
-    const reason =
-      pen > 0
-        ? `먼저 나와야 할 카드 ${pen}장(${autoNames})이 깔렸어요. 잘못 낸 카드는 생명에 세지 않아요. 생명 ${pen}칸이 깎였어요.`
-        : '순서가 맞지 않아요.'
-
-    return {
-      ...state,
-      center,
-      lastTopic: last,
-      playerHand,
-      lives: Math.max(0, state.lives - pen),
-      hintMode: false,
-      revealed: new Set(),
-      penaltyToast: reason,
-      shakeKey: (state.shakeKey ?? 0) + 1,
-    }
-  }
-
-  const beforeW = sortedValid.filter(
-    (c) => compareTopicOrder(c.topic, card.topic) < 0,
-  )
-  beforeW.sort((a, b) => compareTopicOrder(a.topic, b.topic))
-  const mustForce = beforeW.length > 0 ? beforeW : [...sortedValid]
-
-  let center = [...state.center]
-  let playerHand = [...state.playerHand]
-  let last = lastTopic
-  for (const f of mustForce) {
-    center = [...center, { topic: f.topic, from: 'player', forced: true }]
-    last = f.topic
-    playerHand = playerHand.filter((c) => c.id !== f.id)
-  }
-  center = [
-    ...center,
-    {
-      topic: card.topic,
-      from: 'player',
-      forced: true,
-      wrongTap: true,
-    },
-  ]
-  last = card.topic
-  playerHand = playerHand.filter((c) => c.id !== card.id)
-
-  const pen = mustForce.length
-  const names = mustForce.map((c) => `「${c.topic}」`).join(', ')
-  const reason =
-    pen > 0
-      ? `이 카드 순서가 아니에요. 먼저 ${pen}장(${names})이 깔렸고, 잘못 낸 한 장은 생명에 안 세요. 생명 ${pen}칸이 깎였어요.`
-      : '낼 수 없는 카드를 골랐어요. 생명 1칸이 깎였어요.'
-
-  const lifeCost = pen > 0 ? pen : 1
-
-  return {
-    ...state,
-    center,
-    lastTopic: last,
-    playerHand,
-    lives: Math.max(0, state.lives - lifeCost),
-    hintMode: false,
-    revealed: new Set(),
-    penaltyToast: reason,
-    shakeKey: (state.shakeKey ?? 0) + 1,
-  }
+  return applyWrongSubmission(state, card, 'player')
 }
 
 /**
@@ -215,6 +222,7 @@ export default function Phase2Mind({
   initialCheonryan,
   onRoundWin,
   onRoundLose,
+  onLivesChange,
 }) {
   const durationMs = phase2SecondsForLevel(level) * 1000
 
@@ -239,6 +247,10 @@ export default function Phase2Mind({
     }, 7000)
     return () => window.clearTimeout(id)
   }, [state.penaltyToast])
+
+  useEffect(() => {
+    onLivesChange?.(state.lives)
+  }, [state.lives, onLivesChange])
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -412,7 +424,8 @@ export default function Phase2Mind({
           </p>
         ) : (
           <p className="mt-2 text-center text-[11px] text-slate-500 md:text-xs">
-            첫 카드는 사전에서 뒤쪽으로만 이어지면 됩니다.
+            첫 카드는 아무거나 낼 수 있어요. 이후는 국어→영어→숫자 순으로 앞보다
+            뒤만 낼 수 있어요.
           </p>
         )}
       </div>
@@ -445,7 +458,7 @@ export default function Phase2Mind({
         className={`min-h-[72px] rounded-2xl border border-violet-400/25 bg-gradient-to-b from-violet-950/50 to-slate-950/80 px-2 py-3 text-center shadow-inner md:min-h-[88px] md:px-3 md:py-4 ${state.shakeKey ? 'p2-shake-anim' : ''} ${state.mergeFlash ? 'p2-merge-glow' : ''}`}
       >
         <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-violet-300/80 md:text-[11px]">
-          필드 · 국어 사전순
+          필드 · 국어→영어→숫자 순
         </p>
         <p className="mt-2 text-xs leading-relaxed text-slate-100 md:text-sm">
           {state.center.length === 0
@@ -471,26 +484,29 @@ export default function Phase2Mind({
 
       <div>
         <p className="mb-2 text-center text-[11px] text-slate-400 md:text-xs">
-          내 카드 — 세 줄씩 배치 · 사전에서 앞 카드보다 뒤에 오는 주제어만 낼 수 있어요
+          내 카드 — 탭하면 바로 제출 · 이번에 낼 수 있는 가장 앞 순서(전체)와 같아야
+          해요
         </p>
-        <div className="grid w-full grid-cols-3 gap-2 sm:gap-2.5">
-          {state.playerHand.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => playPlayer(c)}
-              className="min-h-[5.5rem] rounded-xl border-2 border-slate-500/80 bg-slate-800 px-2 py-2.5 text-left shadow-md transition active:scale-[0.98] md:min-h-[6rem] md:px-2.5 md:py-3"
-            >
-              <span className="block text-[0.95rem] font-bold leading-snug text-white md:text-base">
-                {c.topic}
-              </span>
-              {c.explanation ? (
-                <span className="mt-1.5 line-clamp-3 text-[11px] leading-snug text-slate-200 md:text-xs">
-                  {c.explanation}
+        <div className="max-h-[min(52dvh,28rem)] w-full overflow-y-auto rounded-2xl border border-slate-500/40 bg-slate-950/30 p-2 sm:p-3">
+          <div className="grid w-full grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">
+            {state.playerHand.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => playPlayer(c)}
+                className="flex min-h-[7.5rem] flex-col rounded-xl border-2 border-slate-400/90 bg-white px-2.5 py-3 text-left shadow-[0_6px_0_0_rgba(15,23,42,0.35),0_8px_24px_rgba(0,0,0,0.25)] ring-1 ring-slate-300/80 transition active:translate-y-0.5 active:shadow-md md:min-h-[8.25rem] md:px-3 md:py-3.5"
+              >
+                <span className="block text-[0.95rem] font-bold leading-snug text-slate-900 md:text-base">
+                  {c.topic}
                 </span>
-              ) : null}
-            </button>
-          ))}
+                {c.explanation ? (
+                  <span className="mt-2 line-clamp-4 text-[11px] leading-snug text-slate-600 md:text-xs">
+                    {c.explanation}
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -522,48 +538,25 @@ export default function Phase2Mind({
 
 function applyBotScheduledPlay(state, bot, card) {
   const hand = bot === 'bot1' ? state.bot1Hand : state.bot2Hand
-  const still = hand.some((c) => c.id === card.id)
-  if (!still) return state
+  if (!hand.some((c) => c.id === card.id)) return state
 
-  const t = card.topic
-  const invalid =
-    state.lastTopic != null && compareTopicOrder(t, state.lastTopic) <= 0
-  if (invalid) {
-    const pen = botPenalty(hand, state.lastTopic, card)
+  const globalMin = globalMinValidCard(state)
+  if (!globalMin) return state
+
+  if (globalMin.id === card.id) {
+    const t = card.topic
     const h2 = removeFromHand(hand, card)
     return {
       ...state,
-      lives: Math.max(0, state.lives - pen),
+      lastTopic: t,
+      center: [...state.center, { topic: t, from: bot, forced: false }],
       [bot === 'bot1' ? 'bot1Hand' : 'bot2Hand']: h2,
       hintMode: false,
       revealed: new Set(),
     }
   }
 
-  const h2 = removeFromHand(hand, card)
-  return {
-    ...state,
-    lastTopic: t,
-    center: [...state.center, { topic: t, from: bot, forced: false }],
-    [bot === 'bot1' ? 'bot1Hand' : 'bot2Hand']: h2,
-    hintMode: false,
-    revealed: new Set(),
-  }
-}
-
-function botPenalty(hand, lastTopic, playedCard) {
-  if (lastTopic == null) return 1
-  const t = playedCard.topic
-  if (compareTopicOrder(t, lastTopic) > 0) return 0
-  const others = hand.filter((c) => c.id !== playedCard.id)
-  const between = others.filter(
-    (c) =>
-      compareTopicOrder(c.topic, lastTopic) > 0 &&
-      compareTopicOrder(c.topic, t) < 0,
-  ).length
-  if (between > 0) return between
-  const after = others.filter((c) => compareTopicOrder(c.topic, lastTopic) > 0).length
-  return Math.max(1, after)
+  return applyWrongSubmission(state, card, bot)
 }
 
 function BotStack({ name, hand, botKey, hintMode, revealed, onReveal }) {

@@ -17,7 +17,7 @@ export function mergeBotPlayOrder(bot1Hand, bot2Hand) {
 }
 
 /**
- * 족보의 각 카드가 나올 시각(ms). 마지막 2초는 유저 반응용으로 비움.
+ * 족보의 각 카드가 나올 시각(ms). 끝부분은 플레이어 제출 여유로 비움.
  */
 export function scheduleTimes(n, durationMs, reserveMs) {
   const windowMs = Math.max(0, durationMs - reserveMs)

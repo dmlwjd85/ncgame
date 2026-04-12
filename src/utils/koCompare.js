@@ -1,9 +1,27 @@
 /**
- * 국어 사전식 문자열 순서 비교 (The Mind 2페이즈용)
+ * 주제어 순서: 한글(국어) → 영어(라틴) → 숫자
  * @param {string} a
  * @param {string} b
- * @returns {number} 음수면 a가 앞, 양수면 b가 앞, 0이면 동일
+ * @returns {number}
  */
 export function compareTopicOrder(a, b) {
-  return String(a).localeCompare(String(b), 'ko', { sensitivity: 'base' })
+  const sa = String(a).trim()
+  const sb = String(b).trim()
+  const ra = topicRank(sa)
+  const rb = topicRank(sb)
+  if (ra !== rb) return ra - rb
+  if (ra === 0) return sa.localeCompare(sb, 'ko', { sensitivity: 'base' })
+  if (ra === 1) return sa.localeCompare(sb, 'en', { sensitivity: 'base' })
+  return sa.localeCompare(sb, 'en', { numeric: true, sensitivity: 'base' })
+}
+
+/** 0=한글 우선, 1=영어, 2=숫자(및 그 외) */
+function topicRank(s) {
+  if (!s) return 2
+  const ch = s[0]
+  if (/[\uAC00-\uD7A3\u3131-\u3163]/.test(ch)) return 0
+  if (/[0-9]/.test(ch)) return 2
+  if (/[a-zA-Z]/.test(ch)) return 1
+  if (/[\u1100-\u11FF]/.test(ch)) return 0
+  return 1
 }

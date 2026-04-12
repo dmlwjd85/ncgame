@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import {
+  clearRunSave,
+  clearStagedResume,
+  loadRunSave,
+} from '../utils/gameRunSave'
 import GameRulesModal from '../components/GameRulesModal'
 import JokboModal from '../components/JokboModal'
 import HallOfFamePanel from '../components/HallOfFamePanel'
@@ -47,10 +52,34 @@ export default function Home() {
     maxLv >= 1 &&
     selectedPack.missingColumns.length === 0
 
+  const savedRun = loadRunSave()
+  const canResume =
+    !!savedRun &&
+    !!effectivePackId &&
+    String(savedRun.packId) === String(effectivePackId)
+
   const goGame = () => {
     if (!effectivePackId || !canStart) return
+    clearStagedResume()
+    clearRunSave()
     navigate('/game', {
       state: { packId: effectivePackId, botCount },
+    })
+  }
+
+  const continueGame = () => {
+    if (!effectivePackId || !canStart || !savedRun) return
+    try {
+      sessionStorage.setItem(
+        `ncgame-resume-${effectivePackId}`,
+        JSON.stringify(savedRun),
+      )
+    } catch {
+      /* noop */
+    }
+    clearRunSave()
+    navigate('/game', {
+      state: { packId: effectivePackId, botCount: savedRun.botCount },
     })
   }
 
@@ -259,14 +288,35 @@ export default function Home() {
                       친구 2명
                     </label>
                   </div>
-                  <button
-                    type="button"
-                    disabled={!canStart}
-                    onClick={goGame}
-                    className="w-full rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-600 py-3.5 text-base font-semibold text-white shadow-lg disabled:opacity-40"
-                  >
-                    시작하기
-                  </button>
+                  {canResume ? (
+                    <div className="flex w-full flex-col gap-2">
+                      <button
+                        type="button"
+                        disabled={!canStart}
+                        onClick={continueGame}
+                        className="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-cyan-600 py-3.5 text-base font-semibold text-white shadow-lg disabled:opacity-40"
+                      >
+                        이어하기
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!canStart}
+                        onClick={goGame}
+                        className="w-full rounded-2xl border border-white/20 bg-white/5 py-3 text-base font-semibold text-slate-100 disabled:opacity-40"
+                      >
+                        새로 시작
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={!canStart}
+                      onClick={goGame}
+                      className="w-full rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-600 py-3.5 text-base font-semibold text-white shadow-lg disabled:opacity-40"
+                    >
+                      시작하기
+                    </button>
+                  )}
                 </section>
               ) : (
                 <p className="mx-auto mt-6 text-center text-sm text-slate-500">
