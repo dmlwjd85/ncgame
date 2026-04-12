@@ -30,3 +30,6 @@ ios/
 *.njsproj
 *.sln
 *.sw?
+
+# Firebase CLI 캐시
+.firebase/

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { compareTopicOrder } from '../../utils/koCompare'
 import {
   MAX_LIVES,
@@ -6,7 +6,7 @@ import {
   phase2SecondsForLevel,
 } from '../../utils/gameRules'
 import { sfxMerge, sfxPenalty } from '../../utils/gameSfx'
-import { USER_RESERVE_MS, scheduleTimes } from '../../utils/phase2Utils'
+import { scheduleBotFireTimes } from '../../utils/phase2Utils'
 
 const BOT_NAMES = ['가상 플레이어 A', '가상 플레이어 B']
 const DISPLAY_HEARTS = 3
@@ -57,23 +57,6 @@ function globalMinValidEntry(state) {
 
 function globalMinValidCard(state) {
   return globalMinValidEntry(state)?.card ?? null
-}
-
-/** 해당 봇 손패만 보고, lastTopic보다 뒤에 오는 주제어 중 가장 앞 순서 카드(스케줄 시 제출용) */
-function botLocalMinValidCard(state, bot) {
-  const hand = bot === 'bot1' ? state.bot1Hand : state.bot2Hand
-  const last = state.lastTopic
-  const valid =
-    last == null
-      ? [...hand]
-      : hand.filter((c) => compareTopicOrder(c.topic, last) > 0)
-  if (valid.length === 0) return null
-  valid.sort((a, b) => {
-    const o = compareTopicOrder(a.topic, b.topic)
-    if (o !== 0) return o
-    return String(a.id).localeCompare(String(b.id))
-  })
-  return valid[0]
 }
 
 /**
@@ -174,6 +157,35 @@ function applyWrongSubmission(state, playedCard, playedFrom) {
   }
 }
 
+/** 족보(전체 주제어 순)에서 봇이 내는 순서와 시각 — 해당 타이밍에 그 카드로 무조건 제출 */
+function buildBotScheduleFromHands(
+  playerHand,
+  bot1Hand,
+  bot2Hand,
+  botCount,
+  durationMs,
+) {
+  const entries = [
+    ...playerHand.map((card) => ({ card, bot: /** @type {'player'} */ ('player') })),
+    ...bot1Hand.map((card) => ({ card, bot: /** @type {'bot1'} */ ('bot1') })),
+    ...(botCount > 1
+      ? bot2Hand.map((card) => ({ card, bot: /** @type {'bot2'} */ ('bot2') }))
+      : []),
+  ]
+  entries.sort((a, b) => {
+    const o = compareTopicOrder(a.card.topic, b.card.topic)
+    if (o !== 0) return o
+    return String(a.card.id).localeCompare(String(b.card.id))
+  })
+  const botPlays = entries.filter((e) => e.bot !== 'player')
+  const times = scheduleBotFireTimes(botPlays.length, durationMs)
+  return botPlays.map((bp, i) => ({
+    fireAt: times[i],
+    bot: bp.bot,
+    cardId: bp.card.id,
+  }))
+}
+
 function buildRoundState({
   playerCards,
   poolRows,
@@ -186,13 +198,13 @@ function buildRoundState({
   const n = playerCards.length
   const bot1Hand = dealBot(poolRows, n, 0)
   const bot2Hand = botCount > 1 ? dealBot(poolRows, n, 1) : []
-  /** 봇 자동 제출 타이밍 개수(손패 장수 합). 각 시각에 지정된 봇만 자기 손의 로컬 최소 카드를 냄 */
-  const botTurnCount = bot1Hand.length + bot2Hand.length
-  const times = scheduleTimes(botTurnCount, durationMs, USER_RESERVE_MS)
-  const schedule = times.map((fireAt, i) => ({
-    fireAt,
-    bot: botCount > 1 ? (i % 2 === 0 ? 'bot1' : 'bot2') : 'bot1',
-  }))
+  const schedule = buildBotScheduleFromHands(
+    playerHand,
+    bot1Hand,
+    bot2Hand,
+    botCount,
+    durationMs,
+  )
   return {
     lives: initialLives,
     cheonryan: initialCheonryan,
@@ -275,8 +287,20 @@ export default function Phase2Mind({
   /** 부모(보상 팝업 등) 오버레이 중 타이머 정지 */
   overlayTimerPause = false,
   coachMode = false,
+  /** 튜토리얼 단어팩: 내야 할 카드 강조·천리안 안내 */
+  tutorialMode = false,
 }) {
   const durationMs = phase2SecondsForLevel(level) * 1000
+
+  const tutorialBaseHint = useMemo(() => {
+    if (!tutorialMode) return ''
+    return '튜토리얼: 아래 「천리안」을 눌러 상대 패를 잠깐 볼 수 있어요. 시간이 멈춥니다.'
+  }, [tutorialMode])
+
+  /** 천리안 탭/취소 후 안내(기본 문구 위에 덮어씀) */
+  const [tutorialPhaseHint, setTutorialPhaseHint] = useState('')
+
+  const tutorialBannerText = tutorialPhaseHint || tutorialBaseHint
 
   const [state, setState] = useState(() =>
     buildRoundState({
@@ -376,7 +400,9 @@ export default function Phase2Mind({
         ) {
           const slot = sched[nextBotIdxRef.current]
           const scheduledBot = slot.bot
-          const card = botLocalMinValidCard(next, scheduledBot)
+          const hand =
+            scheduledBot === 'bot1' ? next.bot1Hand : next.bot2Hand
+          const card = hand.find((c) => String(c.id) === String(slot.cardId))
           if (!card) {
             nextBotIdxRef.current += 1
             continue
@@ -422,8 +448,21 @@ export default function Phase2Mind({
           queueMicrotask(() => onRoundLose(payload))
         } else if (next.elapsedMs >= next.durationMs && total > 0) {
           endedRef.current = true
-          const payload = makeLosePayload(next, 'time')
-          queueMicrotask(() => onRoundLose(payload))
+          const penalty = total
+          const newLives = Math.max(0, next.lives - penalty)
+          if (newLives <= 0) {
+            const payload = makeLosePayload({ ...next, lives: 0 }, 'time')
+            queueMicrotask(() => onRoundLose(payload))
+          } else {
+            queueMicrotask(() =>
+              onRoundWin({
+                lives: newLives,
+                cheonryan: next.cheonryan,
+                center: next.center,
+                timeUpPenaltyCards: penalty,
+              }),
+            )
+          }
         }
 
         return next
@@ -490,7 +529,12 @@ export default function Phase2Mind({
         revealed: new Set(),
       }
     })
-  }, [])
+    if (tutorialMode) {
+      setTutorialPhaseHint(
+        '상대 카드 한 장을 탭해 보세요. 탭하면 천리안이 끝나고 시간이 다시 흘러요.',
+      )
+    }
+  }, [tutorialMode])
 
   const reveal = useCallback((botKey, cardId) => {
     setState((s) => {
@@ -519,7 +563,12 @@ export default function Phase2Mind({
       peekClearRef.current = null
     }
     setState((s) => ({ ...s, hintMode: false, revealed: new Set() }))
-  }, [])
+    if (tutorialMode) {
+      setTutorialPhaseHint(
+        '취소해도 이미 사용한 천리안은 돌아오지 않아요. (천리안 버튼을 눌렀을 때 1회 소모)',
+      )
+    }
+  }, [tutorialMode])
 
   const secLeft = Math.max(0, (durationMs - state.elapsedMs) / 1000)
   const totalCards =
@@ -537,13 +586,18 @@ export default function Phase2Mind({
     if (overlayTimerPause) return ' · 보상 확인 중'
     return ''
   })()
-  /** 초보 안내: 전체 중 이번에 낼 수 있는 가장 앞 순서 카드 */
+  /** 초보·튜토리얼: 전체 중 이번에 낼 수 있는 가장 앞 순서 카드 */
   const coachTargetId =
-    coachMode && state.playerHand.length > 0
+    (tutorialMode || coachMode) && state.playerHand.length > 0
       ? (() => {
           const e = globalMinValidEntry(state)
           return e?.from === 'player' ? e.card.id : null
         })()
+      : null
+
+  const tutorialGuideCard =
+    tutorialMode && coachTargetId
+      ? state.playerHand.find((c) => String(c.id) === String(coachTargetId))
       : null
 
   return (
@@ -571,6 +625,32 @@ export default function Phase2Mind({
           className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-relaxed text-rose-900 shadow-md"
         >
           {state.penaltyToast}
+        </div>
+      ) : null}
+
+      {tutorialBannerText ? (
+        <div
+          role="status"
+          className="rounded-2xl border border-sky-300 bg-sky-50 px-4 py-3 text-sm leading-relaxed text-sky-950 shadow-md"
+        >
+          {tutorialBannerText}
+        </div>
+      ) : null}
+
+      {tutorialMode && tutorialGuideCard ? (
+        <div
+          className="pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-[45] max-w-md -translate-x-1/2 rounded-2xl border-2 border-amber-400 bg-amber-50/95 px-4 py-3 text-center shadow-lg shadow-amber-900/20 ring-4 ring-amber-300/60"
+          role="status"
+        >
+          <p className="text-xs font-semibold text-amber-900">지금 낼 카드</p>
+          <p className="mt-1 text-base font-bold text-slate-900">
+            {tutorialGuideCard.topic}
+          </p>
+          {tutorialGuideCard.explanation ? (
+            <p className="mt-1 text-xs leading-relaxed text-amber-950/90">
+              {tutorialGuideCard.explanation}
+            </p>
+          ) : null}
         </div>
       ) : null}
 
@@ -751,7 +831,14 @@ export default function Phase2Mind({
           내 카드 — 탭하면 바로 제출 · 이번에 낼 수 있는 가장 앞 순서(전체)와 같아야
           해요
         </p>
-        {coachMode && coachTargetId != null ? (
+        {tutorialMode && coachTargetId != null ? (
+          <p
+            className="mb-2 text-center text-xs font-medium text-amber-800 md:text-sm"
+            role="status"
+          >
+            노란 테두리 카드를 탭해 제출하세요.
+          </p>
+        ) : coachMode && coachTargetId != null ? (
           <p
             className="mb-2 flex items-center justify-center gap-1 text-center text-xs font-medium text-amber-800 md:text-sm"
             role="status"
@@ -771,7 +858,9 @@ export default function Phase2Mind({
                 onClick={() => playPlayer(c)}
                 className={`flex min-h-[7.5rem] flex-col rounded-xl border-2 border-slate-400/90 bg-white px-2.5 py-3 text-left shadow-[0_6px_0_0_rgba(15,23,42,0.35),0_8px_24px_rgba(0,0,0,0.25)] ring-1 ring-slate-300/80 transition active:translate-y-0.5 active:shadow-md md:min-h-[8.25rem] md:px-3 md:py-3.5 ${
                   coachTargetId != null && c.id === coachTargetId
-                    ? 'ring-4 ring-amber-400 ring-offset-2 ring-offset-white'
+                    ? tutorialMode
+                      ? 'z-10 ring-4 ring-amber-400 ring-offset-2 ring-offset-white shadow-[0_0_0_4px_rgba(251,191,36,0.45)] animate-pulse'
+                      : 'ring-4 ring-amber-400 ring-offset-2 ring-offset-white'
                     : ''
                 }`}
               >

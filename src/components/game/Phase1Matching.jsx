@@ -31,6 +31,8 @@ export default function Phase1Matching({
   packKey,
   combo = 0,
   coachMode = false,
+  /** 튜토리얼 단어팩: 맞출 카드 강조·안내 */
+  tutorialMode = false,
 }) {
   const [matchedIds, setMatchedIds] = useState(() => new Set())
   const [burstId, setBurstId] = useState(/** @type {string|null} */ (null))
@@ -41,12 +43,12 @@ export default function Phase1Matching({
   )
   const tier = comboTier(combo)
 
-  /** 초보 안내: 아직 맞추지 않은 카드 중 첫 번째(행 순서) */
+  /** 초보·튜토리얼: 아직 맞추지 않은 카드 중 첫 번째(행 순서) */
   const coachTargetKey = useMemo(() => {
-    if (!coachMode) return null
+    if (!coachMode && !tutorialMode) return null
     const next = rows.find((r) => !matchedIds.has(rowKey(packKey, r)))
     return next ? String(rowKey(packKey, next)) : null
-  }, [coachMode, rows, matchedIds, packKey])
+  }, [coachMode, tutorialMode, rows, matchedIds, packKey])
 
   const activeRows = useMemo(
     () => rows.filter((r) => !matchedIds.has(rowKey(packKey, r))),
@@ -155,7 +157,7 @@ export default function Phase1Matching({
           뜻 칸으로 <span className="font-semibold text-sky-600">위로 끌어 올려</span>{' '}
           놓으세요.
         </p>
-        {coachMode && coachTargetKey ? (
+        {(coachMode || tutorialMode) && coachTargetKey ? (
           <p
             className="relative flex items-center justify-center gap-1 text-center text-xs font-medium text-amber-800 md:text-sm"
             role="status"
@@ -163,7 +165,9 @@ export default function Phase1Matching({
             <span className="inline-block animate-bounce" aria-hidden>
               ↓
             </span>
-            노란 테두리부터 맞추면 돼요 — 끌어서 같은 줄의 뜻과 합치면 콤보가 쌓여요
+            {tutorialMode
+              ? '노란 테두리 줄부터 맞춰 보세요.'
+              : '노란 테두리부터 맞추면 돼요 — 끌어서 같은 줄의 뜻과 합치면 콤보가 쌓여요'}
           </p>
         ) : null}
         <div className="relative flex flex-col gap-3">
@@ -175,6 +179,7 @@ export default function Phase1Matching({
               text={row.explanation}
               tier={tier}
               coachHighlight={coachTargetKey === String(rowKey(packKey, row))}
+              tutorialPulse={tutorialMode}
             />
           ))}
         </div>
@@ -190,6 +195,7 @@ export default function Phase1Matching({
               reject={rejectId === String(rowKey(packKey, row))}
               tier={tier}
               coachHighlight={coachTargetKey === String(rowKey(packKey, row))}
+              tutorialPulse={tutorialMode}
             />
           ))}
         </div>
@@ -220,6 +226,15 @@ export default function Phase1Matching({
             )}
           </div>
         </div>
+
+        {tutorialMode && coachTargetKey ? (
+          <div
+            className="pointer-events-none fixed bottom-[max(5.5rem,env(safe-area-inset-bottom))] left-1/2 z-40 max-w-sm -translate-x-1/2 rounded-xl border border-sky-400 bg-sky-50/95 px-3 py-2 text-center text-xs text-sky-950 shadow-lg md:text-sm"
+            role="status"
+          >
+            위 해설과 아래 단어를 짝 맞춰 보세요. 노란 테두리부터 맞추면 돼요.
+          </div>
+        ) : null}
       </div>
     </DndContext>
   )
@@ -229,7 +244,16 @@ function rowKey(packKey, row) {
   return `${packKey}-${row.id}`
 }
 
-function TopicBadge({ id, label, disabled, burst, reject, tier, coachHighlight }) {
+function TopicBadge({
+  id,
+  label,
+  disabled,
+  burst,
+  reject,
+  tier,
+  coachHighlight,
+  tutorialPulse = false,
+}) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id, disabled })
 
@@ -248,7 +272,11 @@ function TopicBadge({ id, label, disabled, burst, reject, tier, coachHighlight }
       type="button"
       style={style}
       className={`touch-none select-none rounded-full border px-4 py-2.5 text-sm font-semibold shadow-lg transition active:cursor-grabbing active:touch-none p1-badge-${tier} ${
-        coachHighlight ? 'ring-4 ring-amber-400 ring-offset-2' : ''
+        coachHighlight
+          ? tutorialPulse
+            ? 'animate-pulse ring-4 ring-amber-400 ring-offset-2 shadow-[0_0_0_4px_rgba(251,191,36,0.35)]'
+            : 'ring-4 ring-amber-400 ring-offset-2'
+          : ''
       } ${burst ? 'p1-burst' : ''} ${reject ? 'p1-reject-bounce' : ''}`}
       {...listeners}
       {...attributes}
@@ -258,7 +286,14 @@ function TopicBadge({ id, label, disabled, burst, reject, tier, coachHighlight }
   )
 }
 
-function ExplanationDrop({ id, text, matched, tier, coachHighlight }) {
+function ExplanationDrop({
+  id,
+  text,
+  matched,
+  tier,
+  coachHighlight,
+  tutorialPulse = false,
+}) {
   const { setNodeRef, isOver } = useDroppable({ id, disabled: matched })
 
   if (matched) {
@@ -281,7 +316,9 @@ function ExplanationDrop({ id, text, matched, tier, coachHighlight }) {
       ref={setNodeRef}
       className={`min-h-[4.5rem] rounded-2xl border-2 border-dashed px-4 py-4 text-left text-sm leading-relaxed transition ${
         coachHighlight && !isOver
-          ? 'border-amber-400 bg-amber-50/90 text-slate-900 ring-4 ring-amber-300/80'
+          ? tutorialPulse
+            ? 'animate-pulse border-amber-400 bg-amber-50/90 text-slate-900 ring-4 ring-amber-300/80 shadow-[0_0_0_4px_rgba(251,191,36,0.25)]'
+            : 'border-amber-400 bg-amber-50/90 text-slate-900 ring-4 ring-amber-300/80'
           : isOver
             ? 'border-sky-400 bg-sky-50 text-slate-900 shadow-[0_0_20px_rgba(14,165,233,0.25)]'
             : 'border-slate-300 bg-white/95 text-slate-800 shadow-sm'

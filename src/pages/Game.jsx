@@ -31,6 +31,7 @@ import {
   resolveGameBotCount,
   resolveGamePackId,
 } from '../utils/gameRoute'
+import { isTutorialPack } from '../utils/tutorialPack'
 
 function shuffleRows(rows) {
   const a = [...rows]
@@ -137,6 +138,11 @@ export default function Game() {
   const prevP2ComboRef = useRef(0)
 
   const packKey = pack?.id ?? ''
+  const tutorialMode = isTutorialPack(pack)
+
+  const [levelClearBanner, setLevelClearBanner] = useState(
+    /** @type {string | null} */ (null),
+  )
 
   const refillQueueFromPool = useCallback(() => {
     const used = usedRowIdsRef.current
@@ -325,10 +331,17 @@ export default function Game() {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const onRoundWin = useCallback(
-    async ({ lives: L, cheonryan: C, center }) => {
+    async ({ lives: L, cheonryan: C, center, timeUpPenaltyCards }) => {
       setLives(L)
       setCheonryan(C)
       setLastRoundTopics(center.map((c) => c.topic))
+      if (timeUpPenaltyCards != null && timeUpPenaltyCards > 0) {
+        setLevelClearBanner(
+          `시간 초과로 아직 낸 카드 ${timeUpPenaltyCards}장만큼 생명이 깎였지만, 생명이 남아 이번 레벨을 클리어했어요.`,
+        )
+      } else {
+        setLevelClearBanner(null)
+      }
       const hofName = await resolveDisplayNameForHoF(user)
       await saveHallOfFameIfBetter(packId, level, hofName, {
         uid: user?.uid ?? null,
@@ -343,6 +356,7 @@ export default function Game() {
   )
 
   const continueNextLevel = useCallback(() => {
+    setLevelClearBanner(null)
     setLevel((l) => l + 1)
     setP1Collected([])
     setRoundVersion((v) => v + 1)
@@ -557,7 +571,8 @@ export default function Game() {
                   rows={currentBatch}
                   packKey={packKey}
                   combo={p1Combo}
-                  coachMode={coachMode}
+                  coachMode={coachMode || tutorialMode}
+                  tutorialMode={tutorialMode}
                   onMatchAttempt={onMatchAttempt}
                   onBatchComplete={onBatchComplete}
                 />
@@ -591,7 +606,8 @@ export default function Game() {
                 onCheonryanChange={setCheonryan}
                 onItemRewardPop={onItemRewardPop}
                 overlayTimerPause={!!rewardPop}
-                coachMode={coachMode}
+                coachMode={coachMode || tutorialMode}
+                tutorialMode={tutorialMode}
               />
             </div>
           </>
@@ -605,6 +621,11 @@ export default function Game() {
             <p className="mt-2 text-xs text-slate-600 md:text-sm">
               이번 라운드에서 제출된 카드 순서입니다. 3초 뒤 다음 레벨로 넘어가요.
             </p>
+            {levelClearBanner ? (
+              <p className="mx-auto mt-3 max-w-md rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950 md:text-sm">
+                {levelClearBanner}
+              </p>
+            ) : null}
             <div className="mx-auto mt-6 flex max-h-[45dvh] flex-wrap justify-center gap-2 overflow-y-auto rounded-2xl border border-sky-200/80 bg-white/90 px-3 py-4 text-left shadow-inner">
               {lastRoundTopics.length === 0 ? (
                 <span className="text-slate-500">—</span>
