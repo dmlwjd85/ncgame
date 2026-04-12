@@ -200,14 +200,47 @@ export default function Game() {
   }, [pack, levelDeck])
 
   const goP2 = useCallback(() => {
+    setP1Combo(0)
     setSegment('p2')
   }, [])
+
+  /** 콤보 아이템 지급 시 튀어나오는 하이라이트(1·2페이즈 공통) */
+  const [rewardPop, setRewardPop] = useState(
+    /** @type {{ key: number, cheonryan: number, lives: number } | null} */ (
+      null
+    ),
+  )
+
+  const onItemRewardPop = useCallback((r) => {
+    if (r.cheonryan > 0 || r.lives > 0) {
+      setRewardPop((prev) => ({
+        key: (prev?.key ?? 0) + 1,
+        cheonryan: r.cheonryan,
+        lives: r.lives,
+      }))
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!rewardPop) return
+    const id = window.setTimeout(() => setRewardPop(null), 2400)
+    return () => window.clearTimeout(id)
+  }, [rewardPop])
 
   const onMatchAttempt = useCallback((ok) => {
     if (ok) {
       setP1Combo((c) => {
         const n = c + 1
         const { cheonryan: ch, lives: lf } = phase1ComboRewards(n)
+        if (ch > 0 || lf > 0) {
+          queueMicrotask(() =>
+            setRewardPop((prev) => ({
+              key: (prev?.key ?? 0) + 1,
+              cheonryan: ch,
+              lives: lf,
+            })),
+          )
+        }
         if (ch) setCheonryan((x) => x + ch)
         if (lf) setLives((l) => Math.min(MAX_LIVES, l + lf))
         return n
@@ -233,7 +266,6 @@ export default function Game() {
         return newC
       })
       setRoundVersion((v) => v + 1)
-      setP1Combo(0)
     },
     [cardsNeededThisLevel, refillQueueFromPool],
   )
@@ -347,6 +379,45 @@ export default function Game() {
         </div>
       ) : null}
 
+      {rewardPop ? (
+        <div
+          key={rewardPop.key}
+          className="reward-item-overlay"
+          aria-live="polite"
+        >
+          <div className="reward-item-burst">
+            {rewardPop.cheonryan > 0 ? (
+              <span
+                className="reward-item-chip reward-item-cheonryan"
+                title="천리안 획득"
+              >
+                <svg
+                  className="reward-item-icon"
+                  viewBox="0 0 24 24"
+                  aria-hidden
+                >
+                  <path
+                    fill="currentColor"
+                    d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"
+                  />
+                </svg>
+                <span className="reward-item-label">천리안</span>
+                <span className="reward-item-delta">+{rewardPop.cheonryan}</span>
+              </span>
+            ) : null}
+            {rewardPop.lives > 0 ? (
+              <span className="reward-item-chip reward-item-life" title="라이프 회복">
+                <span className="reward-item-heart" aria-hidden>
+                  ♥
+                </span>
+                <span className="reward-item-label">라이프</span>
+                <span className="reward-item-delta">+{rewardPop.lives}</span>
+              </span>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       <div className="mx-auto w-full max-w-lg game-max-w-tablet landscape:max-w-4xl">
         <header className="mb-4 flex items-center justify-between gap-2 md:mb-6">
           <Link
@@ -447,6 +518,7 @@ export default function Game() {
                 onLivesChange={setLives}
                 onP2ComboChange={setP2Combo}
                 onCheonryanChange={setCheonryan}
+                onItemRewardPop={onItemRewardPop}
                 coachMode={coachMode}
               />
             </div>

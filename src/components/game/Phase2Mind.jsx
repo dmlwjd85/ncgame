@@ -6,11 +6,7 @@ import {
   phase2SecondsForLevel,
 } from '../../utils/gameRules'
 import { sfxMerge, sfxPenalty } from '../../utils/gameSfx'
-import {
-  USER_RESERVE_MS,
-  mergeBotPlayOrder,
-  scheduleTimes,
-} from '../../utils/phase2Utils'
+import { USER_RESERVE_MS, scheduleTimes } from '../../utils/phase2Utils'
 
 const BOT_NAMES = ['가상 플레이어 A', '가상 플레이어 B']
 const DISPLAY_HEARTS = 3
@@ -38,8 +34,8 @@ function removeFromHand(hand, card) {
   return hand.filter((c) => c.id !== card.id)
 }
 
-/** 모든 손패에서, 이번 턴에 낼 수 있는(필드보다 뒤인) 카드 중 주제어 최소 1장 */
-function globalMinValidCard(state) {
+/** 모든 손패에서 이번에 낼 수 있는 카드 중 주제어 최소 1장(소유자 포함) */
+function globalMinValidEntry(state) {
   const last = state.lastTopic
   const all = [
     ...state.playerHand.map((card) => ({ card, from: 'player' })),
@@ -56,7 +52,11 @@ function globalMinValidCard(state) {
     if (o !== 0) return o
     return String(a.card.id).localeCompare(String(b.card.id))
   })
-  return valid[0].card
+  return valid[0]
+}
+
+function globalMinValidCard(state) {
+  return globalMinValidEntry(state)?.card ?? null
 }
 
 /**
@@ -169,13 +169,10 @@ function buildRoundState({
   const n = playerCards.length
   const bot1Hand = dealBot(poolRows, n, 0)
   const bot2Hand = botCount > 1 ? dealBot(poolRows, n, 1) : []
-  const order = mergeBotPlayOrder(bot1Hand, bot2Hand)
-  const times = scheduleTimes(order.length, durationMs, USER_RESERVE_MS)
-  const schedule = order.map((item, i) => ({
-    bot: item.bot,
-    card: item.card,
-    fireAt: times[i] ?? 0,
-  }))
+  /** 봇 자동 제출 타이밍 개수(손패 장수 합). 실제로 내는 카드는 매번 globalMinValidCard로만 정함 */
+  const botTurnCount = bot1Hand.length + bot2Hand.length
+  const times = scheduleTimes(botTurnCount, durationMs, USER_RESERVE_MS)
+  const schedule = times.map((fireAt) => ({ fireAt }))
   return {
     lives: initialLives,
     cheonryan: initialCheonryan,
@@ -254,6 +251,7 @@ export default function Phase2Mind({
   onLivesChange,
   onP2ComboChange,
   onCheonryanChange,
+  onItemRewardPop,
   coachMode = false,
 }) {
   const durationMs = phase2SecondsForLevel(level) * 1000
@@ -326,10 +324,12 @@ export default function Phase2Mind({
           nextBotIdxRef.current < sched.length &&
           sched[nextBotIdxRef.current].fireAt <= next.elapsedMs
         ) {
-          const ev = sched[nextBotIdxRef.current]
+          const entry = globalMinValidEntry(next)
+          if (!entry) break
+          /* 전역 최소가 플레이어 손이면 봇 타이밍만 대기(인덱스 유지) */
+          if (entry.from === 'player') break
+          next = applyBotCorrectPlay(next, entry.from, entry.card)
           nextBotIdxRef.current += 1
-          next = applyBotScheduledPlay(next, ev.bot, ev.card)
-          if (next.lifePenaltyModal) sfxPenalty()
         }
 
         const total =
@@ -367,7 +367,17 @@ export default function Phase2Mind({
     (card) => {
       if (endedRef.current) return
       setState((s) => {
+        const prevP2 = s.p2Combo ?? 0
         const next = applyPlayerPlayWithRules(s, card)
+        if (!next.lifePenaltyModal && !next.penaltyToast) {
+          const n = next.p2Combo ?? 0
+          if (n > prevP2) {
+            const r = phase1ComboRewards(n)
+            if (r.cheonryan > 0 || r.lives > 0) {
+              queueMicrotask(() => onItemRewardPop?.(r))
+            }
+          }
+        }
         if (next.lifePenaltyModal || next.penaltyToast) sfxPenalty()
         else sfxMerge()
         if (endedRef.current) return next
@@ -393,7 +403,7 @@ export default function Phase2Mind({
         return next
       })
     },
-    [onRoundWin, onRoundLose, makeLosePayload],
+    [onRoundWin, onRoundLose, makeLosePayload, onItemRewardPop],
   )
 
   const startCheonryan = useCallback(() => {
@@ -428,7 +438,10 @@ export default function Phase2Mind({
   /** 초보 안내: 전체 중 이번에 낼 수 있는 가장 앞 순서 카드 */
   const coachTargetId =
     coachMode && state.playerHand.length > 0
-      ? globalMinValidCard(state)?.id
+      ? (() => {
+          const e = globalMinValidEntry(state)
+          return e?.from === 'player' ? e.card.id : null
+        })()
       : null
 
   return (
@@ -701,28 +714,26 @@ export default function Phase2Mind({
   )
 }
 
-function applyBotScheduledPlay(state, bot, card) {
+/** 봇은 항상 globalMinValidCard와 동일한 카드만 제출(미리 정한 족보 카드는 쓰지 않음) */
+function applyBotCorrectPlay(state, bot, card) {
   const hand = bot === 'bot1' ? state.bot1Hand : state.bot2Hand
   if (!hand.some((c) => c.id === card.id)) return state
 
   const globalMin = globalMinValidCard(state)
-  if (!globalMin) return state
+  if (!globalMin || globalMin.id !== card.id) return state
 
-  if (globalMin.id === card.id) {
-    const t = card.topic
-    const h2 = removeFromHand(hand, card)
-    return {
-      ...state,
-      lastTopic: t,
-      center: [...state.center, { topic: t, from: bot, forced: false }],
-      [bot === 'bot1' ? 'bot1Hand' : 'bot2Hand']: h2,
-      hintMode: false,
-      revealed: new Set(),
-      lifePenaltyModal: null,
-    }
+  const t = card.topic
+  const h2 = removeFromHand(hand, card)
+  return {
+    ...state,
+    lastTopic: t,
+    center: [...state.center, { topic: t, from: bot, forced: false }],
+    [bot === 'bot1' ? 'bot1Hand' : 'bot2Hand']: h2,
+    hintMode: false,
+    revealed: new Set(),
+    lifePenaltyModal: null,
+    mergeFlash: state.mergeFlash + 1,
   }
-
-  return applyWrongSubmission(state, card, bot)
 }
 
 function BotStack({ name, hand, botKey, hintMode, revealed, onReveal }) {

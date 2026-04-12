@@ -1,23 +1,7 @@
-import { compareTopicOrder } from './koCompare'
-
 export const USER_RESERVE_MS = 2000
 
 /**
- * 봇 손패 전체를 국어 사전순으로 한 줄로 세운 족보(제출 순서)
- * @param {{ topic: string, id: string|number }[]} bot1Hand
- * @param {{ topic: string, id: string|number }[]} bot2Hand
- * @returns {Array<{ bot: 'bot1'|'bot2', card: object }>}
- */
-export function mergeBotPlayOrder(bot1Hand, bot2Hand) {
-  const items = []
-  for (const c of bot1Hand) items.push({ bot: /** @type {'bot1'} */ ('bot1'), card: c })
-  for (const c of bot2Hand) items.push({ bot: /** @type {'bot2'} */ ('bot2'), card: c })
-  items.sort((a, b) => compareTopicOrder(a.card.topic, b.card.topic))
-  return items
-}
-
-/**
- * 족보의 각 카드가 나올 시각(ms). 끝부분은 플레이어 제출 여유로 비움.
+ * 봇 자동 제출 타이밍 개수만큼 시각(ms) 분배. 끝부분은 플레이어 제출 여유로 비움.
  */
 export function scheduleTimes(n, durationMs, reserveMs) {
   const windowMs = Math.max(0, durationMs - reserveMs)
