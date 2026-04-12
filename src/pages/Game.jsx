@@ -7,7 +7,7 @@ import {
   useSearchParams,
 } from 'react-router-dom'
 import Phase1Matching from '../components/game/Phase1Matching'
-import Phase2Mind from '../components/game/Phase2Mind'
+import Phase2Mind, { EyeIcon } from '../components/game/Phase2Mind'
 import { useAuth } from '../contexts/AuthContext'
 import { useCardPacks } from '../contexts/CardPackContext'
 import {
@@ -153,6 +153,19 @@ export default function Game() {
     /** @type {ReturnType<typeof setTimeout> | null} */ (null),
   )
   const [p2ComboOverlayVisible, setP2ComboOverlayVisible] = useState(false)
+
+  /** 2페이즈 천리안 — 상단 바 버튼에서 호출 */
+  const p2MindRef = useRef(
+    /** @type {{ startCheonryan: () => void, endHintMode: () => void } | null} */ (
+      null
+    ),
+  )
+  /** 천리안 모드(상대 패 탭 가능) — 버튼 비활성·취소 표시 */
+  const [p2HintMode, setP2HintMode] = useState(false)
+  /** 1페이즈에서 실제로 마지막으로 맞춘 카드(전환 연출용 — 수집 배열 순서와 다를 수 있음) */
+  const [p1LastMatchDisplay, setP1LastMatchDisplay] = useState(
+    /** @type {{ topic: string, explanation: string } | null} */ (null),
+  )
 
   const packKey = pack?.id ?? ''
   const tutorialMode = isTutorialPack(pack)
@@ -348,6 +361,10 @@ export default function Game() {
 
   const handleP1RealMatch = useCallback((row, explanationText) => {
     const t = String(explanationText).trim()
+    setP1LastMatchDisplay({
+      topic: String(row.topic ?? '').trim() || '—',
+      explanation: String(row.explanation ?? '').trim(),
+    })
     setP1UsedExplanations((prev) => (prev.includes(t) ? prev : [...prev, t]))
     setP1DistractorVersion((v) => v + 1)
     setP1BatchMatchedIds((prev) => {
@@ -366,8 +383,31 @@ export default function Game() {
   }, [roundVersion])
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  /* eslint-disable react-hooks/set-state-in-effect -- 레벨·배치 바뀌면 마지막 맞춤 스냅샷 초기화 */
+  useEffect(() => {
+    setP1LastMatchDisplay(null)
+  }, [level, roundVersion])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  /* eslint-disable react-hooks/set-state-in-effect -- 2페이즈 이탈 시 상단 천리안 UI 동기화 */
+  useEffect(() => {
+    if (segment !== 'p2') setP2HintMode(false)
+  }, [segment])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   const phase1Done =
     p1Collected.length >= cardsNeededThisLevel && queueReady
+
+  /** 1→2페이즈 전환 시 표시 — 마지막으로 실제 맞춘 카드 우선(수집 큐 순서와 불일치 방지) */
+  const p1IntermissionCard = useMemo(() => {
+    if (p1LastMatchDisplay) return p1LastMatchDisplay
+    if (p1Collected.length === 0) return null
+    const r = p1Collected[p1Collected.length - 1]
+    return {
+      topic: String(r.topic ?? '').trim() || '—',
+      explanation: String(r.explanation ?? '').trim(),
+    }
+  }, [p1LastMatchDisplay, p1Collected])
 
   const levelDeck = useMemo(
     () => p1Collected.slice(0, cardsNeededThisLevel),
@@ -666,7 +706,7 @@ export default function Game() {
           </div>
         </header>
 
-        <div className="mb-3 flex flex-wrap items-center gap-4 rounded-2xl border border-amber-200/80 bg-white/85 px-3 py-2.5 shadow-md shadow-amber-900/5 md:px-4 md:py-3">
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-amber-200/80 bg-white/85 px-3 py-2.5 shadow-md shadow-amber-900/5 md:gap-x-4 md:px-4 md:py-3">
           <div className="text-xs md:text-sm">
             <span className="text-slate-600">라이프 </span>
             <span className="text-rose-500">
@@ -680,6 +720,29 @@ export default function Game() {
             <span className="text-slate-600">콤보 </span>
             <span className="font-semibold text-emerald-600">{displayCombo}</span>
           </div>
+          {segment === 'p2' ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={cheonryan <= 0 || p2HintMode}
+                onClick={() => p2MindRef.current?.startCheonryan()}
+                className="inline-flex items-center gap-1 rounded-full border border-amber-400/90 bg-gradient-to-b from-amber-100 to-amber-200/95 px-2.5 py-1 text-[11px] font-bold text-amber-950 shadow-sm ring-1 ring-amber-500/20 disabled:opacity-40"
+              >
+                <EyeIcon className="h-3.5 w-3.5 shrink-0 text-amber-900" />
+                <span>천리안</span>
+                <span className="tabular-nums text-amber-800">{cheonryan}</span>
+              </button>
+              {p2HintMode ? (
+                <button
+                  type="button"
+                  onClick={() => p2MindRef.current?.endHintMode()}
+                  className="text-[10px] font-medium text-amber-900 underline underline-offset-2"
+                >
+                  취소
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         {segment === 'p1' ? (
@@ -701,36 +764,28 @@ export default function Game() {
             {!queueReady ? (
               <p className="mt-8 text-center text-slate-500">덱 준비 중…</p>
             ) : phase1Done ? (
-              (() => {
-                const last =
-                  p1Collected.length > 0
-                    ? p1Collected[p1Collected.length - 1]
-                    : null
-                return (
-                  <div
-                    className="fixed inset-0 z-[88] flex flex-col items-center justify-center bg-white/92 px-4 backdrop-blur-[2px]"
-                    aria-live="polite"
-                  >
-                    {last ? (
-                      <div className="p1-enhance-burst relative flex max-h-[min(72dvh,32rem)] flex-col items-center justify-center px-2">
-                        <div className="p1-enhance-rays" aria-hidden />
-                        <div className="p1-enhance-card pointer-events-auto max-h-[min(60dvh,26rem)] overflow-y-auto shadow-2xl">
-                          <p className="p1-enhance-badge">완성!</p>
-                          <p className="p1-enhance-topic">{last.topic}</p>
-                          {last.explanation ? (
-                            <p className="p1-enhance-exp">{last.explanation}</p>
-                          ) : null}
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-slate-600">2페이즈로 이동합니다…</p>
-                    )}
-                    <p className="pointer-events-none mt-8 text-center text-sm font-medium text-slate-600">
-                      2페이즈로 이동합니다… (약 3초)
-                    </p>
+              <div
+                className="fixed inset-0 z-[88] flex flex-col items-center justify-center bg-white/92 px-4 backdrop-blur-[2px]"
+                aria-live="polite"
+              >
+                {p1IntermissionCard ? (
+                  <div className="p1-enhance-burst relative flex max-h-[min(72dvh,32rem)] flex-col items-center justify-center px-2">
+                    <div className="p1-enhance-rays" aria-hidden />
+                    <div className="p1-enhance-card pointer-events-auto max-h-[min(60dvh,26rem)] overflow-y-auto shadow-2xl">
+                      <p className="p1-enhance-badge">완성!</p>
+                      <p className="p1-enhance-topic">{p1IntermissionCard.topic}</p>
+                      {p1IntermissionCard.explanation ? (
+                        <p className="p1-enhance-exp">{p1IntermissionCard.explanation}</p>
+                      ) : null}
+                    </div>
                   </div>
-                )
-              })()
+                ) : (
+                  <p className="text-slate-600">2페이즈로 이동합니다…</p>
+                )}
+                <p className="pointer-events-none mt-8 text-center text-sm font-medium text-slate-600">
+                  2페이즈로 이동합니다… (약 3초)
+                </p>
+              </div>
             ) : (
               <div className="mt-4 md:mt-6">
                 <Phase1Matching
@@ -751,18 +806,18 @@ export default function Game() {
 
         {segment === 'p2' ? (
           <div className="relative">
-            <h1 className="text-lg font-semibold tracking-tight text-slate-900 md:text-xl">
+            <h1 className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-lg font-semibold tracking-tight text-slate-900 md:text-xl">
               {phase2OrderMode === 'sheet' ? (
                 <>
-                  시간 순 눈치게임 시작!
-                  <span className="mt-1 block text-[11px] font-normal leading-snug text-slate-500 md:text-xs">
+                  <span>시간 순 눈치게임 시작!</span>
+                  <span className="text-[11px] font-normal leading-snug text-slate-500 md:text-xs">
                     (엑셀·사건 순)
                   </span>
                 </>
               ) : (
                 <>
-                  가나다 순 눈치게임 시작!
-                  <span className="mt-1 block text-[11px] font-normal leading-snug text-slate-500 md:text-xs">
+                  <span>가나다 순 눈치게임 시작!</span>
+                  <span className="text-[11px] font-normal leading-snug text-slate-500 md:text-xs">
                     (한글→영문→숫자)
                   </span>
                 </>
@@ -770,6 +825,7 @@ export default function Game() {
             </h1>
             <div className="mt-3 md:mt-4">
               <Phase2Mind
+                ref={p2MindRef}
                 key={`${level}-${roundVersion}-p2`}
                 level={level}
                 playerCards={levelDeck}
@@ -788,6 +844,8 @@ export default function Game() {
                 tutorialMode={tutorialMode}
                 hideTimerHud={showLevelClearPopup}
                 orderMode={phase2OrderMode}
+                hideFixedCheonryanButton
+                onHintModeChange={setP2HintMode}
               />
             </div>
             {showLevelClearPopup ? (
