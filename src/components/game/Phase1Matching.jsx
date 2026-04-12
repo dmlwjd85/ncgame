@@ -30,6 +30,7 @@ export default function Phase1Matching({
   onBatchComplete,
   packKey,
   combo = 0,
+  coachMode = false,
 }) {
   const [matchedIds, setMatchedIds] = useState(() => new Set())
   const [burstId, setBurstId] = useState(/** @type {string|null} */ (null))
@@ -39,6 +40,13 @@ export default function Phase1Matching({
     /** @type {Array<{ key: string, topic: string, explanation: string }>} */ [],
   )
   const tier = comboTier(combo)
+
+  /** 초보 안내: 아직 맞추지 않은 카드 중 첫 번째(행 순서) */
+  const coachTargetKey = useMemo(() => {
+    if (!coachMode) return null
+    const next = rows.find((r) => !matchedIds.has(rowKey(packKey, r)))
+    return next ? String(rowKey(packKey, next)) : null
+  }, [coachMode, rows, matchedIds, packKey])
 
   const activeRows = useMemo(
     () => rows.filter((r) => !matchedIds.has(rowKey(packKey, r))),
@@ -136,6 +144,17 @@ export default function Phase1Matching({
           뜻 칸으로 <span className="font-semibold text-sky-600">위로 끌어 올려</span>{' '}
           놓으세요.
         </p>
+        {coachMode && coachTargetKey ? (
+          <p
+            className="relative flex items-center justify-center gap-1 text-center text-xs font-medium text-amber-800 md:text-sm"
+            role="status"
+          >
+            <span className="inline-block animate-bounce" aria-hidden>
+              ↓
+            </span>
+            노란 테두리부터 맞추면 돼요 — 끌어서 같은 줄의 뜻과 합치면 콤보가 쌓여요
+          </p>
+        ) : null}
         <div className="relative flex flex-col gap-3">
           {rows.map((row) => (
             <ExplanationDrop
@@ -144,6 +163,7 @@ export default function Phase1Matching({
               matched={matchedIds.has(rowKey(packKey, row))}
               text={row.explanation}
               tier={tier}
+              coachHighlight={coachTargetKey === String(rowKey(packKey, row))}
             />
           ))}
         </div>
@@ -158,6 +178,7 @@ export default function Phase1Matching({
               burst={burstId === String(rowKey(packKey, row))}
               reject={rejectId === String(rowKey(packKey, row))}
               tier={tier}
+              coachHighlight={coachTargetKey === String(rowKey(packKey, row))}
             />
           ))}
         </div>
@@ -197,7 +218,7 @@ function rowKey(packKey, row) {
   return `${packKey}-${row.id}`
 }
 
-function TopicBadge({ id, label, disabled, burst, reject, tier }) {
+function TopicBadge({ id, label, disabled, burst, reject, tier, coachHighlight }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id, disabled })
 
@@ -216,8 +237,8 @@ function TopicBadge({ id, label, disabled, burst, reject, tier }) {
       type="button"
       style={style}
       className={`touch-none select-none rounded-full border px-4 py-2.5 text-sm font-semibold shadow-lg transition active:cursor-grabbing active:touch-none p1-badge-${tier} ${
-        burst ? 'p1-burst' : ''
-      } ${reject ? 'p1-reject-bounce' : ''}`}
+        coachHighlight ? 'ring-4 ring-amber-400 ring-offset-2' : ''
+      } ${burst ? 'p1-burst' : ''} ${reject ? 'p1-reject-bounce' : ''}`}
       {...listeners}
       {...attributes}
     >
@@ -226,7 +247,7 @@ function TopicBadge({ id, label, disabled, burst, reject, tier }) {
   )
 }
 
-function ExplanationDrop({ id, text, matched, tier }) {
+function ExplanationDrop({ id, text, matched, tier, coachHighlight }) {
   const { setNodeRef, isOver } = useDroppable({ id, disabled: matched })
 
   if (matched) {
@@ -248,9 +269,11 @@ function ExplanationDrop({ id, text, matched, tier }) {
     <div
       ref={setNodeRef}
       className={`min-h-[4.5rem] rounded-2xl border-2 border-dashed px-4 py-4 text-left text-sm leading-relaxed transition ${
-        isOver
-          ? 'border-sky-400 bg-sky-50 text-slate-900 shadow-[0_0_20px_rgba(14,165,233,0.25)]'
-          : 'border-slate-300 bg-white/95 text-slate-800 shadow-sm'
+        coachHighlight && !isOver
+          ? 'border-amber-400 bg-amber-50/90 text-slate-900 ring-4 ring-amber-300/80'
+          : isOver
+            ? 'border-sky-400 bg-sky-50 text-slate-900 shadow-[0_0_20px_rgba(14,165,233,0.25)]'
+            : 'border-slate-300 bg-white/95 text-slate-800 shadow-sm'
       }`}
     >
       {text}

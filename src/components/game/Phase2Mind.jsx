@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { compareTopicOrder } from '../../utils/koCompare'
-import { phase2SecondsForLevel } from '../../utils/gameRules'
+import {
+  MAX_LIVES,
+  phase1ComboRewards,
+  phase2SecondsForLevel,
+} from '../../utils/gameRules'
 import { sfxMerge, sfxPenalty } from '../../utils/gameSfx'
 import {
   USER_RESERVE_MS,
@@ -133,6 +137,7 @@ function applyWrongSubmission(state, playedCard, playedFrom) {
     bot1Hand,
     bot2Hand,
     lives: Math.max(0, state.lives - pen),
+    p2Combo: playedFrom === 'player' ? 0 : (state.p2Combo ?? 0),
     hintMode: false,
     revealed: new Set(),
     penaltyToast: null,
@@ -182,6 +187,7 @@ function buildRoundState({
     schedule,
     elapsedMs: 0,
     durationMs,
+    p2Combo: 0,
     hintMode: false,
     revealed: new Set(),
     penaltyToast: /** @type {string | null} */ (null),
@@ -211,6 +217,8 @@ function applyPlayerPlayWithRules(state, card) {
   }
 
   if (globalMin.id === card.id) {
+    const newCombo = (state.p2Combo ?? 0) + 1
+    const { cheonryan: chAdd, lives: lfAdd } = phase1ComboRewards(newCombo)
     const t = card.topic
     return {
       ...state,
@@ -222,6 +230,9 @@ function applyPlayerPlayWithRules(state, card) {
       penaltyToast: null,
       lifePenaltyModal: null,
       mergeFlash: state.mergeFlash + 1,
+      p2Combo: newCombo,
+      cheonryan: state.cheonryan + chAdd,
+      lives: Math.min(MAX_LIVES, state.lives + lfAdd),
     }
   }
 
@@ -241,6 +252,9 @@ export default function Phase2Mind({
   onRoundWin,
   onRoundLose,
   onLivesChange,
+  onP2ComboChange,
+  onCheonryanChange,
+  coachMode = false,
 }) {
   const durationMs = phase2SecondsForLevel(level) * 1000
 
@@ -290,6 +304,14 @@ export default function Phase2Mind({
   useEffect(() => {
     onLivesChange?.(state.lives)
   }, [state.lives, onLivesChange])
+
+  useEffect(() => {
+    onP2ComboChange?.(state.p2Combo ?? 0)
+  }, [state.p2Combo, onP2ComboChange])
+
+  useEffect(() => {
+    onCheonryanChange?.(state.cheonryan)
+  }, [state.cheonryan, onCheonryanChange])
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -403,6 +425,11 @@ export default function Phase2Mind({
   const totalCards =
     state.playerHand.length + state.bot1Hand.length + state.bot2Hand.length
   const timerPaused = state.hintMode || state.lifePenaltyModal
+  /** 초보 안내: 전체 중 이번에 낼 수 있는 가장 앞 순서 카드 */
+  const coachTargetId =
+    coachMode && state.playerHand.length > 0
+      ? globalMinValidCard(state)?.id
+      : null
 
   return (
     <div
@@ -517,6 +544,12 @@ export default function Phase2Mind({
             <span className="text-slate-600">천리안 </span>
             <span className="font-semibold text-amber-600">{state.cheonryan}</span>
           </div>
+          <div>
+            <span className="text-slate-600">콤보 </span>
+            <span className="font-semibold text-emerald-600">
+              {state.p2Combo ?? 0}
+            </span>
+          </div>
           <div className="font-mono text-sky-700 tabular-nums">
             {timerPaused ? (
               <span className="text-amber-700">
@@ -604,6 +637,17 @@ export default function Phase2Mind({
           내 카드 — 탭하면 바로 제출 · 이번에 낼 수 있는 가장 앞 순서(전체)와 같아야
           해요
         </p>
+        {coachMode && coachTargetId != null ? (
+          <p
+            className="mb-2 flex items-center justify-center gap-1 text-center text-xs font-medium text-amber-800 md:text-sm"
+            role="status"
+          >
+            <span className="inline-block animate-bounce" aria-hidden>
+              ↓
+            </span>
+            노란 테두리 카드를 먼저 내 보세요 (순서가 맞을 때 콤보·보상이 쌓여요)
+          </p>
+        ) : null}
         <div className="max-h-[min(52dvh,28rem)] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-inner sm:p-3">
           <div className="grid w-full grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">
             {state.playerHand.map((c) => (
@@ -611,7 +655,11 @@ export default function Phase2Mind({
                 key={c.id}
                 type="button"
                 onClick={() => playPlayer(c)}
-                className="flex min-h-[7.5rem] flex-col rounded-xl border-2 border-slate-400/90 bg-white px-2.5 py-3 text-left shadow-[0_6px_0_0_rgba(15,23,42,0.35),0_8px_24px_rgba(0,0,0,0.25)] ring-1 ring-slate-300/80 transition active:translate-y-0.5 active:shadow-md md:min-h-[8.25rem] md:px-3 md:py-3.5"
+                className={`flex min-h-[7.5rem] flex-col rounded-xl border-2 border-slate-400/90 bg-white px-2.5 py-3 text-left shadow-[0_6px_0_0_rgba(15,23,42,0.35),0_8px_24px_rgba(0,0,0,0.25)] ring-1 ring-slate-300/80 transition active:translate-y-0.5 active:shadow-md md:min-h-[8.25rem] md:px-3 md:py-3.5 ${
+                  coachTargetId != null && c.id === coachTargetId
+                    ? 'ring-4 ring-amber-400 ring-offset-2 ring-offset-white'
+                    : ''
+                }`}
               >
                 <span className="block text-[0.95rem] font-bold leading-snug text-slate-900 md:text-base">
                   {c.topic}

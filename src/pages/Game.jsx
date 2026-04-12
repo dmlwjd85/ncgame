@@ -93,9 +93,12 @@ export default function Game() {
   const [deckNotice, setDeckNotice] = useState(/** @type {string | null} */ (null))
   /** 콤보 타격 이펙트용 키(값이 바뀔 때마다 애니메이션 재생) */
   const [comboFxKey, setComboFxKey] = useState(0)
+  /** 2페이즈 연속 정답 콤보(1페이즈와 별도) */
+  const [p2Combo, setP2Combo] = useState(0)
   /** 1페이즈에서 이미 꺼낸 카드 id — 부족 시 제외 덱, 전부 소진 시 초기화 */
   const usedRowIdsRef = useRef(/** @type {Set<string>} */ (new Set()))
   const prevComboRef = useRef(p1Combo)
+  const prevP2ComboRef = useRef(0)
 
   const packKey = pack?.id ?? ''
 
@@ -148,6 +151,29 @@ export default function Game() {
     }
     prevComboRef.current = p1Combo
   }, [p1Combo, segment])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  /* eslint-disable react-hooks/set-state-in-effect -- 2페이즈 콤보 증가 시 타격감·SFX */
+  useEffect(() => {
+    if (segment !== 'p2') {
+      prevP2ComboRef.current = p2Combo
+      return
+    }
+    if (p2Combo > prevP2ComboRef.current && p2Combo >= 1) {
+      setComboFxKey((k) => k + 1)
+      sfxCombo(p2Combo)
+    }
+    prevP2ComboRef.current = p2Combo
+  }, [p2Combo, segment])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  /** 레벨 1~2: 초보용 드래그·탭 하이라이트 */
+  const coachMode = level <= 2
+
+  /* eslint-disable react-hooks/set-state-in-effect -- 1·기타 구간에서는 2페이즈 콤보 표기만 초기화 */
+  useEffect(() => {
+    if (segment !== 'p2') setP2Combo(0)
+  }, [segment, level, roundVersion])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const cardsNeededThisLevel = level
@@ -306,12 +332,16 @@ export default function Game() {
     )
   }
 
+  const displayCombo = segment === 'p1' ? p1Combo : p2Combo
+
   return (
     <div className="game-shell min-h-dvh px-[max(1rem,env(safe-area-inset-left))] pb-[max(1rem,env(safe-area-inset-bottom))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(0.75rem,env(safe-area-inset-top))] text-slate-800">
-      {segment === 'p1' && comboFxKey > 0 ? (
+      {(segment === 'p1' || segment === 'p2') &&
+      comboFxKey > 0 &&
+      displayCombo >= 1 ? (
         <div key={comboFxKey} className="combo-hit-overlay" aria-hidden>
           <div className="combo-hit-burst">
-            <span className="combo-hit-num">{p1Combo}</span>
+            <span className="combo-hit-num">{displayCombo}</span>
             <span className="combo-hit-label">콤보</span>
           </div>
         </div>
@@ -349,7 +379,7 @@ export default function Game() {
           </div>
           <div className="text-xs md:text-sm">
             <span className="text-slate-600">콤보 </span>
-            <span className="font-semibold text-emerald-600">{p1Combo}</span>
+            <span className="font-semibold text-emerald-600">{displayCombo}</span>
           </div>
         </div>
 
@@ -386,6 +416,7 @@ export default function Game() {
                   rows={currentBatch}
                   packKey={packKey}
                   combo={p1Combo}
+                  coachMode={coachMode}
                   onMatchAttempt={onMatchAttempt}
                   onBatchComplete={onBatchComplete}
                 />
@@ -414,6 +445,9 @@ export default function Game() {
                 onRoundWin={onRoundWin}
                 onRoundLose={onRoundLose}
                 onLivesChange={setLives}
+                onP2ComboChange={setP2Combo}
+                onCheonryanChange={setCheonryan}
+                coachMode={coachMode}
               />
             </div>
           </>
