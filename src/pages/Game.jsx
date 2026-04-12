@@ -18,6 +18,7 @@ import {
   peekResumeFromSession,
   saveRunSave,
 } from '../utils/gameRunSave'
+import { compareTopicOrder } from '../utils/koCompare'
 
 function shuffleRows(rows) {
   const a = [...rows]
@@ -26,6 +27,17 @@ function shuffleRows(rows) {
     ;[a[i], a[j]] = [a[j], a[i]]
   }
   return a
+}
+
+function sortCardsByTopic(hand) {
+  return [...hand].sort((a, b) => compareTopicOrder(a.topic, b.topic))
+}
+
+function fieldActorLabel(from) {
+  if (from === 'player') return '나'
+  if (from === 'bot1') return '가상 A'
+  if (from === 'bot2') return '가상 B'
+  return String(from)
 }
 
 /**
@@ -76,6 +88,7 @@ export default function Game() {
   const [roundVersion, setRoundVersion] = useState(0)
   const [p1Collected, setP1Collected] = useState(/** @type {object[]} */ ([]))
   const [lastRoundTopics, setLastRoundTopics] = useState(/** @type {string[]} */ ([]))
+  const [p2GameOver, setP2GameOver] = useState(/** @type {unknown} */ (null))
   const [deckNotice, setDeckNotice] = useState(/** @type {string | null} */ (null))
   /** 1페이즈에서 이미 꺼낸 카드 id — 부족 시 제외 덱, 전부 소진 시 초기화 */
   const usedRowIdsRef = useRef(/** @type {Set<string>} */ (new Set()))
@@ -244,7 +257,8 @@ export default function Game() {
     navigate('/', { replace: true })
   }, [packId, botCount, level, lives, cheonryan, p1Combo, queue, navigate])
 
-  const onRoundLose = useCallback(() => {
+  const onRoundLose = useCallback((detail) => {
+    setP2GameOver(detail ?? null)
     setSegment('over')
   }, [])
 
@@ -439,11 +453,126 @@ export default function Game() {
         ) : null}
 
         {segment === 'over' ? (
-          <div className="py-12 text-center">
+          <div className="py-8 text-center md:py-12">
             <p className="text-xl font-semibold text-rose-200 md:text-2xl">게임 오버</p>
             <p className="mt-2 text-sm text-slate-400">
-              레벨 {level}에서 라이프가 소진되었거나 시간이 부족했습니다.
+              레벨 {level}
+              {p2GameOver?.reason === 'time'
+                ? ' — 시간이 부족했습니다.'
+                : p2GameOver?.reason === 'lives'
+                  ? ' — 라이프가 소진되었습니다.'
+                  : p2GameOver
+                    ? ' — 라이프가 소진되었거나 시간이 부족했습니다.'
+                    : '.'}
             </p>
+
+            {p2GameOver?.snapshot ? (
+              <div className="mx-auto mt-6 max-w-lg space-y-6 text-left">
+                {p2GameOver?.lastPenalty ? (
+                  <section className="rounded-2xl border border-rose-500/30 bg-rose-950/25 px-3 py-3 text-left text-sm text-rose-50">
+                    <h3 className="text-[11px] font-semibold uppercase tracking-wide text-rose-200/90">
+                      마지막 생명 변동
+                    </h3>
+                    <p className="mt-2 text-slate-200">
+                      나와야 했던 카드: 「
+                      {p2GameOver.lastPenalty.expectedTopic || '—'}」
+                    </p>
+                    <p className="mt-1 text-slate-200">
+                      잘못 낸 카드: 「{p2GameOver.lastPenalty.wrongTopic}」(
+                      {p2GameOver.lastPenalty.wrongFromLabel})
+                    </p>
+                    {p2GameOver.lastPenalty.forcedCards?.length > 0 ? (
+                      <p className="mt-2 text-slate-300">
+                        먼저 깔린 카드 {p2GameOver.lastPenalty.forcedCards.length}장
+                        {p2GameOver.lastPenalty.forcedCards.map((row, i) => (
+                          <span key={`${row.topic}-${i}`}>
+                            {i === 0 ? ' — ' : ', '}
+                            「{row.topic}」({row.fromLabel})
+                          </span>
+                        ))}
+                      </p>
+                    ) : null}
+                  </section>
+                ) : null}
+
+                <section>
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    필드에 깔린 순서
+                  </h3>
+                  <div className="mt-2 max-h-[38dvh] overflow-y-auto rounded-2xl border border-white/10 bg-black/30 px-3 py-3 text-sm text-slate-100">
+                    {p2GameOver.snapshot.center.length === 0 ? (
+                      <span className="text-slate-500">—</span>
+                    ) : (
+                      <ol className="list-inside list-decimal space-y-2 marker:text-violet-400/90">
+                        {p2GameOver.snapshot.center.map((c, i) => (
+                          <li
+                            key={`${c.topic}-${i}-${c.from}-${i}`}
+                            className="break-words pl-1"
+                          >
+                            <span className="font-medium text-violet-200">
+                              「{c.topic}」
+                            </span>
+                            <span className="text-slate-500">
+                              {' '}
+                              · {fieldActorLabel(c.from)}
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+                </section>
+
+                <section>
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    손에 남은 카드 (국어→영어→숫자 순)
+                  </h3>
+                  <div className="mt-2 space-y-4 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-4">
+                    {(
+                      [
+                        { label: '나', hand: p2GameOver.snapshot.playerHand },
+                        { label: '가상 플레이어 A', hand: p2GameOver.snapshot.bot1Hand },
+                      ].concat(
+                        p2GameOver.snapshot.botCount >= 2
+                          ? [
+                              {
+                                label: '가상 플레이어 B',
+                                hand: p2GameOver.snapshot.bot2Hand,
+                              },
+                            ]
+                          : [],
+                      )
+                    ).map(({ label, hand }) => {
+                      const sorted = sortCardsByTopic(hand)
+                      return (
+                      <div key={label}>
+                        <p className="text-[11px] text-slate-500">{label}</p>
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {sorted.length === 0 ? (
+                            <span className="text-xs text-slate-600">없음</span>
+                          ) : (
+                            sorted.map((c) => (
+                              <span
+                                key={c.id}
+                                className="inline-block max-w-[min(100%,14rem)] truncate rounded-lg border border-slate-400/40 bg-white px-2 py-1 text-xs text-slate-900"
+                              >
+                                {c.topic}
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                      )
+                    })}
+                  </div>
+                </section>
+              </div>
+            ) : (
+              <p className="mt-4 text-xs text-slate-600">
+                2페이즈 정보를 불러오지 못했습니다.
+              </p>
+            )}
+
             <button
               type="button"
               className="mt-8 rounded-2xl border border-white/20 bg-white/5 px-6 py-3 text-slate-200 backdrop-blur"

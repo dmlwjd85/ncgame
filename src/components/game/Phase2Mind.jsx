@@ -76,7 +76,16 @@ function collectForcedBeforeWrong(state, lastTopic, wrongTopic) {
   })
 }
 
+function actorLabel(from) {
+  if (from === 'player') return '나'
+  if (from === 'bot1') return '가상 플레이어 A'
+  return '가상 플레이어 B'
+}
+
 function applyWrongSubmission(state, playedCard, playedFrom) {
+  const expectedCard = globalMinValidCard(state)
+  const expectedTopic = expectedCard?.topic ?? ''
+
   const last = state.lastTopic
   const w = playedCard.topic
 
@@ -116,12 +125,6 @@ function applyWrongSubmission(state, playedCard, playedFrom) {
   else if (playedFrom === 'bot1') bot1Hand = removeFromHand(bot1Hand, playedCard)
   else bot2Hand = removeFromHand(bot2Hand, playedCard)
 
-  const autoNames = forced.map((x) => `「${x.card.topic}」`).join(', ')
-  const reason =
-    pen > 0
-      ? `먼저 나와야 할 카드 ${pen}장${autoNames ? `(${autoNames})` : ''}이 모두에게서 깔렸어요. 생명 ${pen}칸이 깎였어요.`
-      : '순서가 맞지 않아요. 강제로 깔린 카드가 없어 생명은 깎이지 않았어요.'
-
   return {
     ...state,
     center,
@@ -132,7 +135,19 @@ function applyWrongSubmission(state, playedCard, playedFrom) {
     lives: Math.max(0, state.lives - pen),
     hintMode: false,
     revealed: new Set(),
-    penaltyToast: reason,
+    penaltyToast: null,
+    lifePenaltyModal: {
+      wrongTopic: w,
+      wrongFrom: playedFrom,
+      expectedTopic,
+      forcedCards: forced.map(({ from: fr, card: c }) => ({
+        topic: c.topic,
+        from: fr,
+        fromLabel: actorLabel(fr),
+      })),
+      wrongFromLabel: actorLabel(playedFrom),
+      livesLost: pen,
+    },
     shakeKey: (state.shakeKey ?? 0) + 1,
   }
 }
@@ -170,6 +185,7 @@ function buildRoundState({
     hintMode: false,
     revealed: new Set(),
     penaltyToast: /** @type {string | null} */ (null),
+    lifePenaltyModal: null,
     shakeKey: 0,
     mergeFlash: 0,
   }
@@ -182,7 +198,7 @@ function buildRoundState({
 function applyPlayerPlayWithRules(state, card) {
   const hand = state.playerHand
   if (!hand.some((c) => c.id === card.id)) {
-    return { ...state, penaltyToast: '손에 없는 카드예요.' }
+    return { ...state, penaltyToast: '손에 없는 카드예요.', lifePenaltyModal: null }
   }
 
   const globalMin = globalMinValidCard(state)
@@ -190,6 +206,7 @@ function applyPlayerPlayWithRules(state, card) {
     return {
       ...state,
       penaltyToast: '낼 수 있는 카드가 없어요.',
+      lifePenaltyModal: null,
     }
   }
 
@@ -203,6 +220,7 @@ function applyPlayerPlayWithRules(state, card) {
       hintMode: false,
       revealed: new Set(),
       penaltyToast: null,
+      lifePenaltyModal: null,
       mergeFlash: state.mergeFlash + 1,
     }
   }
@@ -248,6 +266,27 @@ export default function Phase2Mind({
     return () => window.clearTimeout(id)
   }, [state.penaltyToast])
 
+  const dismissLifePenaltyModal = useCallback(() => {
+    setState((s) => ({ ...s, lifePenaltyModal: null }))
+  }, [])
+
+  /** 게임 오버 시 부모에 넘길 2페이즈 스냅샷 */
+  const makeLosePayload = useCallback(
+    (next, reason) => ({
+      reason,
+      snapshot: {
+        center: next.center,
+        playerHand: next.playerHand,
+        bot1Hand: next.bot1Hand,
+        bot2Hand: next.bot2Hand,
+        botCount,
+      },
+      /** 라이프 소진 직전 패널티(모달을 띄우기 전에 화면이 바뀌는 경우 대비) */
+      lastPenalty: next.lifePenaltyModal ?? null,
+    }),
+    [botCount],
+  )
+
   useEffect(() => {
     onLivesChange?.(state.lives)
   }, [state.lives, onLivesChange])
@@ -267,6 +306,7 @@ export default function Phase2Mind({
           const ev = sched[nextBotIdxRef.current]
           nextBotIdxRef.current += 1
           next = applyBotScheduledPlay(next, ev.bot, ev.card)
+          if (next.lifePenaltyModal) sfxPenalty()
         }
 
         const total =
@@ -286,31 +326,33 @@ export default function Phase2Mind({
           )
         } else if (next.lives <= 0) {
           endedRef.current = true
-          queueMicrotask(() => onRoundLose())
+          const payload = makeLosePayload(next, 'lives')
+          queueMicrotask(() => onRoundLose(payload))
         } else if (next.elapsedMs >= next.durationMs && total > 0) {
           endedRef.current = true
-          queueMicrotask(() => onRoundLose())
+          const payload = makeLosePayload(next, 'time')
+          queueMicrotask(() => onRoundLose(payload))
         }
 
         return next
       })
     }, 50)
     return () => window.clearInterval(id)
-  }, [level, onRoundWin, onRoundLose])
+  }, [level, onRoundWin, onRoundLose, makeLosePayload])
 
   const playPlayer = useCallback(
     (card) => {
       if (endedRef.current) return
       setState((s) => {
         const next = applyPlayerPlayWithRules(s, card)
-        if (next.penaltyToast) sfxPenalty()
+        if (next.lifePenaltyModal || next.penaltyToast) sfxPenalty()
         else sfxMerge()
         if (endedRef.current) return next
         const total =
           next.playerHand.length + next.bot1Hand.length + next.bot2Hand.length
         if (next.lives <= 0) {
           endedRef.current = true
-          queueMicrotask(() => onRoundLose())
+          queueMicrotask(() => onRoundLose(makeLosePayload(next, 'lives')))
         } else if (
           total === 0 &&
           next.center.length > 0 &&
@@ -328,7 +370,7 @@ export default function Phase2Mind({
         return next
       })
     },
-    [onRoundWin, onRoundLose],
+    [onRoundWin, onRoundLose, makeLosePayload],
   )
 
   const startCheonryan = useCallback(() => {
@@ -380,6 +422,71 @@ export default function Phase2Mind({
           className="rounded-2xl border border-rose-500/40 bg-rose-950/80 px-4 py-3 text-sm leading-relaxed text-rose-100 shadow-lg shadow-rose-900/30"
         >
           {state.penaltyToast}
+        </div>
+      ) : null}
+
+      {state.lifePenaltyModal ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/55 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="life-penalty-title"
+        >
+          <div className="max-h-[min(78dvh,32rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-rose-500/35 bg-slate-950/95 p-5 shadow-2xl">
+            <h2
+              id="life-penalty-title"
+              className="text-base font-bold text-rose-100"
+            >
+              {state.lifePenaltyModal.livesLost > 0
+                ? `생명 ${state.lifePenaltyModal.livesLost}칸이 깎였어요`
+                : '순서가 맞지 않았어요'}
+            </h2>
+            <div className="mt-4 space-y-3 text-sm leading-relaxed text-slate-200">
+              <p>
+                <span className="text-slate-400">이번에 나와야 했던 카드(전체 중 가장 앞 순서)</span>
+                <br />
+                <span className="font-semibold text-cyan-200">
+                  「{state.lifePenaltyModal.expectedTopic || '—'}」
+                </span>
+              </p>
+              <p>
+                <span className="text-slate-400">잘못 낸 카드</span>
+                <br />
+                <span className="font-semibold text-amber-100">
+                  「{state.lifePenaltyModal.wrongTopic}」
+                </span>
+                <span className="text-slate-500">
+                  {' '}
+                  ({state.lifePenaltyModal.wrongFromLabel})
+                </span>
+              </p>
+              {state.lifePenaltyModal.forcedCards.length > 0 ? (
+                <div>
+                  <p className="text-slate-400">
+                    그보다 앞 순서라서 먼저 깔린 카드(모든 손에서)
+                  </p>
+                  <ul className="mt-2 list-inside list-disc space-y-1 text-slate-100">
+                    {state.lifePenaltyModal.forcedCards.map((row, i) => (
+                      <li key={`${row.topic}-${i}-${row.from}`}>
+                        「{row.topic}」 ({row.fromLabel})
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="text-slate-500">
+                  강제로 깔린 카드는 없었어요. 잘못 낸 한 장은 생명에 세지 않아요.
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              className="mt-6 w-full rounded-xl bg-gradient-to-r from-rose-600 to-violet-700 py-3 text-sm font-semibold text-white"
+              onClick={dismissLifePenaltyModal}
+            >
+              확인
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -553,6 +660,7 @@ function applyBotScheduledPlay(state, bot, card) {
       [bot === 'bot1' ? 'bot1Hand' : 'bot2Hand']: h2,
       hintMode: false,
       revealed: new Set(),
+      lifePenaltyModal: null,
     }
   }
 

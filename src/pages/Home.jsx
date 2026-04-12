@@ -95,7 +95,7 @@ export default function Home() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-xl font-bold text-white md:text-2xl">
-              국어 눈치 카드
+              가나다 눈치게임
             </h1>
           </div>
           {authLoading ? (
