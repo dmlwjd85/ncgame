@@ -21,8 +21,8 @@ function comboTier(combo) {
 }
 
 /**
- * 주제어 뱃지 → 해설 카드 드롭 매칭 (1페이즈)
- * 모바일: TouchSensor(길게 누른 뒤 드래그) + PointerSensor
+ * 1페이즈: 위쪽 해설(드롭) ↔ 아래쪽 주제어(드래그)
+ * 세로 스와이프(아래→위 드래그)가 위로 매칭되어 화면 맨 위 새로고침 제스처와 겹치지 않게 함
  */
 export default function Phase1Matching({
   rows,
@@ -100,21 +100,12 @@ export default function Phase1Matching({
           className={`pointer-events-none absolute inset-0 rounded-3xl opacity-40 blur-3xl transition bg-gradient-to-br p1-tier-glow-${tier}`}
           aria-hidden
         />
-        <p className="relative text-center text-sm text-slate-300">
-          단어를 끌어서 맞는 뜻 칸에 놓으세요. (모바일: 잠깐 누른 뒤 이동)
+        <p className="relative text-center text-sm leading-relaxed text-slate-300">
+          위에는 뜻이 있어요.{' '}
+          <span className="text-slate-200">아래 단어</span>를 잠깐 누른 뒤, 맞는
+          뜻 칸으로 <span className="text-cyan-200/90">위로 끌어 올려</span>{' '}
+          놓으세요.
         </p>
-        <div className="relative flex min-h-[100px] flex-wrap justify-center gap-2">
-          {topicsShuffled.map((row) => (
-            <TopicBadge
-              key={rowKey(packKey, row)}
-              id={String(rowKey(packKey, row))}
-              disabled={matchedIds.has(rowKey(packKey, row))}
-              label={row.topic}
-              burst={burstId === String(rowKey(packKey, row))}
-              tier={tier}
-            />
-          ))}
-        </div>
         <div className="relative flex flex-col gap-3">
           {rows.map((row) => (
             <ExplanationDrop
@@ -123,6 +114,19 @@ export default function Phase1Matching({
               matched={matchedIds.has(rowKey(packKey, row))}
               text={row.explanation}
               topic={row.topic}
+              tier={tier}
+            />
+          ))}
+        </div>
+        <div className="relative mt-1 flex min-h-[100px] flex-wrap justify-center gap-2 border-t border-white/10 pt-5">
+          <p className="sr-only">아래에서 단어를 끌어 위의 해설과 맞추세요</p>
+          {topicsShuffled.map((row) => (
+            <TopicBadge
+              key={rowKey(packKey, row)}
+              id={String(rowKey(packKey, row))}
+              disabled={matchedIds.has(rowKey(packKey, row))}
+              label={row.topic}
+              burst={burstId === String(rowKey(packKey, row))}
               tier={tier}
             />
           ))}

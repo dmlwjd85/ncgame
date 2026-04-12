@@ -214,7 +214,7 @@ export default function Game() {
         {segment === 'p1' ? (
           <>
             <h1 className="text-lg font-semibold tracking-tight text-white md:text-xl">
-              1페이즈 · 낱말 ↔ 해석
+              1페이즈 · 아래 낱말 → 위 해설
             </h1>
             <p className="mt-1 text-xs text-slate-400 md:text-sm">
               이번 레벨 {cardsNeededThisLevel}장 ({p1Collected.length}/

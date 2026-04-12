@@ -23,8 +23,13 @@ export default function GameRulesModal({ open, onClose }) {
           <li>
             <span className="font-semibold text-cyan-300">① 맞추기</span>
             <br />
-            단어를 손가락으로 잠깐 누른 뒤, 맞는 뜻이 적힌 칸으로 끌어 놓아요.
-            맞추면 단어와 뜻이 한 장이 돼요.
+            위에 뜻, 아래에 단어가 있어요. 아래 단어를 잠깐 누른 뒤, 맞는 뜻으로
+            위로 끌어 올려요. 맞추면 단어와 뜻이 한 장이 돼요.
+            <br />
+            <span className="text-slate-400">
+              (맨 위에서 아래로 쓸면 새로고침이 될 수 있어, 단어는 아래에
+              두었어요.)
+            </span>
           </li>
           <li>
             <span className="font-semibold text-violet-300">② 순서 맞추기</span>
