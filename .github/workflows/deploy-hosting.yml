@@ -1,0 +1,25 @@
+# Firebase Hosting 배포 — 저장소 시크릿 FIREBASE_TOKEN 필요 (firebase login:ci 로 발급)
+name: Deploy Firebase Hosting
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: 의존성 설치 및 프로덕션 빌드
+        run: npm ci && npm run build
+
+      - name: Firebase Hosting 배포
+        run: npx firebase deploy --only hosting --project sambong-world-2026 --non-interactive
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}

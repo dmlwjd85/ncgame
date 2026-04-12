@@ -1,0 +1,13 @@
+@import 'tailwindcss';
+
+/* 모바일 퍼스트 기본 레이아웃 (교육용 보드게임 UI 기반) */
+html,
+body,
+#root {
+  min-height: 100dvh;
+}
+
+body {
+  margin: 0;
+  -webkit-tap-highlight-color: transparent;
+}
