@@ -1,15 +1,18 @@
 /**
- * ncxlxs/_sources/ncxlsx.xlsx 생성 — 시트: 동물, 식물, 초5-1, 초6-1, 중1-1 (사회 교과 필수어 중심)
+ * 통합 엑셀 생성 — 시트: 동물, 식물, 초5-1, 초6-1, 중1-1 (사회 교과 필수어 중심)
  * 컬럼: 주제어, 해설, 난이도, 팩이름
+ * 정본: ncxlxs/ncxlsx.xlsx (동일 내용을 ncxlxs/_sources/ncxlsx.xlsx에도 기록)
  * 실행: node scripts/build-ncxlsx-social-sheets.mjs
  */
 import * as XLSX from 'xlsx'
-import { writeFileSync, mkdirSync } from 'fs'
+import { writeFileSync, mkdirSync, copyFileSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const outPath = join(__dirname, '..', 'ncxlxs', '_sources', 'ncxlsx.xlsx')
+const ncxlxsRoot = join(__dirname, '..', 'ncxlxs')
+const rootXlsx = join(ncxlxsRoot, 'ncxlsx.xlsx')
+const sourcesXlsx = join(ncxlxsRoot, '_sources', 'ncxlsx.xlsx')
 
 /** @type {Record<string, Array<{ t: string, e: string, d: string, pack: string }>>} */
 const SHEETS = {
@@ -133,7 +136,7 @@ function sheetToAoa(rows) {
   return aoa
 }
 
-mkdirSync(join(__dirname, '..', 'ncxlxs', '_sources'), { recursive: true })
+mkdirSync(join(ncxlxsRoot, '_sources'), { recursive: true })
 
 const wb = XLSX.utils.book_new()
 for (const name of Object.keys(SHEETS)) {
@@ -141,5 +144,7 @@ for (const name of Object.keys(SHEETS)) {
   XLSX.utils.book_append_sheet(wb, sheet, name)
 }
 
-writeFileSync(outPath, XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' }))
-console.log('작성:', outPath, '시트:', Object.keys(SHEETS).join(', '))
+const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' })
+writeFileSync(rootXlsx, buf)
+copyFileSync(rootXlsx, sourcesXlsx)
+console.log('작성:', rootXlsx, '·', sourcesXlsx, '시트:', Object.keys(SHEETS).join(', '))
