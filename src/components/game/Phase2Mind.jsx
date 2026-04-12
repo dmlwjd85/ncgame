@@ -59,6 +59,23 @@ function globalMinValidCard(state) {
   return globalMinValidEntry(state)?.card ?? null
 }
 
+/** 해당 봇 손패만 보고, lastTopic보다 뒤에 오는 주제어 중 가장 앞 순서 카드(스케줄 시 제출용) */
+function botLocalMinValidCard(state, bot) {
+  const hand = bot === 'bot1' ? state.bot1Hand : state.bot2Hand
+  const last = state.lastTopic
+  const valid =
+    last == null
+      ? [...hand]
+      : hand.filter((c) => compareTopicOrder(c.topic, last) > 0)
+  if (valid.length === 0) return null
+  valid.sort((a, b) => {
+    const o = compareTopicOrder(a.topic, b.topic)
+    if (o !== 0) return o
+    return String(a.id).localeCompare(String(b.id))
+  })
+  return valid[0]
+}
+
 /**
  * 잘못 낸 카드 W보다 앞(주제어 순서상 작음)이면서,
  * 필드 마지막보다 뒤인 카드 — 모든 플레이어 손에서 강제 제출 대상
@@ -169,10 +186,13 @@ function buildRoundState({
   const n = playerCards.length
   const bot1Hand = dealBot(poolRows, n, 0)
   const bot2Hand = botCount > 1 ? dealBot(poolRows, n, 1) : []
-  /** 봇 자동 제출 타이밍 개수(손패 장수 합). 실제로 내는 카드는 매번 globalMinValidCard로만 정함 */
+  /** 봇 자동 제출 타이밍 개수(손패 장수 합). 각 시각에 지정된 봇만 자기 손의 로컬 최소 카드를 냄 */
   const botTurnCount = bot1Hand.length + bot2Hand.length
   const times = scheduleTimes(botTurnCount, durationMs, USER_RESERVE_MS)
-  const schedule = times.map((fireAt) => ({ fireAt }))
+  const schedule = times.map((fireAt, i) => ({
+    fireAt,
+    bot: botCount > 1 ? (i % 2 === 0 ? 'bot1' : 'bot2') : 'bot1',
+  }))
   return {
     lives: initialLives,
     cheonryan: initialCheonryan,
@@ -354,12 +374,21 @@ export default function Phase2Mind({
           nextBotIdxRef.current < sched.length &&
           sched[nextBotIdxRef.current].fireAt <= next.elapsedMs
         ) {
-          const entry = globalMinValidEntry(next)
-          if (!entry) break
-          /* 전역 최소가 플레이어 손이면 봇 타이밍만 대기(인덱스 유지) */
-          if (entry.from === 'player') break
+          const slot = sched[nextBotIdxRef.current]
+          const scheduledBot = slot.bot
+          const card = botLocalMinValidCard(next, scheduledBot)
+          if (!card) {
+            nextBotIdxRef.current += 1
+            continue
+          }
+          const globalMin = globalMinValidCard(next)
           const comboBefore = next.p2Combo ?? 0
-          next = applyBotCorrectPlay(next, entry.from, entry.card)
+          if (globalMin && globalMin.id === card.id) {
+            next = applyBotSuccessPlay(next, scheduledBot, card)
+          } else {
+            next = applyWrongSubmission(next, card, scheduledBot)
+            queueMicrotask(() => sfxPenalty())
+          }
           const comboAfter = next.p2Combo ?? 0
           if (comboAfter > comboBefore) {
             const r = phase1ComboRewards(comboAfter)
@@ -368,6 +397,8 @@ export default function Phase2Mind({
             }
           }
           nextBotIdxRef.current += 1
+          /* 봇 오답 시 모달·패널티 한 번에 하나만 처리 */
+          if (next.lifePenaltyModal) break
         }
 
         const total =
@@ -784,13 +815,10 @@ export default function Phase2Mind({
   )
 }
 
-/** 봇은 항상 globalMinValidCard와 동일한 카드만 제출 · 플레이어와 동일한 콤보·보상 규칙 */
-function applyBotCorrectPlay(state, bot, card) {
+/** 봇 정답 제출(호출 전에 globalMin과 일치함을 확인할 것) */
+function applyBotSuccessPlay(state, bot, card) {
   const hand = bot === 'bot1' ? state.bot1Hand : state.bot2Hand
   if (!hand.some((c) => c.id === card.id)) return state
-
-  const globalMin = globalMinValidCard(state)
-  if (!globalMin || globalMin.id !== card.id) return state
 
   const newCombo = (state.p2Combo ?? 0) + 1
   const { cheonryan: chAdd, lives: lfAdd } = phase1ComboRewards(newCombo)

@@ -350,6 +350,15 @@ export default function Game() {
     setSegment('p1')
   }, [])
 
+  /* 2페이즈 레벨 클리어 후 축하·정렬 화면을 3초 보여 준 뒤 자동으로 다음 레벨 */
+  useEffect(() => {
+    if (segment !== 'level_clear') return
+    const id = window.setTimeout(() => {
+      continueNextLevel()
+    }, 3000)
+    return () => window.clearTimeout(id)
+  }, [segment, roundVersion, continueNextLevel])
+
   const saveAndExitToHome = useCallback(() => {
     saveRunSave({
       v: 1,
@@ -564,7 +573,7 @@ export default function Game() {
             </h1>
             <p className="mt-1 text-xs text-slate-600 md:text-sm">
               가상 플레이어 1명 · 제한 {phase2SecondsForLevel(level)}초 (카드{' '}
-              {level}장 × 3초)
+              {level}장 × 6초)
             </p>
             <div className="mt-4 md:mt-6">
               <Phase2Mind
@@ -594,7 +603,7 @@ export default function Game() {
               레벨 {level} 클리어!
             </p>
             <p className="mt-2 text-xs text-slate-600 md:text-sm">
-              이번 라운드에서 제출된 카드 순서입니다.
+              이번 라운드에서 제출된 카드 순서입니다. 3초 뒤 다음 레벨로 넘어가요.
             </p>
             <div className="mx-auto mt-6 flex max-h-[45dvh] flex-wrap justify-center gap-2 overflow-y-auto rounded-2xl border border-sky-200/80 bg-white/90 px-3 py-4 text-left shadow-inner">
               {lastRoundTopics.length === 0 ? (

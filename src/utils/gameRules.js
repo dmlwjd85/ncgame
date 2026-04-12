@@ -3,11 +3,11 @@ export const MAX_LEVEL = 15
 
 /**
  * 레벨 L의 2페이즈 제한 시간(초)
- * 이번 레벨에 배포(사용)되는 카드는 L장이므로, 장당 3초 → L×3초
+ * 이번 레벨에 배포되는 카드 L장 × 6초
  */
 export function phase2SecondsForLevel(level) {
   const L = Math.max(1, level)
-  return L * 3
+  return L * 6
 }
 
 /**
