@@ -8,7 +8,6 @@ import {
 } from 'react-router-dom'
 import Phase1Matching from '../components/game/Phase1Matching'
 import Phase2Mind from '../components/game/Phase2Mind'
-import P2PrepCountdown from '../components/P2PrepCountdown'
 import { useAuth } from '../contexts/AuthContext'
 import { useCardPacks } from '../contexts/CardPackContext'
 import {
@@ -18,7 +17,7 @@ import {
   phase2SecondsForLevel,
 } from '../utils/gameRules'
 import { saveHallOfFameIfBetter } from '../utils/hallOfFame'
-import { sfxCombo } from '../utils/gameSfx'
+import { sfxCombo, sfxTick } from '../utils/gameSfx'
 import { resolveDisplayNameForHoF } from '../services/authService'
 import {
   clearStagedResume,
@@ -33,8 +32,11 @@ import {
 } from '../utils/gameRoute'
 import { isTutorialPack } from '../utils/tutorialPack'
 
-/** 레벨 클리어 요약 화면 표시 시간(ms) — 이후 자동으로 다음 레벨 */
+/** 레벨 클리어 요약 화면을 그대로 유지하는 시간(ms) — 이후 자동으로 다음 레벨 */
 const LEVEL_CLEAR_DISPLAY_MS = 3000
+
+/** 2페이즈 UI 표시 후 실제 플레이 시작까지(초) — 이 동안 타이머·봇 정지 */
+const P2_PREP_COUNTDOWN_SEC = 5
 
 function shuffleRows(rows) {
   const a = [...rows]
@@ -146,6 +148,8 @@ export default function Game() {
   const [levelClearBanner, setLevelClearBanner] = useState(
     /** @type {string | null} */ (null),
   )
+  /** 2페이즈: 0이면 플레이 진행, 0보다 크면 카운트다운 중(Phase2Mind 정지) */
+  const [p2PrepCountdown, setP2PrepCountdown] = useState(0)
 
   const refillQueueFromPool = useCallback(() => {
     const used = usedRowIdsRef.current
@@ -225,10 +229,50 @@ export default function Game() {
 
   const need = cardsNeededThisLevel - p1Collected.length
 
-  const currentBatch = useMemo(() => {
+  /**
+   * 1페이즈 한 묶음: 실제로 이번에 모을 카드는 queue에서 가져오되,
+   * 남은 매칭이 3미만이면 단어팩에서 랜덤 해설·주제를 섞어 줄을 3개로 맞춤(_p1Filler).
+   */
+  const p1DisplayRows = useMemo(() => {
     if (need <= 0 || queue.length === 0) return []
-    return queue.slice(0, Math.min(3, need, queue.length))
-  }, [queue, need])
+    const take = Math.min(need, queue.length, 3)
+    const real = queue
+      .slice(0, take)
+      .map((r) => ({ ...r, _p1Filler: /** @type {const} */ (false) }))
+    if (real.length >= 3) return real
+
+    const used = new Set([
+      ...queue.map((r) => String(r.id)),
+      ...p1Collected.map((r) => String(r.id)),
+    ])
+    let pool = shuffleRows(
+      validRows.filter(
+        (r) =>
+          r.topic &&
+          r.explanation &&
+          !used.has(String(r.id)) &&
+          !real.some((x) => String(x.id) === String(r.id)),
+      ),
+    )
+    const out = [...real]
+    let padIdx = 0
+    while (out.length < 3) {
+      if (pool.length === 0) {
+        pool = shuffleRows(
+          validRows.filter((r) => r.topic && r.explanation),
+        )
+      }
+      const r = pool.pop()
+      if (!r) break
+      padIdx += 1
+      out.push({
+        ...r,
+        id: `p1pad-${level}-${roundVersion}-${padIdx}-${r.id}`,
+        _p1Filler: true,
+      })
+    }
+    return out
+  }, [need, queue, p1Collected, validRows, level, roundVersion])
 
   const phase1Done =
     p1Collected.length >= cardsNeededThisLevel && queueReady
@@ -244,10 +288,47 @@ export default function Game() {
     return pack.rows.filter((r) => !ids.has(r.id))
   }, [pack, levelDeck])
 
-  const goP2 = useCallback(() => {
+  /* 1페이즈 배치 완료 시 — 필러 줄은 수집 대상에서 제외 */
+  const handleP1BatchComplete = useCallback(
+    (rows) => {
+      const real = rows.filter((r) => !r._p1Filler)
+      if (real.length === 0) return
+      setP1Collected((c) => {
+        const newC = [...c, ...real]
+        const needAfter = cardsNeededThisLevel - newC.length
+        setQueue((q) => {
+          const next = q.slice(real.length)
+          real.forEach((r) => usedRowIdsRef.current.add(r.id))
+          if (next.length === 0 && needAfter > 0) {
+            return refillQueueFromPool()
+          }
+          return next
+        })
+        return newC
+      })
+      setRoundVersion((v) => v + 1)
+    },
+    [cardsNeededThisLevel, refillQueueFromPool],
+  )
+
+  /* eslint-disable react-hooks/set-state-in-effect -- 1페이즈 완료 시에만 2페이즈로 전환 */
+  useEffect(() => {
+    if (segment !== 'p1' || !phase1Done || !queueReady) return
     setP1Combo(0)
+    setP2PrepCountdown(P2_PREP_COUNTDOWN_SEC)
     setSegment('p2')
-  }, [])
+  }, [segment, phase1Done, queueReady])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  /* 2페이즈 준비 카운트다운(화면은 이미 p2) */
+  useEffect(() => {
+    if (p2PrepCountdown <= 0) return
+    sfxTick()
+    const id = window.setTimeout(() => {
+      setP2PrepCountdown((c) => c - 1)
+    }, 1000)
+    return () => window.clearTimeout(id)
+  }, [p2PrepCountdown])
 
   /** 콤보 아이템 지급 시 튀어나오는 하이라이트(1·2페이즈 공통) */
   const [rewardPop, setRewardPop] = useState(
@@ -294,26 +375,6 @@ export default function Game() {
       setP1Combo(0)
     }
   }, [])
-
-  const onBatchComplete = useCallback(
-    (batch) => {
-      setP1Collected((c) => {
-        const newC = [...c, ...batch]
-        const needAfter = cardsNeededThisLevel - newC.length
-        setQueue((q) => {
-          const next = q.slice(batch.length)
-          batch.forEach((r) => usedRowIdsRef.current.add(r.id))
-          if (next.length === 0 && needAfter > 0) {
-            return refillQueueFromPool()
-          }
-          return next
-        })
-        return newC
-      })
-      setRoundVersion((v) => v + 1)
-    },
-    [cardsNeededThisLevel, refillQueueFromPool],
-  )
 
   /* eslint-disable react-hooks/set-state-in-effect -- 큐가 비었는데 이번 레벨에 더 필요할 때만 리필 */
   useEffect(() => {
@@ -371,6 +432,7 @@ export default function Game() {
     setP1Collected([])
     setRoundVersion((v) => v + 1)
     setP1Combo(0)
+    setP2PrepCountdown(0)
     setSegment('p1')
   }, [])
 
@@ -400,6 +462,7 @@ export default function Game() {
 
   const onRoundLose = useCallback((detail) => {
     setP2GameOver(detail ?? null)
+    setP2PrepCountdown(0)
     setSegment('over')
   }, [])
 
@@ -569,22 +632,19 @@ export default function Game() {
             {!queueReady ? (
               <p className="mt-8 text-center text-slate-500">덱 준비 중…</p>
             ) : phase1Done ? (
-              <P2PrepCountdown
-                key={`prep-${level}-${roundVersion}`}
-                level={level}
-                playerCards={levelDeck}
-                onComplete={goP2}
-              />
+              <p className="mt-8 text-center text-sm text-slate-500">
+                2페이즈로 넘어가는 중…
+              </p>
             ) : (
               <div className="mt-4 md:mt-6">
                 <Phase1Matching
-                  rows={currentBatch}
+                  rows={p1DisplayRows}
                   packKey={packKey}
                   combo={p1Combo}
                   coachMode={coachMode || tutorialMode}
                   tutorialMode={tutorialMode}
                   onMatchAttempt={onMatchAttempt}
-                  onBatchComplete={onBatchComplete}
+                  onBatchComplete={handleP1BatchComplete}
                 />
               </div>
             )}
@@ -600,7 +660,7 @@ export default function Game() {
               가상 플레이어 1명 · 제한 {phase2SecondsForLevel(level)}초 (카드{' '}
               {level}장 × 6초)
             </p>
-            <div className="mt-4 md:mt-6">
+            <div className="relative mt-4 md:mt-6">
               <Phase2Mind
                 key={`${level}-${roundVersion}-p2`}
                 level={level}
@@ -618,7 +678,48 @@ export default function Game() {
                 overlayTimerPause={!!rewardPop}
                 coachMode={coachMode || tutorialMode}
                 tutorialMode={tutorialMode}
+                prepFreeze={p2PrepCountdown > 0}
               />
+              {p2PrepCountdown > 0 ? (
+                <div
+                  className="absolute inset-0 z-[80] flex flex-col items-center justify-start gap-4 overflow-y-auto rounded-2xl border border-emerald-200/90 bg-white/92 px-3 py-6 shadow-inner backdrop-blur-sm md:justify-center md:py-10"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <p className="text-center text-base font-semibold text-slate-900 md:text-lg">
+                    국어→영어→숫자 순으로 눈치껏 카드를 내세요!
+                  </p>
+                  <p className="text-7xl font-black tabular-nums text-transparent md:text-8xl bg-gradient-to-br from-cyan-300 to-violet-400 bg-clip-text">
+                    {p2PrepCountdown}
+                  </p>
+                  <div className="w-full max-w-md rounded-2xl border border-emerald-200 bg-white/95 px-3 py-4 text-left shadow-md">
+                    <p className="text-center text-[11px] font-medium text-emerald-800 md:text-xs">
+                      이번 라운드 내 카드 ({levelDeck.length}장)
+                    </p>
+                    <div className="mt-3 flex max-h-[28dvh] flex-wrap justify-center gap-2 overflow-y-auto">
+                      {levelDeck.map((c) => (
+                        <div
+                          key={c.id}
+                          className="min-w-[5rem] max-w-[9rem] rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white px-2.5 py-2 shadow-sm"
+                        >
+                          <span className="block text-xs font-semibold text-emerald-900 md:text-sm">
+                            {c.topic}
+                          </span>
+                          {c.explanation ? (
+                            <span className="mt-1 line-clamp-2 text-[10px] text-emerald-800/80 md:text-[11px]">
+                              {c.explanation}
+                            </span>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="max-w-xs text-center text-xs text-slate-600 md:text-sm">
+                    {P2_PREP_COUNTDOWN_SEC}초 후 플레이가 시작됩니다 · 천리안은 상대 카드를
+                    고르기 전까지만 타이머가 멈춥니다
+                  </p>
+                </div>
+              ) : null}
             </div>
           </>
         ) : null}

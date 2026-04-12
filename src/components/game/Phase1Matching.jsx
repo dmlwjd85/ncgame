@@ -46,7 +46,9 @@ export default function Phase1Matching({
   /** 초보·튜토리얼: 아직 맞추지 않은 카드 중 첫 번째(행 순서) */
   const coachTargetKey = useMemo(() => {
     if (!coachMode && !tutorialMode) return null
-    const next = rows.find((r) => !matchedIds.has(rowKey(packKey, r)))
+    const next = rows.find(
+      (r) => !r._p1Filler && !matchedIds.has(rowKey(packKey, r)),
+    )
     return next ? String(rowKey(packKey, next)) : null
   }, [coachMode, tutorialMode, rows, matchedIds, packKey])
 
@@ -116,7 +118,7 @@ export default function Phase1Matching({
 
       const row = rows.find((r) => String(rowKey(packKey, r)) === aid)
       sfxMerge()
-      if (row) {
+      if (row && !row._p1Filler) {
         setStagedCards((prev) => [
           ...prev,
           {

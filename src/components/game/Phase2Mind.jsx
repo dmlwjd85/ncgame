@@ -311,8 +311,14 @@ export default function Phase2Mind({
   coachMode = false,
   /** 튜토리얼 단어팩: 내야 할 카드 강조·천리안 안내 */
   tutorialMode = false,
+  /** 2페이즈 직전 카운트다운 중 — 타이머·봇·플레이 입력 정지 */
+  prepFreeze = false,
 }) {
   const durationMs = phase2SecondsForLevel(level) * 1000
+  const prepFreezeRef = useRef(false)
+  useEffect(() => {
+    prepFreezeRef.current = prepFreeze
+  }, [prepFreeze])
 
   const tutorialBaseHint = useMemo(() => {
     if (!tutorialMode) return ''
@@ -404,8 +410,9 @@ export default function Phase2Mind({
     const id = window.setInterval(() => {
       if (endedRef.current) return
       setState((s) => {
-        /* 천리안·패널티·토스트·부모 오버레이 중에는 시간·봇 스케줄 진행 안 함 */
+        /* 2페이즈 시작 전 카운트다운·천리안·패널티·토스트·부모 오버레이 중에는 진행 안 함 */
         if (
+          prepFreezeRef.current ||
           s.hintMode ||
           s.lifePenaltyModal ||
           s.penaltyToast ||
@@ -494,6 +501,7 @@ export default function Phase2Mind({
 
   const playPlayer = useCallback(
     (card) => {
+      if (prepFreezeRef.current) return
       if (endedRef.current) return
       setState((s) => {
         const prevP2 = s.p2Combo ?? 0
