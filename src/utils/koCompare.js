@@ -1,4 +1,38 @@
 /**
+ * @typedef {{ topic: string, id?: string|number }} CardLike
+ */
+
+/**
+ * 2페이즈 족보 순서. 'topic': 국어→영어→숫자(가나다). 'sheet': 엑셀 행 순서(id 오름차순, 전근대사 등).
+ * @param {CardLike} a
+ * @param {CardLike} b
+ * @param {'topic'|'sheet'} [mode]
+ * @returns {number}
+ */
+export function comparePlayOrder(a, b, mode = 'topic') {
+  if (mode === 'sheet') {
+    const ia = Number(a?.id ?? 0)
+    const ib = Number(b?.id ?? 0)
+    if (ia !== ib) return ia - ib
+  }
+  return compareTopicOrder(String(a?.topic ?? ''), String(b?.topic ?? ''))
+}
+
+/**
+ * 직전에 깐 카드보다 뒤 순서만 낼 수 있음
+ * @param {CardLike} card
+ * @param {{ id: string|number, topic: string } | null} lastPlayed
+ * @param {'topic'|'sheet'} [mode]
+ */
+export function isPlayableAfter(card, lastPlayed, mode = 'topic') {
+  if (lastPlayed == null) return true
+  if (mode === 'sheet') {
+    return Number(card.id) > Number(lastPlayed.id)
+  }
+  return compareTopicOrder(card.topic, lastPlayed.topic) > 0
+}
+
+/**
  * 주제어 순서: 한글(국어) → 영어(라틴) → 숫자
  * @param {string} a
  * @param {string} b

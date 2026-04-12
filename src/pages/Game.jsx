@@ -20,7 +20,7 @@ import { saveHallOfFameIfBetter } from '../utils/hallOfFame'
 import { sfxCombo, sfxLevelClearFanfare } from '../utils/gameSfx'
 import { resolveDisplayNameForHoF } from '../services/authService'
 import { clearStagedResume, peekResumeFromSession } from '../utils/gameRunSave'
-import { compareTopicOrder } from '../utils/koCompare'
+import { comparePlayOrder } from '../utils/koCompare'
 import {
   NCGAME_LAST_PACK_KEY,
   resolveGameBotCount,
@@ -37,8 +37,13 @@ function shuffleRows(rows) {
   return a
 }
 
-function sortCardsByTopic(hand) {
-  return [...hand].sort((a, b) => compareTopicOrder(a.topic, b.topic))
+/** 게임 오버 화면 손패 정렬 — 전근대사 팩은 엑셀(id) 순 */
+function sortHandForP2Snapshot(hand, orderMode) {
+  return [...hand].sort((a, b) => {
+    const o = comparePlayOrder(a, b, orderMode)
+    if (o !== 0) return o
+    return String(a.id).localeCompare(String(b.id))
+  })
 }
 
 function fieldActorLabel(from) {
@@ -151,6 +156,8 @@ export default function Game() {
 
   const packKey = pack?.id ?? ''
   const tutorialMode = isTutorialPack(pack)
+  /** 전근대사 100선: 2페이즈는 엑셀 행 순서(시간 순) 족보 */
+  const phase2OrderMode = pack?.sheetName === '전근대사 100선' ? 'sheet' : 'topic'
 
   /** 레벨 클리어: 토스트·팡파레만, 2페이즈 화면 유지 */
   const [showLevelClearPopup, setShowLevelClearPopup] = useState(false)
@@ -719,12 +726,22 @@ export default function Game() {
         {segment === 'p2' ? (
           <div className="relative">
             <h1 className="text-lg font-semibold tracking-tight text-slate-900 md:text-xl">
-              2페이즈 · 국어→영어→숫자 순 눈치
+              {phase2OrderMode === 'sheet'
+                ? '2페이즈 · 사건 시간 순 눈치'
+                : '2페이즈 · 국어→영어→숫자 순 눈치'}
             </h1>
             <p className="mt-1 text-xs text-slate-600 md:text-sm">
               가상 플레이어 1명 · 제한 {phase2SecondsForLevel(level)}초 (카드{' '}
               {level}장 × 6초)
             </p>
+            {phase2OrderMode === 'sheet' ? (
+              <p
+                role="status"
+                className="mt-3 rounded-xl border border-violet-300/90 bg-violet-50 px-3 py-2.5 text-center text-sm font-medium leading-snug text-violet-950 shadow-sm ring-1 ring-violet-200/70"
+              >
+                사건 시간 순서로 카드를 내세요.
+              </p>
+            ) : null}
             <div className="mt-4 md:mt-6">
               <Phase2Mind
                 key={`${level}-${roundVersion}-p2`}
@@ -744,6 +761,7 @@ export default function Game() {
                 coachMode={coachMode || tutorialMode}
                 tutorialMode={tutorialMode}
                 hideTimerHud={showLevelClearPopup}
+                orderMode={phase2OrderMode}
               />
             </div>
             {showLevelClearPopup ? (
@@ -865,7 +883,9 @@ export default function Game() {
 
                 <section>
                   <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    손에 남은 카드 (국어→영어→숫자 순)
+                    {phase2OrderMode === 'sheet'
+                      ? '손에 남은 카드 (엑셀·시간 순)'
+                      : '손에 남은 카드 (국어→영어→숫자 순)'}
                   </h3>
                   <div className="mt-2 space-y-4 rounded-2xl border border-amber-200/80 bg-white/90 px-3 py-4 shadow-sm">
                     {(
@@ -883,7 +903,7 @@ export default function Game() {
                           : [],
                       )
                     ).map(({ label, hand }) => {
-                      const sorted = sortCardsByTopic(hand)
+                      const sorted = sortHandForP2Snapshot(hand, phase2OrderMode)
                       return (
                       <div key={label}>
                         <p className="text-[11px] text-slate-500">{label}</p>
