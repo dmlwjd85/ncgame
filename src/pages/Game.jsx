@@ -148,6 +148,7 @@ export default function Game() {
         return newC
       })
       setRoundVersion((v) => v + 1)
+      setP1Combo(0)
     },
     [cardsNeededThisLevel, refillQueueFromPool],
   )
@@ -196,6 +197,7 @@ export default function Game() {
     setLevel((l) => l + 1)
     setP1Collected([])
     setRoundVersion((v) => v + 1)
+    setP1Combo(0)
     setSegment('p1')
   }, [])
 

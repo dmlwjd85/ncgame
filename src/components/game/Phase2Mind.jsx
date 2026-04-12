@@ -470,22 +470,22 @@ export default function Phase2Mind({
       </div>
 
       <div>
-        <p className="mb-2 text-center text-[11px] text-slate-500 md:text-xs">
-          내 카드 — 사전에서 앞 카드보다 뒤에 오는 주제어만 낼 수 있습니다.
+        <p className="mb-2 text-center text-[11px] text-slate-400 md:text-xs">
+          내 카드 — 세 줄씩 배치 · 사전에서 앞 카드보다 뒤에 오는 주제어만 낼 수 있어요
         </p>
-        <div className="flex max-w-full gap-2 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch] landscape:max-h-[40vh] landscape:flex-wrap landscape:overflow-y-auto">
+        <div className="grid w-full grid-cols-3 gap-2 sm:gap-2.5">
           {state.playerHand.map((c) => (
             <button
               key={c.id}
               type="button"
               onClick={() => playPlayer(c)}
-              className="min-w-[5.5rem] max-w-[9rem] shrink-0 rounded-xl border border-emerald-400/35 bg-gradient-to-br from-emerald-950/80 to-slate-900/90 px-2.5 py-2.5 text-left shadow-md transition active:scale-[0.98] md:min-w-[6.5rem] md:px-3 md:py-3"
+              className="min-h-[5.5rem] rounded-xl border-2 border-slate-500/80 bg-slate-800 px-2 py-2.5 text-left shadow-md transition active:scale-[0.98] md:min-h-[6rem] md:px-2.5 md:py-3"
             >
-              <span className="block text-xs font-semibold text-emerald-100 md:text-sm">
+              <span className="block text-[0.95rem] font-bold leading-snug text-white md:text-base">
                 {c.topic}
               </span>
               {c.explanation ? (
-                <span className="mt-1 line-clamp-2 text-[10px] text-emerald-200/60 md:text-[11px]">
+                <span className="mt-1.5 line-clamp-3 text-[11px] leading-snug text-slate-200 md:text-xs">
                   {c.explanation}
                 </span>
               ) : null}

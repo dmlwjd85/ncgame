@@ -221,3 +221,42 @@ body {
 .p2-merge-glow {
   animation: p2-merge-glow-key 0.55s ease-out both;
 }
+
+/* 1페이즈 — 맞춘 카드가 대기 칸으로 내려옴 · 오답 시 튕김 */
+@keyframes p1-staged-fly {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.p1-staged-card {
+  animation: p1-staged-fly 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes p1-reject-bounce-key {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  22% {
+    transform: translateX(-12px);
+  }
+  44% {
+    transform: translateX(10px);
+  }
+  66% {
+    transform: translateX(-6px);
+  }
+  88% {
+    transform: translateX(3px);
+  }
+}
+
+.p1-reject-bounce {
+  animation: p1-reject-bounce-key 0.52s ease-out;
+}
