@@ -46,3 +46,55 @@ git push -u origin main
 예전에 쓰시던 **github.io/저장소이름** 형태는 GitHub Pages입니다. 이 저장소에는 Pages용 워크플로(`.github/workflows/deploy-github-pages.yml`)를 추가해 두었습니다.
 
 **처음 한 번:** GitHub 저장소 → **Settings** → **Pages** → **Build and deployment** → **Source**를 **GitHub Actions**로 선택합니다. 그다음 `main`에 푸시하면 `deploy-github-pages`가 실행되고, 위 github.io 주소에서 동작합니다.
+
+## 계정 (이름 + 비밀번호)
+
+- Firebase Console → **Authentication** → **Sign-in method**에서 **이메일/비밀번호**를 사용 설정합니다.
+- 회원가입 시 표시 이름은 **Firestore** `loginByName` 문서와 연결되며, 내부적으로는 `프로젝트ID.firebaseapp.com` 도메인의 고유 가상 이메일로 Auth에 저장됩니다.
+- **Firestore 규칙** 배포(최초 1회 권장):
+
+  ```bash
+  npm run deploy:rules
+  ```
+
+## 마스터(관리자) 로그인
+
+1. Firebase Console → **Authentication** → **사용자 추가**로 아래와 같이 **이메일·비밀번호** 사용자를 직접 만듭니다. (이메일은 `.env`의 `VITE_MASTER_AUTH_EMAIL`과 동일해야 합니다.)
+2. 프로젝트 루트 `.env.development` / `.env.production`(또는 CI Secrets)에 다음을 채웁니다.
+
+   - `VITE_MASTER_DISPLAY_NAME` — 로그인 화면에 입력할 **이름**
+   - `VITE_MASTER_PASSWORD` — 위에서 설정한 **비밀번호**와 동일
+   - `VITE_MASTER_AUTH_EMAIL` — Firebase에 만든 **이메일**과 동일
+
+3. 마스터로 로그인하면 `/admin` 엑셀 미리보기 메뉴가 보입니다. (클라이언트에 노출되므로 운영 시 서버 검증·역할 설계를 강화하세요.)
+
+## ncxlxs 폴더 (엑셀 카드팩)
+
+- 저장소 루트의 **`ncxlxs/`** 에 `.xlsx` 파일을 두고, **`ncxlxs/manifest.json`** 의 `"files"` 배열에 파일 이름을 나열합니다.
+- **통합 문서 안의 시트마다 하나의 카드팩**으로 로드됩니다. 각 시트 1행에 열 이름: `주제어`, `해설`, `학년/팩이름`, `난이도`.
+- `npm run dev` / `npm run build` 시 `dist/ncxlxs/`로 복사되어 배포에 포함됩니다. 엑셀을 바꾼 뒤에는 다시 빌드·배포해야 반영됩니다.
+
+## 앱 스토어 / 플레이 스토어 (Capacitor)
+
+웹 빌드(`dist`)를 네이티브 껍데기로 감싸 **Android / iOS** 프로젝트를 생성합니다.
+
+```bash
+npm install
+npx cap add android
+npx cap add ios
+```
+
+- iOS는 **macOS + Xcode**가 필요합니다.
+- 스토어 제출 전: 앱 아이콘·스플래시·권한 문구·개인정보 처리방침·서명(Keystore / App Store Connect)을 각 스토어 가이드에 맞게 설정합니다.
+- 네이티브에 올릴 웹 자산은 **루트 경로**로 빌드합니다.
+
+```bash
+npm run build:cap
+```
+
+이후 Android Studio / Xcode에서 열어 번들(AAB/APK) 또는 아카이브를 만듭니다.
+
+```bash
+npx cap open android
+npx cap open ios
+```

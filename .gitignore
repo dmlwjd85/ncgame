@@ -21,6 +21,10 @@ dist-ssr
 !.vscode/extensions.json
 .idea
 .DS_Store
+
+# Capacitor 네이티브 프로젝트 (npx cap add android / ios 후 생성)
+android/
+ios/
 *.suo
 *.ntvs*
 *.njsproj

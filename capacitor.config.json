@@ -1,0 +1,8 @@
+{
+  "appId": "com.dmlwjd85.ncgame",
+  "appName": "NC Game",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

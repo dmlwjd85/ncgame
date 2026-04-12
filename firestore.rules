@@ -1,0 +1,21 @@
+rules_version = '2';
+
+// 회원가입 시 loginByName 문서 생성 · 로그인 시 이름으로 authEmail 조회에 사용합니다.
+// 프로덕션 전 보안 요구에 맞게 조정하세요.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /loginByName/{name} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasAll(['authEmail', 'uid']);
+      allow update, delete: if false;
+    }
+
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid;
+      allow delete: if false;
+    }
+  }
+}

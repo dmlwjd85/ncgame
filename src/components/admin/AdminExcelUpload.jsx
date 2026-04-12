@@ -1,23 +1,23 @@
 import { useCallback, useState } from 'react'
-import { parseExcelCardPack } from '../../utils/parseExcelCardPack'
+import { Link } from 'react-router-dom'
+import { parseWorkbookAllSheets } from '../../utils/parseExcelCardPack'
 
 const PREVIEW_LIMIT = 30
 
 /**
- * 관리자용: .xlsx 업로드 → 파싱 결과 미리보기 (Firebase 저장은 다음 단계)
+ * 마스터 전용: .xlsx 업로드 → 시트별 파싱 미리보기
  */
 export default function AdminExcelUpload() {
   const [fileName, setFileName] = useState('')
-  const [sheetName, setSheetName] = useState('')
-  const [rows, setRows] = useState([])
-  const [missingColumns, setMissingColumns] = useState([])
+  /** @type {Array<{ sheetName: string, rows: object[], missingColumns: string[] }>} */
+  const [sheetPacks, setSheetPacks] = useState([])
+  const [sheetIndex, setSheetIndex] = useState(0)
   const [parseError, setParseError] = useState(null)
 
   const reset = useCallback(() => {
     setFileName('')
-    setSheetName('')
-    setRows([])
-    setMissingColumns([])
+    setSheetPacks([])
+    setSheetIndex(0)
     setParseError(null)
   }, [])
 
@@ -35,26 +35,35 @@ export default function AdminExcelUpload() {
 
     try {
       const buffer = await file.arrayBuffer()
-      const result = parseExcelCardPack(buffer)
-      setSheetName(result.sheetName)
-      setMissingColumns(result.missingColumns)
-      setRows(result.rows)
+      const { packs } = parseWorkbookAllSheets(buffer, file.name)
+      setSheetPacks(packs)
+      setSheetIndex(0)
     } catch (e) {
       setParseError(e?.message ?? '파일을 읽는 중 오류가 발생했습니다.')
     }
   }, [reset])
 
+  const current = sheetPacks[sheetIndex]
+  const rows = current?.rows ?? []
+  const sheetName = current?.sheetName ?? ''
+  const missingColumns = current?.missingColumns ?? []
   const previewRows = rows.slice(0, PREVIEW_LIMIT)
   const hasMore = rows.length > PREVIEW_LIMIT
 
   return (
     <div className="min-h-dvh bg-slate-950 px-4 py-6 text-slate-100">
       <div className="mx-auto w-full max-w-lg">
-        <h1 className="text-xl font-semibold">카드팩 엑셀 업로드</h1>
+        <p className="text-xs text-slate-500">
+          <Link className="text-emerald-400 underline" to="/">
+            ← 홈
+          </Link>
+        </p>
+        <h1 className="mt-2 text-xl font-semibold">카드팩 엑셀 미리보기</h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-400">
-          첫 번째 시트에 아래 컬럼명이 있어야 합니다.{' '}
-          <span className="text-emerald-300/90">
-            주제어 · 해설 · 학년/팩이름 · 난이도
+          파일 내 <span className="text-emerald-300/90">시트마다</span> 하나의
+          팩으로 처리됩니다. 각 시트 첫 행에 컬럼명:{' '}
+          <span className="text-slate-300">
+            주제어 · 해설 · 학년/팩이름 또는 팩이름 · 난이도
           </span>
         </p>
 
@@ -83,9 +92,28 @@ export default function AdminExcelUpload() {
           </p>
         ) : null}
 
+        {sheetPacks.length > 1 ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {sheetPacks.map((p, i) => (
+              <button
+                key={`${p.sheetName}-${i}`}
+                type="button"
+                className={`rounded-lg border px-3 py-1.5 text-xs ${
+                  i === sheetIndex
+                    ? 'border-emerald-500/60 bg-emerald-900/30 text-emerald-100'
+                    : 'border-slate-600 text-slate-400'
+                }`}
+                onClick={() => setSheetIndex(i)}
+              >
+                {p.sheetName}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
         {missingColumns.length > 0 ? (
           <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-950/40 px-3 py-2 text-sm text-amber-100">
-            <p className="font-medium">필수 컬럼 누락</p>
+            <p className="font-medium">필수 컬럼 누락 (현재 시트)</p>
             <ul className="mt-1 list-inside list-disc text-amber-200/90">
               {missingColumns.map((c) => (
                 <li key={c}>{c}</li>
