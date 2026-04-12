@@ -8,6 +8,7 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { sfxMerge } from '../../utils/gameSfx'
 
 /**
  * 콤보 구간별 이펙트 단계 (1…)
@@ -75,6 +76,7 @@ export default function Phase1Matching({
       const ok = active.id === over.id
       onMatchAttempt(ok)
       if (ok) {
+        sfxMerge()
         setBurstId(String(active.id))
         window.setTimeout(() => setBurstId(null), 420)
         setMatchedIds((prev) => {

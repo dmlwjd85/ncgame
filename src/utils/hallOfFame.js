@@ -1,4 +1,5 @@
 import { syncUserBestToCloud } from '../services/hallOfFameService'
+import { formatHoFDisplayName } from './displayName'
 
 const STORAGE_KEY = 'ncgame-hall-of-fame-v1'
 
@@ -27,14 +28,19 @@ export async function saveHallOfFameIfBetter(packId, maxLevel, displayName, auth
   const prev = all[packId]
   if (prev && prev.maxLevel >= maxLevel) {
     if (auth?.uid) {
-      await syncUserBestToCloud(packId, auth.uid, displayName, maxLevel)
+      await syncUserBestToCloud(
+        packId,
+        auth.uid,
+        formatHoFDisplayName(displayName),
+        maxLevel,
+      )
     }
     return false
   }
   all[packId] = {
     maxLevel,
     at: new Date().toISOString(),
-    displayName: displayName || '플레이어',
+    displayName: formatHoFDisplayName(displayName),
   }
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
@@ -42,7 +48,12 @@ export async function saveHallOfFameIfBetter(packId, maxLevel, displayName, auth
     return false
   }
   if (auth?.uid) {
-    await syncUserBestToCloud(packId, auth.uid, displayName, maxLevel)
+    await syncUserBestToCloud(
+      packId,
+      auth.uid,
+      formatHoFDisplayName(displayName),
+      maxLevel,
+    )
   }
   return true
 }

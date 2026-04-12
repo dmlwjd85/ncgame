@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import Phase1Matching from '../components/game/Phase1Matching'
 import Phase2Mind from '../components/game/Phase2Mind'
@@ -11,6 +11,7 @@ import {
   phase1ComboRewards,
   phase2SecondsForLevel,
 } from '../utils/gameRules'
+import { formatHoFDisplayName } from '../utils/displayName'
 import { saveHallOfFameIfBetter } from '../utils/hallOfFame'
 
 function shuffleRows(rows) {
@@ -61,12 +62,30 @@ export default function Game() {
   const [roundVersion, setRoundVersion] = useState(0)
   const [p1Collected, setP1Collected] = useState(/** @type {object[]} */ ([]))
   const [lastRoundTopics, setLastRoundTopics] = useState(/** @type {string[]} */ ([]))
+  const [deckNotice, setDeckNotice] = useState(/** @type {string | null} */ (null))
+  /** 1페이즈에서 이미 꺼낸 카드 id — 부족 시 제외 덱, 전부 소진 시 초기화 */
+  const usedRowIdsRef = useRef(/** @type {Set<string>} */ (new Set()))
 
   const packKey = pack?.id ?? ''
+
+  const refillQueueFromPool = useCallback(() => {
+    const used = usedRowIdsRef.current
+    const unused = validRows.filter((r) => !used.has(r.id))
+    if (unused.length === 0) {
+      used.clear()
+      setDeckNotice(
+        '단어팩에서 쓸 카드가 부족해요. 덱을 처음부터 다시 섞어 이어갑니다.',
+      )
+      window.setTimeout(() => setDeckNotice(null), 6000)
+      return shuffleRows(validRows)
+    }
+    return shuffleRows(unused)
+  }, [validRows])
 
   /* eslint-disable react-hooks/set-state-in-effect -- 덱 셔플 초기화 */
   useEffect(() => {
     if (!pack || queueReady) return
+    usedRowIdsRef.current = new Set()
     setQueue(shuffleRows(validRows))
     setQueueReady(true)
   }, [pack, queueReady, validRows])
@@ -113,20 +132,57 @@ export default function Game() {
     }
   }, [])
 
-  const onBatchComplete = useCallback((batch) => {
-    setP1Collected((c) => [...c, ...batch])
-    setQueue((q) => q.slice(batch.length))
-    setRoundVersion((v) => v + 1)
-  }, [])
+  const onBatchComplete = useCallback(
+    (batch) => {
+      setP1Collected((c) => {
+        const newC = [...c, ...batch]
+        const needAfter = cardsNeededThisLevel - newC.length
+        setQueue((q) => {
+          const next = q.slice(batch.length)
+          batch.forEach((r) => usedRowIdsRef.current.add(r.id))
+          if (next.length === 0 && needAfter > 0) {
+            return refillQueueFromPool()
+          }
+          return next
+        })
+        return newC
+      })
+      setRoundVersion((v) => v + 1)
+    },
+    [cardsNeededThisLevel, refillQueueFromPool],
+  )
+
+  /* eslint-disable react-hooks/set-state-in-effect -- 큐가 비었는데 이번 레벨에 더 필요할 때만 리필 */
+  useEffect(() => {
+    if (!queueReady || segment !== 'p1') return
+    if (phase1Done) return
+    const need = cardsNeededThisLevel - p1Collected.length
+    if (need <= 0 || queue.length > 0) return
+    setQueue(refillQueueFromPool())
+  }, [
+    queue.length,
+    queueReady,
+    segment,
+    phase1Done,
+    cardsNeededThisLevel,
+    p1Collected.length,
+    refillQueueFromPool,
+  ])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const onRoundWin = useCallback(
     async ({ lives: L, cheonryan: C, center }) => {
       setLives(L)
       setCheonryan(C)
       setLastRoundTopics(center.map((c) => c.topic))
-      await saveHallOfFameIfBetter(packId, level, user?.displayName || '플레이어', {
-        uid: user?.uid ?? null,
-      })
+      await saveHallOfFameIfBetter(
+        packId,
+        level,
+        formatHoFDisplayName(user?.displayName),
+        {
+          uid: user?.uid ?? null,
+        },
+      )
       if (level >= maxLevel) {
         setSegment('cleared')
         return
@@ -220,12 +276,21 @@ export default function Game() {
               이번 레벨 {cardsNeededThisLevel}장 ({p1Collected.length}/
               {cardsNeededThisLevel}) · 대기 {queue.length}장
             </p>
+            {deckNotice ? (
+              <p
+                role="status"
+                className="mt-3 rounded-xl border border-amber-500/35 bg-amber-950/40 px-3 py-2 text-center text-xs text-amber-100 md:text-sm"
+              >
+                {deckNotice}
+              </p>
+            ) : null}
             {!queueReady ? (
               <p className="mt-8 text-center text-slate-500">덱 준비 중…</p>
             ) : phase1Done ? (
               <P2PrepCountdown
                 key={`prep-${level}-${roundVersion}`}
                 level={level}
+                playerCards={levelDeck}
                 onComplete={goP2}
               />
             ) : (

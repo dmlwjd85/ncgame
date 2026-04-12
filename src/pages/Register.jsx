@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { DISPLAY_NAME_MAX_LEN } from '../utils/displayName'
 
 /**
  * 이름 + 비밀번호 회원가입 (Firebase Auth + Firestore 이름 매핑)
@@ -46,11 +47,12 @@ export default function Register() {
         <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
           <div>
             <label className="block text-sm text-slate-400" htmlFor="reg-name">
-              이름
+              이름 (최대 {DISPLAY_NAME_MAX_LEN}글자, 명예의 전당에 표시)
             </label>
             <input
               id="reg-name"
               autoComplete="username"
+              maxLength={DISPLAY_NAME_MAX_LEN}
               className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-base text-slate-100 outline-none focus:border-emerald-500/60"
               value={name}
               onChange={(e) => setName(e.target.value)}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { loadPackLeaderboard } from '../services/hallOfFameService'
+import { formatHoFDisplayName } from '../utils/displayName'
 import { loadHallOfFame } from '../utils/hallOfFame'
 
 /**
@@ -70,7 +71,7 @@ export default function HallOfFamePanel({ packs }) {
                 {board.map((row, i) => (
                   <li key={row.uid || `${p.id}-${i}`} className="flex justify-between gap-2">
                     <span className="truncate">
-                      {i + 1}. {row.displayName || '—'}
+                      {i + 1}. {formatHoFDisplayName(row.displayName)}
                     </span>
                     <span className="shrink-0 font-mono text-amber-200/90">
                       Lv.{row.maxLevel ?? '—'}

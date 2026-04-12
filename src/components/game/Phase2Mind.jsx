@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { compareTopicOrder } from '../../utils/koCompare'
 import { phase2SecondsForLevel } from '../../utils/gameRules'
+import { sfxMerge, sfxPenalty } from '../../utils/gameSfx'
 import {
   USER_RESERVE_MS,
   mergeBotPlayOrder,
@@ -66,11 +67,14 @@ function buildRoundState({
     hintMode: false,
     revealed: new Set(),
     penaltyToast: /** @type {string | null} */ (null),
+    shakeKey: 0,
+    mergeFlash: 0,
   }
 }
 
 /**
- * 잘못 낸 카드: 앞서 나와야 할 카드들을 강제 제출하고 생명 차감
+ * 순서 오류: 제출한 카드까지 앞순번을 강제 제출.
+ * 생명은 잘못 낸 카드(마지막 한 장)를 제외한 강제 제출 장수만큼 차감.
  */
 function applyPlayerPlayWithRules(state, card) {
   const lastTopic = state.lastTopic
@@ -102,43 +106,100 @@ function applyPlayerPlayWithRules(state, card) {
       hintMode: false,
       revealed: new Set(),
       penaltyToast: null,
+      mergeFlash: state.mergeFlash + 1,
     }
   }
 
   const idx = sortedValid.findIndex((c) => c.id === card.id)
-  let forced = []
-  if (idx >= 0) {
-    forced = sortedValid.slice(0, idx)
-  } else {
-    const beforeW = sortedValid.filter(
-      (c) => compareTopicOrder(c.topic, card.topic) < 0,
-    )
-    beforeW.sort((a, b) => compareTopicOrder(a.topic, b.topic))
-    forced = beforeW.length > 0 ? beforeW : [...sortedValid]
+
+  if (idx > 0) {
+    const chain = sortedValid.slice(0, idx + 1)
+    let center = [...state.center]
+    let playerHand = [...state.playerHand]
+    let last = lastTopic
+    for (let i = 0; i < chain.length; i++) {
+      const c = chain[i]
+      const isWrongTap = i === idx
+      center = [
+        ...center,
+        {
+          topic: c.topic,
+          from: 'player',
+          forced: true,
+          wrongTap: isWrongTap,
+        },
+      ]
+      last = c.topic
+      playerHand = playerHand.filter((x) => x.id !== c.id)
+    }
+    const pen = idx
+    const autoNames = chain
+      .slice(0, idx)
+      .map((c) => `「${c.topic}」`)
+      .join(', ')
+    const reason =
+      pen > 0
+        ? `먼저 나와야 할 카드 ${pen}장(${autoNames})이 깔렸어요. 잘못 낸 카드는 생명에 세지 않아요. 생명 ${pen}칸이 깎였어요.`
+        : '순서가 맞지 않아요.'
+
+    return {
+      ...state,
+      center,
+      lastTopic: last,
+      playerHand,
+      lives: Math.max(0, state.lives - pen),
+      hintMode: false,
+      revealed: new Set(),
+      penaltyToast: reason,
+      shakeKey: (state.shakeKey ?? 0) + 1,
+    }
   }
 
+  const beforeW = sortedValid.filter(
+    (c) => compareTopicOrder(c.topic, card.topic) < 0,
+  )
+  beforeW.sort((a, b) => compareTopicOrder(a.topic, b.topic))
+  const mustForce = beforeW.length > 0 ? beforeW : [...sortedValid]
+
   let center = [...state.center]
-  let last = lastTopic
   let playerHand = [...state.playerHand]
-  for (const f of forced) {
+  let last = lastTopic
+  for (const f of mustForce) {
     center = [...center, { topic: f.topic, from: 'player', forced: true }]
     last = f.topic
     playerHand = playerHand.filter((c) => c.id !== f.id)
   }
+  center = [
+    ...center,
+    {
+      topic: card.topic,
+      from: 'player',
+      forced: true,
+      wrongTap: true,
+    },
+  ]
+  last = card.topic
+  playerHand = playerHand.filter((c) => c.id !== card.id)
 
-  const pen = forced.length
-  const names = forced.map((c) => `「${c.topic}」`).join(', ')
-  const reason = `사전순으로 먼저 제출되어야 할 카드 ${pen}장(${names})이 자동으로 깔렸습니다. 순서를 건너뛰면 생명 ${pen}칸이 깎입니다.`
+  const pen = mustForce.length
+  const names = mustForce.map((c) => `「${c.topic}」`).join(', ')
+  const reason =
+    pen > 0
+      ? `이 카드 순서가 아니에요. 먼저 ${pen}장(${names})이 깔렸고, 잘못 낸 한 장은 생명에 안 세요. 생명 ${pen}칸이 깎였어요.`
+      : '낼 수 없는 카드를 골랐어요. 생명 1칸이 깎였어요.'
+
+  const lifeCost = pen > 0 ? pen : 1
 
   return {
     ...state,
     center,
     lastTopic: last,
     playerHand,
-    lives: Math.max(0, state.lives - pen),
+    lives: Math.max(0, state.lives - lifeCost),
     hintMode: false,
     revealed: new Set(),
     penaltyToast: reason,
+    shakeKey: (state.shakeKey ?? 0) + 1,
   }
 }
 
@@ -198,7 +259,11 @@ export default function Phase2Mind({
 
         const total =
           next.playerHand.length + next.bot1Hand.length + next.bot2Hand.length
-        if (total === 0 && next.center.length > 0) {
+        if (
+          total === 0 &&
+          next.center.length > 0 &&
+          next.lives > 0
+        ) {
           endedRef.current = true
           queueMicrotask(() =>
             onRoundWin({
@@ -226,13 +291,19 @@ export default function Phase2Mind({
       if (endedRef.current) return
       setState((s) => {
         const next = applyPlayerPlayWithRules(s, card)
+        if (next.penaltyToast) sfxPenalty()
+        else sfxMerge()
         if (endedRef.current) return next
         const total =
           next.playerHand.length + next.bot1Hand.length + next.bot2Hand.length
         if (next.lives <= 0) {
           endedRef.current = true
           queueMicrotask(() => onRoundLose())
-        } else if (total === 0 && next.center.length > 0) {
+        } else if (
+          total === 0 &&
+          next.center.length > 0 &&
+          next.lives > 0
+        ) {
           endedRef.current = true
           queueMicrotask(() =>
             onRoundWin({
@@ -369,7 +440,10 @@ export default function Phase2Mind({
         ) : null}
       </div>
 
-      <div className="min-h-[72px] rounded-2xl border border-violet-400/25 bg-gradient-to-b from-violet-950/50 to-slate-950/80 px-2 py-3 text-center shadow-inner md:min-h-[88px] md:px-3 md:py-4">
+      <div
+        key={state.shakeKey}
+        className={`min-h-[72px] rounded-2xl border border-violet-400/25 bg-gradient-to-b from-violet-950/50 to-slate-950/80 px-2 py-3 text-center shadow-inner md:min-h-[88px] md:px-3 md:py-4 ${state.shakeKey ? 'p2-shake-anim' : ''} ${state.mergeFlash ? 'p2-merge-glow' : ''}`}
+      >
         <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-violet-300/80 md:text-[11px]">
           필드 · 국어 사전순
         </p>
@@ -377,13 +451,15 @@ export default function Phase2Mind({
           {state.center.length === 0
             ? '—'
             : state.center.map((c, i) => (
-                <span key={`${c.topic}-${i}-${c.forced ? 'f' : 'n'}`}>
+                <span key={`${c.topic}-${i}-${c.forced ? 'f' : 'n'}-${c.wrongTap ? 'w' : ''}`}>
                   {i > 0 ? <span className="text-slate-600"> → </span> : null}
                   <span
-                    className={`rounded-md px-1.5 py-0.5 ${
-                      c.forced
-                        ? 'bg-amber-500/25 text-amber-100 line-through decoration-amber-200/50'
-                        : 'bg-violet-500/15 text-violet-100'
+                    className={`rounded-md px-1.5 py-0.5 transition ${
+                      c.wrongTap
+                        ? 'bg-rose-600/35 text-rose-50 ring-2 ring-amber-300/70'
+                        : c.forced
+                          ? 'bg-amber-500/25 text-amber-100 line-through decoration-amber-200/50'
+                          : 'bg-violet-500/15 text-violet-100'
                     }`}
                   >
                     {c.topic}

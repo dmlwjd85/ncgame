@@ -13,6 +13,7 @@ import {
   signInWithName,
   signOutUser,
   signUpWithName,
+  updatePlayerDisplayName,
 } from '../services/authService'
 
 const AuthContext = createContext(null)
@@ -40,6 +41,11 @@ export function AuthProvider({ children }) {
       signIn: signInWithName,
       signUp: signUpWithName,
       signOut: signOutUser,
+      /** @param {string} name */
+      updateDisplayName: (name) =>
+        user
+          ? updatePlayerDisplayName(user, name)
+          : Promise.reject(new Error('로그인이 필요합니다.')),
     }),
     [user, loading],
   )

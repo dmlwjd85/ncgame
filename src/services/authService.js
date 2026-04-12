@@ -4,8 +4,9 @@ import {
   signOut as firebaseSignOut,
   updateProfile,
 } from 'firebase/auth'
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
+import { deleteDoc, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { firebaseAuth, firestoreDb } from '../config/firebase'
+import { DISPLAY_NAME_MAX_LEN, formatHoFDisplayName } from '../utils/displayName'
 
 /** @param {string} name */
 function reservedName(name) {
@@ -21,8 +22,11 @@ function reservedName(name) {
  * @param {string} password
  */
 export async function signUpWithName(displayName, password) {
-  const name = displayName.trim()
+  const name = formatHoFDisplayName(displayName)
   if (!name) throw new Error('이름을 입력해 주세요.')
+  if ([...name].length > DISPLAY_NAME_MAX_LEN) {
+    throw new Error(`이름은 ${DISPLAY_NAME_MAX_LEN}글자까지입니다.`)
+  }
   if (reservedName(name)) throw new Error('사용할 수 없는 이름입니다.')
   if (password.length < 6) throw new Error('비밀번호는 6자 이상이어야 합니다.')
 
@@ -73,7 +77,7 @@ export async function signUpWithName(displayName, password) {
  * @param {string} password
  */
 export async function signInWithName(displayName, password) {
-  const name = displayName.trim()
+  const name = formatHoFDisplayName(displayName)
   if (!name) throw new Error('이름을 입력해 주세요.')
 
   const masterName = import.meta.env.VITE_MASTER_DISPLAY_NAME?.trim()
@@ -138,4 +142,53 @@ export function isMasterUser(user) {
   if (!user?.email) return false
   const masterEmail = import.meta.env.VITE_MASTER_AUTH_EMAIL?.trim()
   return Boolean(masterEmail && user.email === masterEmail)
+}
+
+/**
+ * 표시 이름 변경 (최대 7글자) — Auth·users·loginByName(이름 로그인) 동기화
+ * @param {import('firebase/auth').User} user
+ * @param {string} rawName
+ */
+export async function updatePlayerDisplayName(user, rawName) {
+  if (!user?.uid) throw new Error('로그인이 필요합니다.')
+  const name = formatHoFDisplayName(rawName)
+  if (!name) throw new Error('이름을 입력해 주세요.')
+  if ([...name].length > DISPLAY_NAME_MAX_LEN) {
+    throw new Error(`이름은 ${DISPLAY_NAME_MAX_LEN}글자까지입니다.`)
+  }
+  if (reservedName(name)) throw new Error('사용할 수 없는 이름입니다.')
+
+  const oldName = (user.displayName ?? '').trim()
+  if (oldName === name) return
+
+  const loginRefNew = doc(firestoreDb, 'loginByName', name)
+  const snapNew = await getDoc(loginRefNew)
+  if (snapNew.exists()) {
+    const data = snapNew.data()
+    if (data?.uid && data.uid !== user.uid) {
+      throw new Error('이미 사용 중인 이름입니다.')
+    }
+  }
+
+  if (oldName) {
+    const loginRefOld = doc(firestoreDb, 'loginByName', oldName)
+    const snapOld = await getDoc(loginRefOld)
+    if (snapOld.exists() && snapOld.data()?.uid === user.uid) {
+      await deleteDoc(loginRefOld)
+    }
+  }
+
+  await updateProfile(user, { displayName: name })
+  await setDoc(
+    doc(firestoreDb, 'users', user.uid),
+    { displayName: name, updatedAt: serverTimestamp() },
+    { merge: true },
+  )
+
+  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'sambong-world-2026'
+  const authEmail = user.email || `${user.uid}@${projectId}.firebaseapp.com`
+  await setDoc(loginRefNew, {
+    authEmail,
+    uid: user.uid,
+  })
 }

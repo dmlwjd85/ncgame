@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import GameRulesModal from '../components/GameRulesModal'
 import JokboModal from '../components/JokboModal'
 import HallOfFamePanel from '../components/HallOfFamePanel'
 import { useAuth } from '../contexts/AuthContext'
 import { useCardPacks } from '../contexts/CardPackContext'
+import { DISPLAY_NAME_MAX_LEN, formatHoFDisplayName } from '../utils/displayName'
 import { maxLevelFromRowCount } from '../utils/gameRules'
 
 /**
@@ -12,7 +13,8 @@ import { maxLevelFromRowCount } from '../utils/gameRules'
  */
 export default function Home() {
   const navigate = useNavigate()
-  const { user, loading: authLoading, signOut, isMaster } = useAuth()
+  const { user, loading: authLoading, signOut, isMaster, updateDisplayName } =
+    useAuth()
   const { packs, loading: packsLoading, error: packsError, reloadPacks } =
     useCardPacks()
   const [tab, setTab] = useState(/** @type {'play'|'hof'} */ ('play'))
@@ -20,6 +22,17 @@ export default function Home() {
   const [botCount, setBotCount] = useState(1)
   const [rulesOpen, setRulesOpen] = useState(false)
   const [jokboOpen, setJokboOpen] = useState(false)
+  const [nameEdit, setNameEdit] = useState('')
+  const [nameMsg, setNameMsg] = useState(/** @type {string} */ (''))
+  const [nameSaving, setNameSaving] = useState(false)
+
+  useEffect(() => {
+    if (user?.displayName) {
+      setNameEdit(formatHoFDisplayName(user.displayName))
+    } else {
+      setNameEdit('')
+    }
+  }, [user?.displayName])
 
   const effectivePackId = selectedPackId ?? packs[0]?.id ?? null
   const selectedPack = packs.find((p) => p.id === effectivePackId)
@@ -61,7 +74,7 @@ export default function Home() {
           ) : user ? (
             <div className="flex items-center gap-2">
               <span className="max-w-[140px] truncate text-sm text-slate-300">
-                {user.displayName || '플레이어'}
+                {formatHoFDisplayName(user.displayName)}
               </span>
               <button
                 type="button"
@@ -88,6 +101,48 @@ export default function Home() {
             </div>
           )}
         </div>
+
+        {user ? (
+          <div className="mx-auto mt-4 w-full rounded-2xl border border-white/10 bg-slate-900/45 px-3 py-3 backdrop-blur-sm">
+            <p className="text-[11px] text-slate-500">
+              명예의 전당 표시 이름 (최대 {DISPLAY_NAME_MAX_LEN}글자)
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                maxLength={DISPLAY_NAME_MAX_LEN}
+                value={nameEdit}
+                onChange={(e) =>
+                  setNameEdit(formatHoFDisplayName(e.target.value))
+                }
+                className="min-w-[8rem] flex-1 rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-500/50"
+                autoComplete="nickname"
+              />
+              <button
+                type="button"
+                disabled={nameSaving}
+                className="shrink-0 rounded-xl bg-gradient-to-r from-cyan-600/90 to-violet-600/80 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                onClick={async () => {
+                  setNameMsg('')
+                  setNameSaving(true)
+                  try {
+                    await updateDisplayName(nameEdit)
+                    setNameMsg('저장했어요.')
+                  } catch (e) {
+                    setNameMsg(e?.message ?? '저장에 실패했습니다.')
+                  } finally {
+                    setNameSaving(false)
+                  }
+                }}
+              >
+                {nameSaving ? '…' : '저장'}
+              </button>
+            </div>
+            {nameMsg ? (
+              <p className="mt-2 text-xs text-slate-400">{nameMsg}</p>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="mx-auto mt-6 flex w-full rounded-2xl border border-white/10 bg-white/5 p-1 backdrop-blur-md">
           <button
