@@ -130,6 +130,11 @@ export default function Game() {
   const usedRowIdsRef = useRef(/** @type {Set<string>} */ (new Set()))
   const prevComboRef = useRef(p1Combo)
   const prevP2ComboRef = useRef(0)
+  /** 2페이즈 콤보 팝업만 2초 후 자동 숨김 */
+  const p2ComboFlashTimerRef = useRef(
+    /** @type {ReturnType<typeof setTimeout> | null} */ (null),
+  )
+  const [p2ComboOverlayVisible, setP2ComboOverlayVisible] = useState(false)
 
   const packKey = pack?.id ?? ''
   const tutorialMode = isTutorialPack(pack)
@@ -188,15 +193,28 @@ export default function Game() {
   }, [p1Combo, segment])
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  /* eslint-disable react-hooks/set-state-in-effect -- 2페이즈 콤보 증가 시 타격감·SFX */
+  /* eslint-disable react-hooks/set-state-in-effect -- 2페이즈 콤보 증가 시 타격감·SFX·2초 뒤 팝업 숨김 */
   useEffect(() => {
     if (segment !== 'p2') {
       prevP2ComboRef.current = p2Combo
+      if (p2ComboFlashTimerRef.current) {
+        clearTimeout(p2ComboFlashTimerRef.current)
+        p2ComboFlashTimerRef.current = null
+      }
+      setP2ComboOverlayVisible(false)
       return
     }
     if (p2Combo > prevP2ComboRef.current && p2Combo >= 1) {
       setComboFxKey((k) => k + 1)
       sfxCombo(p2Combo)
+      setP2ComboOverlayVisible(true)
+      if (p2ComboFlashTimerRef.current) {
+        clearTimeout(p2ComboFlashTimerRef.current)
+      }
+      p2ComboFlashTimerRef.current = window.setTimeout(() => {
+        setP2ComboOverlayVisible(false)
+        p2ComboFlashTimerRef.current = null
+      }, 2000)
     }
     prevP2ComboRef.current = p2Combo
   }, [p2Combo, segment])
@@ -471,9 +489,11 @@ export default function Game() {
 
   return (
     <div className="game-shell min-h-dvh px-[max(1rem,env(safe-area-inset-left))] pb-[max(1rem,env(safe-area-inset-bottom))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(0.75rem,env(safe-area-inset-top))] text-slate-800">
-      {(segment === 'p1' || segment === 'p2') &&
-      comboFxKey > 0 &&
-      displayCombo >= 1 ? (
+      {((segment === 'p1' && comboFxKey > 0 && displayCombo >= 1) ||
+        (segment === 'p2' &&
+          p2ComboOverlayVisible &&
+          comboFxKey > 0 &&
+          displayCombo >= 1)) ? (
         <div key={comboFxKey} className="combo-hit-overlay" aria-hidden>
           <div className="combo-hit-burst">
             <span className="combo-hit-num">{displayCombo}</span>
@@ -626,7 +646,7 @@ export default function Game() {
             </div>
             {showLevelClearPopup ? (
               <div
-                className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-1/2 z-[100] w-[min(92vw,22rem)] -translate-x-1/2 rounded-2xl border border-amber-300/90 bg-gradient-to-r from-amber-50 via-white to-sky-50 px-4 py-4 text-center shadow-lg shadow-amber-900/15 ring-2 ring-amber-200/60"
+                className="fixed top-1/2 right-[max(0.75rem,env(safe-area-inset-right))] z-[100] w-[min(92vw,20rem)] -translate-y-1/2 rounded-2xl border border-amber-300/90 bg-gradient-to-r from-amber-50 via-white to-sky-50 px-4 py-4 text-center shadow-lg shadow-amber-900/15 ring-2 ring-amber-200/60"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="level-clear-title"

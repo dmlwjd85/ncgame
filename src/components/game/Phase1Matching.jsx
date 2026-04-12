@@ -39,7 +39,11 @@ export default function Phase1Matching({
   const [rejectId, setRejectId] = useState(/** @type {string|null} */ (null))
   /** 맞춘 카드가 아래로 합쳐져 쌓임 */
   const [stagedCards, setStagedCards] = useState(
-    /** @type {Array<{ key: string, topic: string, explanation: string }>} */ [],
+    /** @type {Array<{ key: string, topic: string, explanation: string }>} */ ([]),
+  )
+  /** 매칭 성공 시 강화 성공 느낌의 카드 팝업 */
+  const [successFlash, setSuccessFlash] = useState(
+    /** @type {{ topic: string, explanation: string } | null} */ (null),
   )
   const tier = comboTier(combo)
 
@@ -75,8 +79,15 @@ export default function Phase1Matching({
     setStagedCards([])
     setBurstId(null)
     setRejectId(null)
+    setSuccessFlash(null)
   }, [rowsBatchKey])
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  useEffect(() => {
+    if (!successFlash) return
+    const id = window.setTimeout(() => setSuccessFlash(null), 2200)
+    return () => window.clearTimeout(id)
+  }, [successFlash])
 
   /* eslint-disable react-hooks/set-state-in-effect -- 남은 주제어(실제 행만) 바뀔 때마다 셔플 */
   useEffect(() => {
@@ -126,6 +137,12 @@ export default function Phase1Matching({
 
       const row = rows.find((r) => String(rowKey(packKey, r)) === aid)
       sfxMerge()
+      if (row) {
+        setSuccessFlash({
+          topic: String(row.topic ?? '').trim() || '—',
+          explanation: String(row.explanation ?? '').trim(),
+        })
+      }
       if (row && !row._p1Filler) {
         setStagedCards((prev) => [
           ...prev,
@@ -162,8 +179,11 @@ export default function Phase1Matching({
           className={`pointer-events-none absolute inset-0 rounded-3xl opacity-40 blur-3xl transition bg-gradient-to-br p1-tier-glow-${tier}`}
           aria-hidden
         />
-        <p className="relative text-center text-sm font-medium text-slate-800">
-          아래 단어를 위 뜻 칸에 끌어 맞추세요. (위는 항상 3칸)
+        <p className="relative text-center text-base font-semibold leading-snug text-slate-800 md:text-lg">
+          단어를 끌어와 맞는 뜻을 합쳐 카드를 완성하세요!
+        </p>
+        <p className="relative text-center text-xs text-slate-500 md:text-sm">
+          위 뜻 칸 3개 중 짝을 맞추면 돼요.
         </p>
         {(coachMode || tutorialMode) && coachTargetKey ? (
           <p
@@ -239,6 +259,25 @@ export default function Phase1Matching({
             role="status"
           >
             노란 줄부터 끌어 맞추기
+          </div>
+        ) : null}
+
+        {successFlash ? (
+          <div
+            className="p1-enhance-overlay pointer-events-none fixed inset-0 z-[80] flex items-center justify-center"
+            aria-live="polite"
+            aria-hidden
+          >
+            <div className="p1-enhance-burst">
+              <div className="p1-enhance-rays" aria-hidden />
+              <div className="p1-enhance-card">
+                <p className="p1-enhance-badge">완성!</p>
+                <p className="p1-enhance-topic">{successFlash.topic}</p>
+                {successFlash.explanation ? (
+                  <p className="p1-enhance-exp">{successFlash.explanation}</p>
+                ) : null}
+              </div>
+            </div>
           </div>
         ) : null}
       </div>

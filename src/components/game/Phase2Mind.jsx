@@ -330,6 +330,24 @@ export default function Phase2Mind({
     prepFreezeRef.current = prepLeft > 0
   }, [prepLeft])
 
+  /** 천리안으로 상대 카드 확인 후 타이머 재개 전 3초 대기 */
+  const [postHintResumeLeft, setPostHintResumeLeft] = useState(0)
+  const postHintFreezeRef = useRef(false)
+
+  useEffect(() => {
+    postHintFreezeRef.current = postHintResumeLeft > 0
+  }, [postHintResumeLeft])
+
+  useEffect(() => {
+    if (postHintResumeLeft <= 0) return
+    sfxTick()
+    const id = window.setTimeout(
+      () => setPostHintResumeLeft((n) => Math.max(0, n - 1)),
+      1000,
+    )
+    return () => window.clearTimeout(id)
+  }, [postHintResumeLeft])
+
   useEffect(() => {
     if (prepLeft <= 0) return
     sfxTick()
@@ -339,7 +357,7 @@ export default function Phase2Mind({
 
   const tutorialBaseHint = useMemo(() => {
     if (!tutorialMode) return ''
-    return '튜토리얼: 아래 「천리안」을 눌러 상대 패를 잠깐 볼 수 있어요. 시간이 멈춥니다.'
+    return '튜토리얼: 필드 옆 「천리안」으로 상대 패를 잠깐 볼 수 있어요. 카드를 뒤집은 뒤 3초 뒤에 시간이 다시 흘러요.'
   }, [tutorialMode])
 
   /** 천리안 탭/취소 후 안내(기본 문구 위에 덮어씀) */
@@ -432,6 +450,7 @@ export default function Phase2Mind({
         /* 2페이즈 시작 전 카운트다운·천리안·패널티·토스트·부모 오버레이 중에는 진행 안 함 */
         if (
           prepFreezeRef.current ||
+          postHintFreezeRef.current ||
           s.hintMode ||
           s.lifePenaltyModal ||
           s.penaltyToast ||
@@ -579,7 +598,7 @@ export default function Phase2Mind({
     })
     if (tutorialMode) {
       setTutorialPhaseHint(
-        '상대 카드 한 장을 탭해 보세요. 탭하면 천리안이 끝나고 시간이 다시 흘러요.',
+        '상대 카드 한 장을 탭해 보세요. 뒤집은 뒤 3초 카운트다운 후 타이머가 다시 흘러요.',
       )
     }
   }, [tutorialMode])
@@ -603,6 +622,7 @@ export default function Phase2Mind({
       peekClearRef.current = null
       setState((s) => ({ ...s, revealed: new Set() }))
     }, 1600)
+    setPostHintResumeLeft(3)
   }, [])
 
   const endHintMode = useCallback(() => {
@@ -623,6 +643,7 @@ export default function Phase2Mind({
     state.playerHand.length + state.bot1Hand.length + state.bot2Hand.length
   const timerPaused =
     prepLeft > 0 ||
+    postHintResumeLeft > 0 ||
     state.hintMode ||
     state.lifePenaltyModal ||
     !!state.penaltyToast ||
@@ -630,6 +651,7 @@ export default function Phase2Mind({
 
   const timerPauseHint = (() => {
     if (prepLeft > 0) return ' · 시작 대기'
+    if (postHintResumeLeft > 0) return ' · 재개 대기'
     if (state.lifePenaltyModal && !state.hintMode) return ' · 설명 확인 중'
     if (state.hintMode) return ' · 천리안'
     if (state.penaltyToast) return ' · 안내 확인 중'
@@ -703,6 +725,30 @@ export default function Phase2Mind({
             </p>
             <p className="mt-4 text-xs leading-relaxed text-slate-600 md:text-sm">
               뒤의 2페이즈 판을 미리 살펴보세요. 숫자가 사라지면 바로 플레이할 수 있어요.
+            </p>
+          </div>
+        </div>
+      ) : null}
+      {prepLeft <= 0 && postHintResumeLeft > 0 ? (
+        <div
+          className="fixed inset-0 z-[93] flex items-center justify-center bg-black/30 p-4 backdrop-blur-[1px]"
+          role="dialog"
+          aria-modal="true"
+          aria-live="polite"
+          aria-labelledby="p2-hint-resume-title"
+        >
+          <div className="w-full max-w-sm rounded-2xl border border-amber-200/90 bg-white/96 px-5 py-6 text-center shadow-2xl">
+            <p
+              id="p2-hint-resume-title"
+              className="text-sm font-semibold text-amber-900 md:text-base"
+            >
+              타이머 재개까지
+            </p>
+            <p className="mt-3 text-7xl font-black tabular-nums text-amber-600 md:text-8xl">
+              {postHintResumeLeft}
+            </p>
+            <p className="mt-3 text-xs text-slate-600 md:text-sm">
+              잠시 후 다시 흘러가요.
             </p>
           </div>
         </div>
@@ -909,33 +955,62 @@ export default function Phase2Mind({
         ) : null}
       </div>
 
-      <div
-        key={state.shakeKey}
-        className={`min-h-[72px] rounded-2xl border border-violet-200 bg-gradient-to-b from-violet-50 to-white px-2 py-3 text-center shadow-inner md:min-h-[88px] md:px-3 md:py-4 ${state.shakeKey ? 'p2-shake-anim' : ''} ${state.mergeFlash ? 'p2-merge-glow' : ''}`}
-      >
-        <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-violet-700 md:text-[11px]">
-          필드 · 국어→영어→숫자 순
-        </p>
-        <p className="mt-2 text-xs leading-relaxed text-slate-800 md:text-sm">
-          {state.center.length === 0
-            ? '—'
-            : state.center.map((c, i) => (
-                <span key={`${c.topic}-${i}-${c.forced ? 'f' : 'n'}-${c.wrongTap ? 'w' : ''}`}>
-                  {i > 0 ? <span className="text-slate-400"> → </span> : null}
+      <div className="flex flex-row items-stretch gap-2 md:gap-3">
+        <div
+          key={state.shakeKey}
+          className={`min-h-[72px] min-w-0 flex-1 rounded-2xl border border-violet-200 bg-gradient-to-b from-violet-50 to-white px-2 py-3 text-center shadow-inner md:min-h-[88px] md:px-3 md:py-4 ${state.shakeKey ? 'p2-shake-anim' : ''} ${state.mergeFlash ? 'p2-merge-glow' : ''}`}
+        >
+          <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-violet-700 md:text-[11px]">
+            필드 · 국어→영어→숫자 순
+          </p>
+          <p className="mt-2 text-xs leading-relaxed text-slate-800 md:text-sm">
+            {state.center.length === 0
+              ? '—'
+              : state.center.map((c, i) => (
                   <span
-                    className={`rounded-md px-1.5 py-0.5 transition ${
-                      c.wrongTap
-                        ? 'bg-rose-200 text-rose-900 ring-2 ring-amber-400'
-                        : c.forced
-                          ? 'bg-amber-100 text-amber-900 line-through decoration-amber-600/60'
-                          : 'bg-violet-100 text-violet-900'
-                    }`}
+                    key={`${c.topic}-${i}-${c.forced ? 'f' : 'n'}-${c.wrongTap ? 'w' : ''}`}
                   >
-                    {c.topic}
+                    {i > 0 ? <span className="text-slate-400"> → </span> : null}
+                    <span
+                      className={`rounded-md px-1.5 py-0.5 transition ${
+                        c.wrongTap
+                          ? 'bg-rose-200 text-rose-900 ring-2 ring-amber-400'
+                          : c.forced
+                            ? 'bg-amber-100 text-amber-900 line-through decoration-amber-600/60'
+                            : 'bg-violet-100 text-violet-900'
+                      }`}
+                    >
+                      {c.topic}
+                    </span>
                   </span>
-                </span>
-              ))}
-        </p>
+                ))}
+          </p>
+        </div>
+        <div className="flex w-[5.5rem] shrink-0 flex-col items-center justify-center gap-1.5 rounded-2xl border border-amber-300/90 bg-gradient-to-b from-amber-50 to-amber-100/90 px-1.5 py-2 shadow-inner md:w-[6.25rem] md:gap-2 md:px-2">
+          <span className="text-center text-[9px] font-bold uppercase tracking-wide text-amber-900 md:text-[10px]">
+            천리안
+          </span>
+          <button
+            type="button"
+            disabled={state.cheonryan <= 0 || state.hintMode}
+            onClick={startCheonryan}
+            className="w-full rounded-xl border-2 border-amber-400 bg-gradient-to-b from-amber-200 to-amber-300 px-1 py-2 text-[10px] font-bold leading-tight text-amber-950 shadow-md ring-1 ring-amber-500/30 disabled:opacity-40 md:px-2 md:text-xs"
+          >
+            {state.hintMode ? '탭!' : `×${state.cheonryan}`}
+          </button>
+          {state.hintMode ? (
+            <button
+              type="button"
+              onClick={endHintMode}
+              className="text-[9px] text-amber-900/90 underline md:text-[10px]"
+            >
+              취소
+            </button>
+          ) : null}
+          <p className="text-center text-[9px] text-amber-950/80 md:text-[10px]">
+            남은 {totalCards}장
+          </p>
+        </div>
       </div>
 
       <div>
@@ -989,28 +1064,9 @@ export default function Phase2Mind({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-2 md:gap-3">
-        <button
-          type="button"
-          disabled={state.cheonryan <= 0 || state.hintMode}
-          onClick={startCheonryan}
-          className="rounded-xl border border-amber-300 bg-amber-100 px-3 py-2 text-xs font-medium text-amber-900 shadow-md disabled:opacity-40 md:px-4 md:text-sm"
-        >
-          천리안 {state.hintMode ? '· 상대 카드 탭' : `×${state.cheonryan}`}
-        </button>
-        {state.hintMode ? (
-          <button
-            type="button"
-            onClick={endHintMode}
-            className="text-[11px] text-slate-600 underline md:text-xs"
-          >
-            취소(탭 없이 닫기)
-          </button>
-        ) : null}
-        <p className="text-[11px] text-slate-600 md:text-xs">
-          남은 {totalCards}장 · Lv.{level}
-        </p>
-      </div>
+      <p className="text-center text-[11px] text-slate-500 md:text-xs">
+        Lv.{level}
+      </p>
     </div>
   )
 }
