@@ -162,11 +162,8 @@ export default function Phase1Matching({
           className={`pointer-events-none absolute inset-0 rounded-3xl opacity-40 blur-3xl transition bg-gradient-to-br p1-tier-glow-${tier}`}
           aria-hidden
         />
-        <p className="relative text-center text-sm leading-relaxed text-slate-700">
-          위 뜻 칸은 항상 3개예요.{' '}
-          <span className="font-medium text-slate-900">아래 단어</span>는 이번에 맞출 만큼만
-          있어요. 단어를 눌러 맞는 뜻 칸으로{' '}
-          <span className="font-semibold text-sky-600">위로 끌어 올려</span> 놓으세요.
+        <p className="relative text-center text-sm font-medium text-slate-800">
+          아래 단어를 위 뜻 칸에 끌어 맞추세요. (위는 항상 3칸)
         </p>
         {(coachMode || tutorialMode) && coachTargetKey ? (
           <p
@@ -176,9 +173,7 @@ export default function Phase1Matching({
             <span className="inline-block animate-bounce" aria-hidden>
               ↓
             </span>
-            {tutorialMode
-              ? '노란 테두리 줄부터 맞춰 보세요.'
-              : '노란 테두리부터 맞추면 돼요 — 끌어서 같은 줄의 뜻과 합치면 콤보가 쌓여요'}
+            노란 줄부터
           </p>
         ) : null}
         <div className="relative flex flex-col gap-3">
@@ -213,7 +208,7 @@ export default function Phase1Matching({
 
         <div className="relative rounded-2xl border border-emerald-200 bg-white/95 px-3 py-3 shadow-md md:px-4 md:py-4">
           <p className="text-center text-[11px] font-medium text-emerald-700 md:text-xs">
-            내 카드 대기 — 맞춘 카드가 여기로 합쳐져요
+            맞춘 카드 모음
           </p>
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
             {stagedCards.length === 0 ? (
@@ -243,7 +238,7 @@ export default function Phase1Matching({
             className="pointer-events-none fixed bottom-[max(5.5rem,env(safe-area-inset-bottom))] left-1/2 z-40 max-w-sm -translate-x-1/2 rounded-xl border border-sky-400 bg-sky-50/95 px-3 py-2 text-center text-xs text-sky-950 shadow-lg md:text-sm"
             role="status"
           >
-            위 해설과 아래 단어를 짝 맞춰 보세요. 노란 테두리부터 맞추면 돼요.
+            노란 줄부터 끌어 맞추기
           </div>
         ) : null}
       </div>
@@ -315,9 +310,7 @@ function ExplanationDrop({
         <span className="text-lg text-emerald-600" aria-hidden>
           ✓
         </span>
-        <p className="text-xs text-emerald-800 md:text-sm">
-          맞춤 — 카드는 아래 대기 칸으로 내려갔어요
-        </p>
+        <p className="text-xs text-emerald-800 md:text-sm">맞춤</p>
       </div>
     )
   }

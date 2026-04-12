@@ -28,9 +28,6 @@ import {
 } from '../utils/gameRoute'
 import { isTutorialPack } from '../utils/tutorialPack'
 
-/** 레벨 클리어 후 2페이즈 판을 둘러볼 시간(ms) — 이후 자동으로 다음 레벨 */
-const LEVEL_CLEAR_DISPLAY_MS = 5000
-
 function shuffleRows(rows) {
   const a = [...rows]
   for (let i = a.length - 1; i > 0; i--) {
@@ -219,8 +216,8 @@ export default function Game() {
   const need = cardsNeededThisLevel - p1Collected.length
 
   /**
-   * 1페이즈: 위 해설 칸은 항상 3개, 아래 주제어 배지는 이번에 맞출 실제 장수(take)만.
-   * take는 레벨 진행(need)에 맞춰 최대 3장씩 묶음.
+   * 1페이즈: 위 뜻 선택지 3개 = 정답(이번 큐) + 팩에서 고른 **다른 해설** 2개, 순서는 섞음.
+   * 아래 주제어는 take장만.
    */
   const p1DisplayRows = useMemo(() => {
     if (need <= 0 || queue.length === 0) return []
@@ -228,20 +225,41 @@ export default function Game() {
     const real = queue
       .slice(0, take)
       .map((r) => ({ ...r, _p1Filler: /** @type {const} */ (false) }))
-    const allOk = validRows.filter((r) => r.topic && r.explanation)
+    const usedExp = new Set(real.map((r) => String(r.explanation).trim()))
+    const usedIds = new Set(real.map((r) => String(r.id)))
+    const pool = shuffleRows(
+      validRows.filter(
+        (r) =>
+          r.topic &&
+          r.explanation &&
+          !usedIds.has(String(r.id)) &&
+          !usedExp.has(String(r.explanation).trim()),
+      ),
+    )
     const out = [...real]
-    let padIdx = 0
-    while (out.length < 3 && allOk.length > 0) {
-      padIdx += 1
-      const pool = shuffleRows([...allOk])
-      const r = pool[(padIdx * 11) % pool.length]
+    while (out.length < 3 && pool.length > 0) {
+      const r = pool.pop()
+      if (!r) break
+      if (usedExp.has(String(r.explanation).trim())) continue
+      usedExp.add(String(r.explanation).trim())
       out.push({
         ...r,
-        id: `p1exp-pad-${level}-rv${roundVersion}-${padIdx}-${r.id}`,
+        id: `p1dist-${level}-rv${roundVersion}-${out.length}-${r.id}`,
         _p1Filler: true,
       })
     }
-    return out
+    let fb = 0
+    while (out.length < 3 && validRows.length > 0) {
+      const r = validRows[fb % validRows.length]
+      fb += 1
+      if (!r?.explanation) break
+      out.push({
+        ...r,
+        id: `p1dist-fb-${level}-rv${roundVersion}-${out.length}-${r.id}`,
+        _p1Filler: true,
+      })
+    }
+    return shuffleRows(out)
   }, [need, queue, validRows, level, roundVersion])
 
   const phase1Done =
@@ -387,15 +405,6 @@ export default function Game() {
     setP1Combo(0)
     setSegment('p1')
   }, [])
-
-  /* 레벨 클리어 토스트 표시 시간 후 자동으로 다음 레벨 */
-  useEffect(() => {
-    if (!showLevelClearPopup) return
-    const id = window.setTimeout(() => {
-      continueNextLevel()
-    }, LEVEL_CLEAR_DISPLAY_MS)
-    return () => window.clearTimeout(id)
-  }, [showLevelClearPopup, continueNextLevel])
 
   const onRoundLose = useCallback((detail) => {
     setP2GameOver(detail ?? null)
@@ -551,11 +560,10 @@ export default function Game() {
         {segment === 'p1' ? (
           <>
             <h1 className="text-lg font-semibold tracking-tight text-slate-900 md:text-xl">
-              1페이즈 · 아래 낱말 → 위 해설
+              단어 맞추기
             </h1>
             <p className="mt-1 text-xs text-slate-600 md:text-sm">
-              이번 레벨 {cardsNeededThisLevel}장 ({p1Collected.length}/
-              {cardsNeededThisLevel}) · 대기 {queue.length}장
+              {p1Collected.length}/{cardsNeededThisLevel}장
             </p>
             {deckNotice ? (
               <p
@@ -618,17 +626,27 @@ export default function Game() {
             </div>
             {showLevelClearPopup ? (
               <div
-                className="pointer-events-none fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-1/2 z-[100] w-[min(92vw,22rem)] -translate-x-1/2 rounded-2xl border border-amber-300/90 bg-gradient-to-r from-amber-50 via-white to-sky-50 px-4 py-3 text-center shadow-lg shadow-amber-900/15 ring-2 ring-amber-200/60"
-                role="status"
-                aria-live="polite"
+                className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-1/2 z-[100] w-[min(92vw,22rem)] -translate-x-1/2 rounded-2xl border border-amber-300/90 bg-gradient-to-r from-amber-50 via-white to-sky-50 px-4 py-4 text-center shadow-lg shadow-amber-900/15 ring-2 ring-amber-200/60"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="level-clear-title"
               >
-                <p className="text-base font-bold text-sky-800 md:text-lg">
+                <p
+                  id="level-clear-title"
+                  className="text-base font-bold text-sky-800 md:text-lg"
+                >
                   레벨 {level} 클리어!
                 </p>
-                <p className="mt-1 text-xs leading-relaxed text-slate-600 md:text-sm">
-                  {LEVEL_CLEAR_DISPLAY_MS / 1000}초 후 다음 레벨로 넘어가요 · 판을 더
-                  둘러보세요
+                <p className="mt-1 text-xs text-slate-600 md:text-sm">
+                  2페이즈 판을 더 보셔도 돼요.
                 </p>
+                <button
+                  type="button"
+                  className="mt-4 w-full rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-600 px-4 py-3 text-sm font-semibold text-white shadow-md"
+                  onClick={continueNextLevel}
+                >
+                  다음 레벨로
+                </button>
               </div>
             ) : null}
           </div>

@@ -24,6 +24,15 @@ function shuffle(arr) {
   return a
 }
 
+/** 내 패 표시·초기 배치: 국어→영어→숫자(가나다) 순 */
+function sortHandByTopic(hand) {
+  return [...hand].sort((a, b) => {
+    const o = compareTopicOrder(a.topic, b.topic)
+    if (o !== 0) return o
+    return String(a.id).localeCompare(String(b.id))
+  })
+}
+
 function dealBot(poolRows, count, slot) {
   if (!poolRows.length || count <= 0) return []
   const p = shuffle([...poolRows])
@@ -216,7 +225,7 @@ function buildRoundState({
   initialLives,
   initialCheonryan,
 }) {
-  const playerHand = shuffle(playerCards)
+  const playerHand = sortHandByTopic(playerCards)
   const n = playerCards.length
   const bot1Hand = dealBot(poolRows, n, 0)
   const bot2Hand = botCount > 1 ? dealBot(poolRows, n, 1) : []
@@ -355,6 +364,8 @@ export default function Phase2Mind({
   const onItemRewardPopRef = useRef(onItemRewardPop)
   /** 천리안으로 잠깐 공개한 뒤 다시 가리기 위한 타이머 */
   const peekClearRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null))
+  /** 5초 이하 긴급 구간에서 초 단위 틱 사운드(중복 재생 방지) */
+  const urgentTickRef = useRef(/** @type {number | null} */ (null))
 
   useEffect(() => {
     overlayPauseRef.current = overlayTimerPause
@@ -639,6 +650,31 @@ export default function Phase2Mind({
       ? state.playerHand.find((c) => String(c.id) === String(coachTargetId))
       : null
 
+  const playerHandSorted = useMemo(
+    () => sortHandByTopic(state.playerHand),
+    [state.playerHand],
+  )
+
+  const urgentSec =
+    !timerPaused && secLeft > 0 && secLeft <= 5 ? Math.ceil(secLeft) : null
+
+  const gaugePct = Math.max(
+    0,
+    Math.min(100, (100 * (durationMs - state.elapsedMs)) / durationMs),
+  )
+
+  useEffect(() => {
+    if (timerPaused || secLeft <= 0 || secLeft > 5) {
+      urgentTickRef.current = null
+      return
+    }
+    const n = Math.ceil(secLeft)
+    if (urgentTickRef.current !== n) {
+      urgentTickRef.current = n
+      sfxTick()
+    }
+  }, [secLeft, timerPaused])
+
   return (
     <div
       className={`relative flex flex-col gap-4 md:gap-5 ${
@@ -784,6 +820,17 @@ export default function Phase2Mind({
         </div>
       ) : null}
 
+      {urgentSec != null ? (
+        <div
+          className="pointer-events-none fixed inset-0 z-[110] flex items-center justify-center bg-rose-950/25"
+          aria-hidden
+        >
+          <div className="animate-pulse rounded-[2rem] border-4 border-amber-300 bg-gradient-to-b from-rose-600 to-rose-800 px-12 py-10 text-[min(22vw,7rem)] font-black tabular-nums text-white shadow-[0_0_60px_rgba(225,29,72,0.65)] md:px-16 md:py-12 md:text-[min(18vw,8rem)]">
+            {urgentSec}
+          </div>
+        </div>
+      ) : null}
+
       <div className="relative overflow-hidden rounded-2xl border border-amber-200/90 bg-gradient-to-br from-white via-amber-50/80 to-sky-50/90 px-3 py-3 shadow-md md:px-4">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs md:text-sm">
           <div className="flex items-center gap-2 md:gap-3">
@@ -820,12 +867,12 @@ export default function Phase2Mind({
             )}
           </div>
         </div>
-        <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-1 origin-left bg-gradient-to-r from-cyan-500/0 via-cyan-400/60 to-violet-500/0 transition-transform"
-          style={{
-            transform: `scaleX(${Math.max(0, 1 - state.elapsedMs / durationMs)})`,
-          }}
-        />
+        <div className="mt-2 h-3 w-full overflow-hidden rounded-full bg-slate-200/90 ring-1 ring-slate-300/60">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-sky-500 to-violet-500 transition-[width] duration-100 ease-linear"
+            style={{ width: `${gaugePct}%` }}
+          />
+        </div>
         {state.lastTopic ? (
           <p className="mt-2 text-center text-[11px] text-slate-600 md:text-xs">
             필드 끝 주제어{' '}
@@ -893,15 +940,14 @@ export default function Phase2Mind({
 
       <div>
         <p className="mb-2 text-center text-[11px] text-slate-600 md:text-xs">
-          내 카드 — 탭하면 바로 제출 · 이번에 낼 수 있는 가장 앞 순서(전체)와 같아야
-          해요
+          카드 탭 = 제출 · 순서는 국어→영어→숫자(가나다)
         </p>
         {tutorialMode && coachTargetId != null ? (
           <p
             className="mb-2 text-center text-xs font-medium text-amber-800 md:text-sm"
             role="status"
           >
-            노란 테두리 카드를 탭해 제출하세요.
+            노란 테두리부터 탭
           </p>
         ) : coachMode && coachTargetId != null ? (
           <p
@@ -911,12 +957,12 @@ export default function Phase2Mind({
             <span className="inline-block animate-bounce" aria-hidden>
               ↓
             </span>
-            노란 테두리 카드를 먼저 내 보세요 (순서가 맞을 때 콤보·보상이 쌓여요)
+            노란 테두리부터 탭
           </p>
         ) : null}
         <div className="max-h-[min(52dvh,28rem)] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-inner sm:p-3">
           <div className="grid w-full grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">
-            {state.playerHand.map((c) => (
+            {playerHandSorted.map((c) => (
               <button
                 key={c.id}
                 type="button"
