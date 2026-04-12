@@ -183,11 +183,10 @@ export default function Game() {
           >
             ← 홈
           </Link>
-          <div className="text-right text-[10px] text-slate-500 md:text-xs">
-            <p className="font-medium text-slate-300">{pack.sheetName}</p>
+          <div className="text-right text-[10px] text-slate-400 md:text-xs">
+            <p className="font-medium text-slate-200">{pack.sheetName}</p>
             <p>
-              레벨 {Math.min(level, maxLevel)}/{maxLevel} ·{' '}
-              {phase2SecondsForLevel(level)}초
+              {Math.min(level, maxLevel)}단계 · {phase2SecondsForLevel(level)}초
             </p>
           </div>
         </header>

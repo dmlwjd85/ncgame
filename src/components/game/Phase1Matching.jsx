@@ -1,6 +1,7 @@
 import {
   DndContext,
   PointerSensor,
+  TouchSensor,
   useDraggable,
   useDroppable,
   useSensor,
@@ -21,7 +22,7 @@ function comboTier(combo) {
 
 /**
  * 주제어 뱃지 → 해설 카드 드롭 매칭 (1페이즈)
- * 부모에서 key(라운드마다 증가)로 리마운트해 매칭 상태를 초기화합니다.
+ * 모바일: TouchSensor(길게 누른 뒤 드래그) + PointerSensor
  */
 export default function Phase1Matching({
   rows,
@@ -53,7 +54,15 @@ export default function Phase1Matching({
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 180,
+        tolerance: 6,
+      },
+    }),
   )
 
   const handleDragEnd = useCallback(
@@ -92,7 +101,7 @@ export default function Phase1Matching({
           aria-hidden
         />
         <p className="relative text-center text-sm text-slate-300">
-          주제어를 끌어 같은 뜻의 해설 칸에 놓으세요.
+          단어를 끌어서 맞는 뜻 칸에 놓으세요. (모바일: 잠깐 누른 뒤 이동)
         </p>
         <div className="relative flex min-h-[100px] flex-wrap justify-center gap-2">
           {topicsShuffled.map((row) => (
@@ -145,7 +154,7 @@ function TopicBadge({ id, label, disabled, burst, tier }) {
       ref={setNodeRef}
       type="button"
       style={style}
-      className={`touch-manipulation rounded-full border px-4 py-2 text-sm font-semibold shadow-lg transition active:cursor-grabbing p1-badge-${tier} ${
+      className={`touch-none select-none rounded-full border px-4 py-2.5 text-sm font-semibold shadow-lg transition active:cursor-grabbing active:touch-none p1-badge-${tier} ${
         burst ? 'p1-burst' : ''
       }`}
       {...listeners}
@@ -164,9 +173,7 @@ function ExplanationDrop({ id, text, matched, topic, tier }) {
       <div
         className={`rounded-2xl border px-4 py-4 text-sm leading-relaxed transition p1-drop-done-${tier}`}
       >
-        <p className="text-xs font-medium uppercase tracking-wider text-emerald-400/80">
-          합침
-        </p>
+        <p className="text-xs font-medium text-emerald-400/80">맞춤!</p>
         <p className="mt-1 font-semibold text-emerald-100">{topic}</p>
         <p className="mt-1 text-emerald-200/70 line-through opacity-70">{text}</p>
       </div>

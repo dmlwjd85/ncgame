@@ -3,7 +3,7 @@ import { loadPackLeaderboard } from '../services/hallOfFameService'
 import { loadHallOfFame } from '../utils/hallOfFame'
 
 /**
- * 단어팩별 최고 레벨 — Firestore 리더보드 + 로컬 기록
+ * 단어팩별 최고 레벨 — Firestore + 로컬
  */
 export default function HallOfFamePanel({ packs }) {
   const local = loadHallOfFame()
@@ -42,7 +42,7 @@ export default function HallOfFamePanel({ packs }) {
   }
 
   if (loading) {
-    return <p className="text-sm text-slate-500">동기화 중…</p>
+    return <p className="text-sm text-slate-500">불러오는 중…</p>
   }
 
   return (
@@ -56,16 +56,13 @@ export default function HallOfFamePanel({ packs }) {
             className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm backdrop-blur-sm md:px-4"
           >
             <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="truncate font-medium text-slate-100">{p.sheetName}</p>
-                <p className="truncate text-xs text-slate-500">{p.sourceFile}</p>
-              </div>
+              <p className="min-w-0 truncate font-medium text-slate-100">{p.sheetName}</p>
               {rec ? (
                 <p className="shrink-0 font-mono text-sm font-bold text-amber-200">
                   나 Lv.{rec.maxLevel}
                 </p>
               ) : (
-                <p className="shrink-0 text-xs text-slate-600">로컬 없음</p>
+                <p className="shrink-0 text-xs text-slate-600">—</p>
               )}
             </div>
             {board.length > 0 ? (
@@ -82,9 +79,7 @@ export default function HallOfFamePanel({ packs }) {
                 ))}
               </ol>
             ) : (
-              <p className="mt-2 text-[11px] text-slate-600">
-                클라우드 기록이 없습니다. 로그인 후 플레이하면 동기화됩니다.
-              </p>
+              <p className="mt-2 text-[11px] text-slate-600">아직 순위가 없어요.</p>
             )}
           </li>
         )
