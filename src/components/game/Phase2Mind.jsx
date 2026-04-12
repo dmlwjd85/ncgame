@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { compareTopicOrder } from '../../utils/koCompare'
+import { phase2SecondsForLevel } from '../../utils/gameRules'
 import {
   USER_RESERVE_MS,
   mergeBotPlayOrder,
   scheduleTimes,
-  countSkippedBeforeWrong,
 } from '../../utils/phase2Utils'
 
 const BOT_NAMES = ['가상 플레이어 A', '가상 플레이어 B']
@@ -33,9 +33,6 @@ function removeFromHand(hand, card) {
   return hand.filter((c) => c.id !== card.id)
 }
 
-/**
- * 레벨 시작 시 손패·봇 족보·제출 시각表를 한 번에 생성
- */
 function buildRoundState({
   playerCards,
   poolRows,
@@ -68,11 +65,85 @@ function buildRoundState({
     durationMs,
     hintMode: false,
     revealed: new Set(),
+    penaltyToast: /** @type {string | null} */ (null),
   }
 }
 
 /**
- * 2페이즈: 타이머·족보 스케줄·천리안·사전순 벌칙
+ * 잘못 낸 카드: 앞서 나와야 할 카드들을 강제 제출하고 생명 차감
+ */
+function applyPlayerPlayWithRules(state, card) {
+  const lastTopic = state.lastTopic
+  const hand = state.playerHand
+
+  const valid = hand.filter(
+    (c) =>
+      lastTopic == null || compareTopicOrder(c.topic, lastTopic) > 0,
+  )
+  const sortedValid = [...valid].sort((a, b) =>
+    compareTopicOrder(a.topic, b.topic),
+  )
+
+  if (sortedValid.length === 0) {
+    return {
+      ...state,
+      penaltyToast:
+        '낼 수 있는 카드가 없습니다. 필드 순서를 다시 확인해 주세요.',
+    }
+  }
+
+  if (sortedValid[0].id === card.id) {
+    const t = card.topic
+    return {
+      ...state,
+      lastTopic: t,
+      center: [...state.center, { topic: t, from: 'player', forced: false }],
+      playerHand: removeFromHand(state.playerHand, card),
+      hintMode: false,
+      revealed: new Set(),
+      penaltyToast: null,
+    }
+  }
+
+  const idx = sortedValid.findIndex((c) => c.id === card.id)
+  let forced = []
+  if (idx >= 0) {
+    forced = sortedValid.slice(0, idx)
+  } else {
+    const beforeW = sortedValid.filter(
+      (c) => compareTopicOrder(c.topic, card.topic) < 0,
+    )
+    beforeW.sort((a, b) => compareTopicOrder(a.topic, b.topic))
+    forced = beforeW.length > 0 ? beforeW : [...sortedValid]
+  }
+
+  let center = [...state.center]
+  let last = lastTopic
+  let playerHand = [...state.playerHand]
+  for (const f of forced) {
+    center = [...center, { topic: f.topic, from: 'player', forced: true }]
+    last = f.topic
+    playerHand = playerHand.filter((c) => c.id !== f.id)
+  }
+
+  const pen = forced.length
+  const names = forced.map((c) => `「${c.topic}」`).join(', ')
+  const reason = `사전순으로 먼저 제출되어야 할 카드 ${pen}장(${names})이 자동으로 깔렸습니다. 순서를 건너뛰면 생명 ${pen}칸이 깎입니다.`
+
+  return {
+    ...state,
+    center,
+    lastTopic: last,
+    playerHand,
+    lives: Math.max(0, state.lives - pen),
+    hintMode: false,
+    revealed: new Set(),
+    penaltyToast: reason,
+  }
+}
+
+/**
+ * 2페이즈: 타이머(천리안 중 정지)·족보·강제 제출 안내
  */
 export default function Phase2Mind({
   level,
@@ -84,7 +155,7 @@ export default function Phase2Mind({
   onRoundWin,
   onRoundLose,
 }) {
-  const durationMs = 5000 * Math.max(1, level)
+  const durationMs = phase2SecondsForLevel(level) * 1000
 
   const [state, setState] = useState(() =>
     buildRoundState({
@@ -101,9 +172,18 @@ export default function Phase2Mind({
   const nextBotIdxRef = useRef(0)
 
   useEffect(() => {
+    if (!state.penaltyToast) return
+    const id = window.setTimeout(() => {
+      setState((s) => ({ ...s, penaltyToast: null }))
+    }, 7000)
+    return () => window.clearTimeout(id)
+  }, [state.penaltyToast])
+
+  useEffect(() => {
     const id = window.setInterval(() => {
       if (endedRef.current) return
       setState((s) => {
+        if (s.hintMode) return s
         let next = { ...s, elapsedMs: s.elapsedMs + 50 }
         const sched = s.schedule
 
@@ -121,7 +201,11 @@ export default function Phase2Mind({
         if (total === 0 && next.center.length > 0) {
           endedRef.current = true
           queueMicrotask(() =>
-            onRoundWin({ lives: next.lives, cheonryan: next.cheonryan }),
+            onRoundWin({
+              lives: next.lives,
+              cheonryan: next.cheonryan,
+              center: next.center,
+            }),
           )
         } else if (next.lives <= 0) {
           endedRef.current = true
@@ -141,7 +225,7 @@ export default function Phase2Mind({
     (card) => {
       if (endedRef.current) return
       setState((s) => {
-        const next = applyPlayerPlay(s, card)
+        const next = applyPlayerPlayWithRules(s, card)
         if (endedRef.current) return next
         const total =
           next.playerHand.length + next.bot1Hand.length + next.bot2Hand.length
@@ -151,7 +235,11 @@ export default function Phase2Mind({
         } else if (total === 0 && next.center.length > 0) {
           endedRef.current = true
           queueMicrotask(() =>
-            onRoundWin({ lives: next.lives, cheonryan: next.cheonryan }),
+            onRoundWin({
+              lives: next.lives,
+              cheonryan: next.cheonryan,
+              center: next.center,
+            }),
           )
         }
         return next
@@ -188,14 +276,35 @@ export default function Phase2Mind({
   const secLeft = Math.max(0, (durationMs - state.elapsedMs) / 1000)
   const totalCards =
     state.playerHand.length + state.bot1Hand.length + state.bot2Hand.length
+  const timerPaused = state.hintMode
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900/90 to-violet-950/40 px-4 py-3 shadow-lg shadow-violet-900/20">
-        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <div className="flex items-center gap-3">
+    <div
+      className={`relative flex flex-col gap-4 md:gap-5 ${
+        state.hintMode ? 'cheonryan-ring' : ''
+      }`}
+    >
+      {state.hintMode ? (
+        <div
+          className="pointer-events-none fixed inset-0 z-40 bg-amber-400/10 cheonryan-vignette"
+          aria-hidden
+        />
+      ) : null}
+
+      {state.penaltyToast ? (
+        <div
+          role="alert"
+          className="rounded-2xl border border-rose-500/40 bg-rose-950/80 px-4 py-3 text-sm leading-relaxed text-rose-100 shadow-lg shadow-rose-900/30"
+        >
+          {state.penaltyToast}
+        </div>
+      ) : null}
+
+      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900/90 to-violet-950/40 px-3 py-3 shadow-lg shadow-violet-900/20 md:px-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs md:text-sm">
+          <div className="flex items-center gap-2 md:gap-3">
             <span className="text-slate-400">라이프</span>
-            <span className="text-lg tracking-widest text-rose-300 drop-shadow">
+            <span className="text-base tracking-widest text-rose-300 md:text-lg">
               {(() => {
                 const d = Math.min(DISPLAY_HEARTS, Math.max(0, state.lives))
                 return (
@@ -212,7 +321,11 @@ export default function Phase2Mind({
             <span className="font-semibold text-amber-200">{state.cheonryan}</span>
           </div>
           <div className="font-mono text-cyan-300 tabular-nums">
-            {secLeft.toFixed(1)}초
+            {timerPaused ? (
+              <span className="text-amber-200">일시정지 {secLeft.toFixed(1)}초</span>
+            ) : (
+              <>{secLeft.toFixed(1)}초</>
+            )}
           </div>
         </div>
         <div
@@ -222,18 +335,18 @@ export default function Phase2Mind({
           }}
         />
         {state.lastTopic ? (
-          <p className="mt-2 text-center text-xs text-slate-400">
+          <p className="mt-2 text-center text-[11px] text-slate-400 md:text-xs">
             필드 끝 주제어{' '}
             <span className="text-slate-100">{state.lastTopic}</span>
           </p>
         ) : (
-          <p className="mt-2 text-center text-xs text-slate-500">
+          <p className="mt-2 text-center text-[11px] text-slate-500 md:text-xs">
             첫 카드는 사전에서 뒤쪽으로만 이어지면 됩니다.
           </p>
         )}
       </div>
 
-      <div className="flex flex-wrap justify-center gap-3">
+      <div className="flex flex-wrap justify-center gap-2 md:gap-3 landscape:grid landscape:grid-cols-2 landscape:items-start landscape:gap-4">
         {botCount >= 1 ? (
           <BotStack
             name={BOT_NAMES[0]}
@@ -256,17 +369,23 @@ export default function Phase2Mind({
         ) : null}
       </div>
 
-      <div className="min-h-[88px] rounded-2xl border border-violet-400/25 bg-gradient-to-b from-violet-950/50 to-slate-950/80 px-3 py-4 text-center shadow-inner">
-        <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-violet-300/80">
+      <div className="min-h-[72px] rounded-2xl border border-violet-400/25 bg-gradient-to-b from-violet-950/50 to-slate-950/80 px-2 py-3 text-center shadow-inner md:min-h-[88px] md:px-3 md:py-4">
+        <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-violet-300/80 md:text-[11px]">
           필드 · 국어 사전순
         </p>
-        <p className="mt-2 text-sm leading-relaxed text-slate-100">
+        <p className="mt-2 text-xs leading-relaxed text-slate-100 md:text-sm">
           {state.center.length === 0
             ? '—'
             : state.center.map((c, i) => (
-                <span key={`${c.topic}-${i}`}>
+                <span key={`${c.topic}-${i}-${c.forced ? 'f' : 'n'}`}>
                   {i > 0 ? <span className="text-slate-600"> → </span> : null}
-                  <span className="rounded-md bg-violet-500/15 px-1.5 py-0.5 text-violet-100">
+                  <span
+                    className={`rounded-md px-1.5 py-0.5 ${
+                      c.forced
+                        ? 'bg-amber-500/25 text-amber-100 line-through decoration-amber-200/50'
+                        : 'bg-violet-500/15 text-violet-100'
+                    }`}
+                  >
                     {c.topic}
                   </span>
                 </span>
@@ -275,22 +394,22 @@ export default function Phase2Mind({
       </div>
 
       <div>
-        <p className="mb-3 text-center text-xs text-slate-500">
+        <p className="mb-2 text-center text-[11px] text-slate-500 md:text-xs">
           내 카드 — 사전에서 앞 카드보다 뒤에 오는 주제어만 낼 수 있습니다.
         </p>
-        <div className="flex gap-2 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]">
+        <div className="flex max-w-full gap-2 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch] landscape:max-h-[40vh] landscape:flex-wrap landscape:overflow-y-auto">
           {state.playerHand.map((c) => (
             <button
               key={c.id}
               type="button"
               onClick={() => playPlayer(c)}
-              className="min-w-[6.5rem] shrink-0 rounded-xl border border-emerald-400/35 bg-gradient-to-br from-emerald-950/80 to-slate-900/90 px-3 py-3 text-left shadow-md transition active:scale-[0.98]"
+              className="min-w-[5.5rem] max-w-[9rem] shrink-0 rounded-xl border border-emerald-400/35 bg-gradient-to-br from-emerald-950/80 to-slate-900/90 px-2.5 py-2.5 text-left shadow-md transition active:scale-[0.98] md:min-w-[6.5rem] md:px-3 md:py-3"
             >
-              <span className="block text-sm font-semibold text-emerald-100">
+              <span className="block text-xs font-semibold text-emerald-100 md:text-sm">
                 {c.topic}
               </span>
               {c.explanation ? (
-                <span className="mt-1 line-clamp-2 text-[11px] text-emerald-200/60">
+                <span className="mt-1 line-clamp-2 text-[10px] text-emerald-200/60 md:text-[11px]">
                   {c.explanation}
                 </span>
               ) : null}
@@ -299,12 +418,12 @@ export default function Phase2Mind({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-3">
+      <div className="flex flex-wrap items-center justify-center gap-2 md:gap-3">
         <button
           type="button"
           disabled={state.cheonryan <= 0 || state.hintMode}
           onClick={startCheonryan}
-          className="rounded-xl border border-amber-400/40 bg-amber-950/40 px-4 py-2.5 text-sm font-medium text-amber-100 shadow-md disabled:opacity-40"
+          className="rounded-xl border border-amber-400/40 bg-amber-950/40 px-3 py-2 text-xs font-medium text-amber-100 shadow-md disabled:opacity-40 md:px-4 md:text-sm"
         >
           천리안 {state.hintMode ? '· 카드 탭' : `×${state.cheonryan}`}
         </button>
@@ -312,13 +431,13 @@ export default function Phase2Mind({
           <button
             type="button"
             onClick={endHintMode}
-            className="text-xs text-slate-400 underline"
+            className="text-[11px] text-slate-400 underline md:text-xs"
           >
-            닫기
+            닫기 · 타이머 재개
           </button>
         ) : null}
-        <p className="text-xs text-slate-500">
-          남은 카드 {totalCards}장 · 레벨 {level}
+        <p className="text-[11px] text-slate-500 md:text-xs">
+          남은 {totalCards}장 · Lv.{level}
         </p>
       </div>
     </div>
@@ -349,7 +468,7 @@ function applyBotScheduledPlay(state, bot, card) {
   return {
     ...state,
     lastTopic: t,
-    center: [...state.center, { topic: t, from: bot }],
+    center: [...state.center, { topic: t, from: bot, forced: false }],
     [bot === 'bot1' ? 'bot1Hand' : 'bot2Hand']: h2,
     hintMode: false,
     revealed: new Set(),
@@ -371,34 +490,13 @@ function botPenalty(hand, lastTopic, playedCard) {
   return Math.max(1, after)
 }
 
-function applyPlayerPlay(state, card) {
-  const t = card.topic
-  const invalid =
-    state.lastTopic != null && compareTopicOrder(t, state.lastTopic) <= 0
-  if (invalid) {
-    const pen = countSkippedBeforeWrong(state.playerHand, state.lastTopic, card)
-    return {
-      ...state,
-      lives: Math.max(0, state.lives - pen),
-      hintMode: false,
-      revealed: new Set(),
-    }
-  }
-  return {
-    ...state,
-    lastTopic: t,
-    center: [...state.center, { topic: t, from: 'player' }],
-    playerHand: removeFromHand(state.playerHand, card),
-    hintMode: false,
-    revealed: new Set(),
-  }
-}
-
 function BotStack({ name, hand, botKey, hintMode, revealed, onReveal }) {
   return (
-    <div className="min-w-[140px] rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 shadow-md">
-      <p className="text-center text-[11px] font-medium text-slate-400">{name}</p>
-      <p className="text-center text-[10px] text-slate-600">족보 순서로 자동 제출</p>
+    <div className="w-full min-w-0 rounded-xl border border-white/10 bg-slate-900/70 px-2 py-2 shadow-md md:min-w-[140px] md:px-3">
+      <p className="text-center text-[10px] font-medium text-slate-400 md:text-[11px]">
+        {name}
+      </p>
+      <p className="text-center text-[9px] text-slate-600 md:text-[10px]">족보 자동</p>
       <div className="mt-2 flex flex-wrap gap-1">
         {hand.map((c) => {
           const rid = `${botKey}-${c.id}`
@@ -407,7 +505,7 @@ function BotStack({ name, hand, botKey, hintMode, revealed, onReveal }) {
             <button
               key={c.id}
               type="button"
-              className={`h-14 w-11 rounded-lg border text-[10px] transition ${
+              className={`h-12 w-10 rounded-lg border text-[9px] md:h-14 md:w-11 md:text-[10px] ${
                 hintMode
                   ? 'border-amber-400/80 bg-amber-950/50 shadow-[0_0_12px_rgba(251,191,36,0.25)]'
                   : 'border-slate-600 bg-slate-800/90'

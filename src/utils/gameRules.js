@@ -1,9 +1,14 @@
 /** 최대 레벨 */
 export const MAX_LEVEL = 15
 
-/** 레벨 L의 2페이즈 제한 시간(초) = 5 × L */
+/**
+ * 레벨 L의 2페이즈 제한 시간(초)
+ * 10초로 시작, 2레벨부터 레벨마다 카드 1장 추가분당 +2초
+ * = 10 + 2×(L−1)
+ */
 export function phase2SecondsForLevel(level) {
-  return 5 * Math.max(1, level)
+  const L = Math.max(1, level)
+  return 10 + 2 * (L - 1)
 }
 
 /**

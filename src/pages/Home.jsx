@@ -48,7 +48,7 @@ export default function Home() {
   }
 
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-[#060a14] text-slate-100">
+    <div className="game-shell relative min-h-dvh overflow-hidden text-slate-100">
       <div
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_100%_60%_at_50%_-10%,rgba(56,189,248,0.12),transparent)]"
         aria-hidden

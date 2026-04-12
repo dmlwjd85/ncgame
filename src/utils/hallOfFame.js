@@ -1,3 +1,5 @@
+import { syncUserBestToCloud } from '../services/hallOfFameService'
+
 const STORAGE_KEY = 'ncgame-hall-of-fame-v1'
 
 /**
@@ -18,11 +20,17 @@ export function loadHallOfFame() {
  * @param {string} packId
  * @param {number} maxLevel
  * @param {string} displayName
+ * @param {{ uid?: string | null }} auth — Firebase uid 있으면 Firestore 동기화
  */
-export function saveHallOfFameIfBetter(packId, maxLevel, displayName) {
+export async function saveHallOfFameIfBetter(packId, maxLevel, displayName, auth = {}) {
   const all = loadHallOfFame()
   const prev = all[packId]
-  if (prev && prev.maxLevel >= maxLevel) return false
+  if (prev && prev.maxLevel >= maxLevel) {
+    if (auth?.uid) {
+      await syncUserBestToCloud(packId, auth.uid, displayName, maxLevel)
+    }
+    return false
+  }
   all[packId] = {
     maxLevel,
     at: new Date().toISOString(),
@@ -32,6 +40,9 @@ export function saveHallOfFameIfBetter(packId, maxLevel, displayName) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
   } catch {
     return false
+  }
+  if (auth?.uid) {
+    await syncUserBestToCloud(packId, auth.uid, displayName, maxLevel)
   }
   return true
 }

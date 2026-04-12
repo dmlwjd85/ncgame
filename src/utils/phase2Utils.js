@@ -24,21 +24,3 @@ export function scheduleTimes(n, durationMs, reserveMs) {
   if (n === 0) return []
   return Array.from({ length: n }, (_, i) => ((i + 1) / (n + 1)) * windowMs)
 }
-
-/**
- * 잘못 낸 카드 직전에 끼어 있어야 했던 카드 수(생명력 감소)
- */
-export function countSkippedBeforeWrong(playerHand, lastTopic, playedCard) {
-  if (lastTopic == null) return 1
-  const t = playedCard.topic
-  if (compareTopicOrder(t, lastTopic) > 0) return 0
-  const others = playerHand.filter((c) => c.id !== playedCard.id)
-  const between = others.filter(
-    (c) =>
-      compareTopicOrder(c.topic, lastTopic) > 0 &&
-      compareTopicOrder(c.topic, t) < 0,
-  ).length
-  if (between > 0) return between
-  const stillValid = others.filter((c) => compareTopicOrder(c.topic, lastTopic) > 0)
-  return Math.max(1, stillValid.length)
-}

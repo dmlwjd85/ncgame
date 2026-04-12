@@ -23,5 +23,15 @@ service cloud.firestore {
       allow create, update: if request.auth != null && request.auth.uid == uid;
       allow delete: if false;
     }
+
+    // --- ncgame 명예의 전당 (팩별 서브컬렉션) ---
+    match /ncgameHofByPack/{packId}/entries/{uid} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && request.resource.data.packId == packId;
+      allow delete: if false;
+    }
   }
 }

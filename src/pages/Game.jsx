@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import Phase1Matching from '../components/game/Phase1Matching'
 import Phase2Mind from '../components/game/Phase2Mind'
+import P2PrepCountdown from '../components/P2PrepCountdown'
 import { useAuth } from '../contexts/AuthContext'
 import { useCardPacks } from '../contexts/CardPackContext'
 import {
-  MAX_LEVEL,
   MAX_LIVES,
   maxLevelFromRowCount,
   phase1ComboRewards,
@@ -49,7 +49,7 @@ export default function Game() {
   )
 
   const [segment, setSegment] = useState(
-    /** @type {'p1'|'p2'|'cleared'|'over'} */ ('p1'),
+    /** @type {'p1'|'p2'|'level_clear'|'cleared'|'over'} */ ('p1'),
   )
   const [level, setLevel] = useState(1)
   const [lives, setLives] = useState(MAX_LIVES)
@@ -60,6 +60,7 @@ export default function Game() {
   const [queueReady, setQueueReady] = useState(false)
   const [roundVersion, setRoundVersion] = useState(0)
   const [p1Collected, setP1Collected] = useState(/** @type {object[]} */ ([]))
+  const [lastRoundTopics, setLastRoundTopics] = useState(/** @type {string[]} */ ([]))
 
   const packKey = pack?.id ?? ''
 
@@ -73,13 +74,15 @@ export default function Game() {
 
   const cardsNeededThisLevel = level
 
-  const currentBatch = useMemo(() => {
-    const need = cardsNeededThisLevel - p1Collected.length
-    if (need <= 0) return []
-    return queue.slice(0, Math.min(3, need, queue.length))
-  }, [queue, cardsNeededThisLevel, p1Collected.length])
+  const need = cardsNeededThisLevel - p1Collected.length
 
-  const phase1Done = p1Collected.length >= cardsNeededThisLevel && queueReady
+  const currentBatch = useMemo(() => {
+    if (need <= 0 || queue.length === 0) return []
+    return queue.slice(0, Math.min(3, need, queue.length))
+  }, [queue, need])
+
+  const phase1Done =
+    p1Collected.length >= cardsNeededThisLevel && queueReady
 
   const levelDeck = useMemo(
     () => p1Collected.slice(0, cardsNeededThisLevel),
@@ -91,6 +94,10 @@ export default function Game() {
     const ids = new Set(levelDeck.map((r) => r.id))
     return pack.rows.filter((r) => !ids.has(r.id))
   }, [pack, levelDeck])
+
+  const goP2 = useCallback(() => {
+    setSegment('p2')
+  }, [])
 
   const onMatchAttempt = useCallback((ok) => {
     if (ok) {
@@ -106,36 +113,35 @@ export default function Game() {
     }
   }, [])
 
-  const onBatchComplete = useCallback(
-    (batch) => {
-      setP1Collected((c) => [...c, ...batch])
-      setQueue((q) => q.slice(batch.length))
-      setRoundVersion((v) => v + 1)
-    },
-    [],
-  )
-
-  const goPhase2 = useCallback(() => {
-    setSegment('p2')
+  const onBatchComplete = useCallback((batch) => {
+    setP1Collected((c) => [...c, ...batch])
+    setQueue((q) => q.slice(batch.length))
+    setRoundVersion((v) => v + 1)
   }, [])
 
   const onRoundWin = useCallback(
-    ({ lives: L, cheonryan: C }) => {
+    async ({ lives: L, cheonryan: C, center }) => {
       setLives(L)
       setCheonryan(C)
-      const name = user?.displayName || '플레이어'
-      saveHallOfFameIfBetter(packId, level, name)
+      setLastRoundTopics(center.map((c) => c.topic))
+      await saveHallOfFameIfBetter(packId, level, user?.displayName || '플레이어', {
+        uid: user?.uid ?? null,
+      })
       if (level >= maxLevel) {
         setSegment('cleared')
         return
       }
-      setLevel((lv) => lv + 1)
-      setP1Collected([])
-      setRoundVersion((v) => v + 1)
-      setSegment('p1')
+      setSegment('level_clear')
     },
     [packId, level, maxLevel, user],
   )
+
+  const continueNextLevel = useCallback(() => {
+    setLevel((l) => l + 1)
+    setP1Collected([])
+    setRoundVersion((v) => v + 1)
+    setSegment('p1')
+  }, [])
 
   const onRoundLose = useCallback(() => {
     setSegment('over')
@@ -147,9 +153,9 @@ export default function Game() {
 
   if (!pack) {
     return (
-      <div className="min-h-dvh bg-[#070a12] px-4 py-8 text-center text-slate-300">
+      <div className="game-shell flex min-h-dvh items-center justify-center px-4 text-slate-300">
         <p>카드팩을 찾을 수 없습니다.</p>
-        <Link className="mt-4 inline-block text-cyan-400 underline" to="/">
+        <Link className="mt-4 block text-cyan-400 underline" to="/">
           홈으로
         </Link>
       </div>
@@ -158,9 +164,9 @@ export default function Game() {
 
   if (maxLevel < 1) {
     return (
-      <div className="min-h-dvh bg-[#070a12] px-4 py-8 text-center text-amber-200">
+      <div className="game-shell flex min-h-dvh items-center justify-center px-4 text-amber-200">
         <p>이 팩은 유효한 행이 없어 게임을 시작할 수 없습니다.</p>
-        <Link className="mt-4 inline-block text-cyan-400 underline" to="/">
+        <Link className="mt-4 block text-cyan-400 underline" to="/">
           홈으로
         </Link>
       </div>
@@ -168,66 +174,63 @@ export default function Game() {
   }
 
   return (
-    <div className="min-h-dvh bg-[#070a12] bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(56,189,248,0.12),transparent)] px-4 py-6 text-slate-100">
-      <div className="mx-auto max-w-lg">
-        <header className="mb-6 flex items-center justify-between gap-2">
+    <div className="game-shell min-h-dvh px-[max(1rem,env(safe-area-inset-left))] pb-[max(1rem,env(safe-area-inset-bottom))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(0.75rem,env(safe-area-inset-top))] text-slate-100">
+      <div className="mx-auto w-full max-w-lg game-max-w-tablet landscape:max-w-4xl">
+        <header className="mb-4 flex items-center justify-between gap-2 md:mb-6">
           <Link
             to="/"
-            className="text-sm font-medium text-cyan-400/90 underline decoration-cyan-500/40 underline-offset-4"
+            className="text-xs font-medium text-cyan-400/90 underline decoration-cyan-500/40 underline-offset-4 md:text-sm"
           >
             ← 홈
           </Link>
-          <div className="text-right text-xs text-slate-500">
+          <div className="text-right text-[10px] text-slate-500 md:text-xs">
             <p className="font-medium text-slate-300">{pack.sheetName}</p>
             <p>
-              레벨 {Math.min(level, maxLevel)}/{maxLevel} · 제한{' '}
+              레벨 {Math.min(level, maxLevel)}/{maxLevel} ·{' '}
               {phase2SecondsForLevel(level)}초
             </p>
           </div>
         </header>
 
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-md">
-          <div className="text-sm">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5 backdrop-blur-md md:px-4 md:py-3">
+          <div className="text-xs md:text-sm">
             <span className="text-slate-500">라이프 </span>
-            <span className="text-rose-300">{'♥'.repeat(lives)}</span>
-            <span className="text-slate-600">{'♡'.repeat(MAX_LIVES - lives)}</span>
+            <span className="text-rose-300">
+              {'♥'.repeat(Math.min(MAX_LIVES, lives))}
+            </span>
+            <span className="text-slate-600">
+              {'♡'.repeat(Math.max(0, MAX_LIVES - Math.min(MAX_LIVES, lives)))}
+            </span>
           </div>
-          <div className="text-sm">
+          <div className="text-xs md:text-sm">
             <span className="text-slate-500">천리안 </span>
             <span className="font-semibold text-amber-200">{cheonryan}</span>
           </div>
-          <div className="text-sm">
-            <span className="text-slate-500">1페이즈 콤보 </span>
+          <div className="text-xs md:text-sm">
+            <span className="text-slate-500">콤보 </span>
             <span className="font-semibold text-emerald-300">{p1Combo}</span>
           </div>
         </div>
 
         {segment === 'p1' ? (
           <>
-            <h1 className="text-xl font-semibold tracking-tight text-white">
+            <h1 className="text-lg font-semibold tracking-tight text-white md:text-xl">
               1페이즈 · 낱말 ↔ 해석
             </h1>
-            <p className="mt-1 text-sm text-slate-400">
-              이번 레벨에서 {cardsNeededThisLevel}장 모으기 (
-              {p1Collected.length}/{cardsNeededThisLevel}) · 대기 {queue.length}장
+            <p className="mt-1 text-xs text-slate-400 md:text-sm">
+              이번 레벨 {cardsNeededThisLevel}장 ({p1Collected.length}/
+              {cardsNeededThisLevel}) · 대기 {queue.length}장
             </p>
             {!queueReady ? (
               <p className="mt-8 text-center text-slate-500">덱 준비 중…</p>
             ) : phase1Done ? (
-              <div className="mt-8 text-center">
-                <p className="text-emerald-300">
-                  덱 완성! {cardsNeededThisLevel}장이 손패로 합쳐졌습니다.
-                </p>
-                <button
-                  type="button"
-                  className="mt-6 rounded-2xl bg-gradient-to-r from-violet-600 to-cyan-600 px-8 py-3.5 font-semibold text-white shadow-lg shadow-violet-900/40 transition hover:brightness-110"
-                  onClick={goPhase2}
-                >
-                  2페이즈 · 눈치게임
-                </button>
-              </div>
+              <P2PrepCountdown
+                key={`prep-${level}-${roundVersion}`}
+                level={level}
+                onComplete={goP2}
+              />
             ) : (
-              <div className="mt-6">
+              <div className="mt-4 md:mt-6">
                 <Phase1Matching
                   key={roundVersion}
                   rows={currentBatch}
@@ -243,14 +246,13 @@ export default function Game() {
 
         {segment === 'p2' ? (
           <>
-            <h1 className="text-xl font-semibold tracking-tight text-white">
+            <h1 className="text-lg font-semibold tracking-tight text-white md:text-xl">
               2페이즈 · 사전순 눈치
             </h1>
-            <p className="mt-1 text-sm text-slate-400">
-              가상 플레이어 {botCount}명 · 제한 시간 {phase2SecondsForLevel(level)}초
-              (마지막 2초는 내 반응용)
+            <p className="mt-1 text-xs text-slate-400 md:text-sm">
+              가상 플레이어 {botCount}명 · {phase2SecondsForLevel(level)}초
             </p>
-            <div className="mt-6">
+            <div className="mt-4 md:mt-6">
               <Phase2Mind
                 key={`${level}-${roundVersion}-p2`}
                 level={level}
@@ -266,13 +268,46 @@ export default function Game() {
           </>
         ) : null}
 
+        {segment === 'level_clear' ? (
+          <div className="py-8 text-center md:py-12">
+            <p className="text-lg font-semibold text-cyan-200 md:text-xl">
+              레벨 {level} 클리어!
+            </p>
+            <p className="mt-2 text-xs text-slate-500 md:text-sm">
+              이번 라운드에서 제출된 카드 순서입니다.
+            </p>
+            <div className="mx-auto mt-6 flex max-h-[45dvh] flex-wrap justify-center gap-2 overflow-y-auto rounded-2xl border border-white/10 bg-black/30 px-3 py-4 text-left">
+              {lastRoundTopics.length === 0 ? (
+                <span className="text-slate-500">—</span>
+              ) : (
+                lastRoundTopics.map((t, i) => (
+                  <span
+                    key={`${t}-${i}`}
+                    className="inline-flex items-center gap-1 rounded-lg bg-violet-500/15 px-2 py-1 text-xs text-violet-100 md:text-sm"
+                  >
+                    <span className="font-mono text-violet-400/80">{i + 1}.</span>
+                    {t}
+                  </span>
+                ))
+              )}
+            </div>
+            <button
+              type="button"
+              className="mt-8 rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-600 px-8 py-3 text-sm font-semibold text-white shadow-lg"
+              onClick={continueNextLevel}
+            >
+              다음 레벨 ({level + 1})
+            </button>
+          </div>
+        ) : null}
+
         {segment === 'cleared' ? (
-          <div className="py-16 text-center">
-            <p className="bg-gradient-to-r from-cyan-200 to-violet-300 bg-clip-text text-3xl font-bold text-transparent">
+          <div className="py-12 text-center md:py-16">
+            <p className="bg-gradient-to-r from-cyan-200 to-violet-300 bg-clip-text text-2xl font-bold text-transparent md:text-3xl">
               전체 클리어!
             </p>
-            <p className="mt-3 text-slate-400">
-              레벨 {maxLevel}까지 국어 사전순 눈치를 완주했습니다.
+            <p className="mt-3 text-sm text-slate-400">
+              레벨 {maxLevel}까지 완주했습니다.
             </p>
             <button
               type="button"
@@ -285,9 +320,9 @@ export default function Game() {
         ) : null}
 
         {segment === 'over' ? (
-          <div className="py-16 text-center">
-            <p className="text-2xl font-semibold text-rose-200">게임 오버</p>
-            <p className="mt-2 text-slate-400">
+          <div className="py-12 text-center">
+            <p className="text-xl font-semibold text-rose-200 md:text-2xl">게임 오버</p>
+            <p className="mt-2 text-sm text-slate-400">
               레벨 {level}에서 라이프가 소진되었거나 시간이 부족했습니다.
             </p>
             <button

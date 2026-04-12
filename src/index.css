@@ -120,3 +120,46 @@ body {
 .p1-burst {
   animation: p1-burst-key 0.42s ease-out;
 }
+
+/* 앱 셸 — 모바일 세로·가로 태블릿 */
+.game-shell {
+  background-color: #070a12;
+  background-image: radial-gradient(
+    ellipse 120% 80% at 50% -20%,
+    rgba(56, 189, 248, 0.12),
+    transparent
+  );
+}
+
+@media (orientation: landscape) and (min-width: 700px) {
+  .game-max-w-tablet {
+    max-width: 56rem;
+  }
+}
+
+@media (orientation: portrait) and (max-width: 430px) {
+  .game-max-w-tablet {
+    max-width: 100%;
+  }
+}
+
+.cheonryan-ring {
+  box-shadow:
+    0 0 0 3px rgba(251, 191, 36, 0.35),
+    0 0 40px rgba(251, 191, 36, 0.12);
+  border-radius: 1rem;
+}
+
+.cheonryan-vignette {
+  animation: cheonryan-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes cheonryan-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.75;
+  }
+}
