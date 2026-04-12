@@ -1,14 +1,14 @@
 rules_version = '2';
 
-// 회원가입 시 loginByName 문서 생성 · 로그인 시 이름으로 authEmail 조회에 사용합니다.
-// 프로덕션 전 보안 요구에 맞게 조정하세요.
+// 회원가입: loginByName 읽기(중복 확인) → Auth 가입 후 users·loginByName 쓰기
+// 배포: 프로젝트 루트에서 firebase deploy --only firestore
 service cloud.firestore {
   match /databases/{database}/documents {
     match /loginByName/{name} {
+      // 로그인 전 이름 중복 확인을 위해 비로그인 읽기 허용
       allow read: if true;
       allow create: if request.auth != null
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.keys().hasAll(['authEmail', 'uid']);
+        && request.resource.data.uid == request.auth.uid;
       allow update, delete: if false;
     }
 

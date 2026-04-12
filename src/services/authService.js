@@ -59,6 +59,11 @@ export async function signUpWithName(displayName, password) {
     if (code === 'auth/email-already-in-use') {
       throw new Error('계정 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.')
     }
+    if (code === 'permission-denied') {
+      throw new Error(
+        'Firestore 권한이 없습니다. Firebase에 로그인한 뒤 프로젝트 루트에서 npm run deploy:rules 를 실행해 규칙을 배포했는지 확인하세요.',
+      )
+    }
     throw e
   }
 }

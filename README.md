@@ -50,10 +50,13 @@ git push -u origin main
 ## 계정 (이름 + 비밀번호)
 
 - Firebase Console → **Authentication** → **Sign-in method**에서 **이메일/비밀번호**를 사용 설정합니다.
+- Firebase Console → **Firestore Database**에서 데이터베이스를 **생성**해 두어야 합니다. (아직 없으면 회원가입 시 `permission-denied`가 납니다.)
 - 회원가입 시 표시 이름은 **Firestore** `loginByName` 문서와 연결되며, 내부적으로는 `프로젝트ID.firebaseapp.com` 도메인의 고유 가상 이메일로 Auth에 저장됩니다.
-- **Firestore 규칙** 배포(최초 1회 권장):
+- **Firestore 규칙**은 저장소의 `firestore.rules`를 **반드시 배포**해야 회원가입이 됩니다. (`Missing or insufficient permissions` / `permission-denied` 방지)
 
   ```bash
+  firebase login
+  cd ncgame
   npm run deploy:rules
   ```
 
