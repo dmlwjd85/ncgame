@@ -22,7 +22,7 @@ body {
     'Segoe UI',
     system-ui,
     sans-serif;
-  background-color: #faf6ef;
+  background-color: #cfc8ba;
   color: #1e293b;
 }
 
@@ -128,14 +128,14 @@ body {
   animation: p1-burst-key 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-/* 앱 셸 — 한지·교실 느낌의 밝은 배경 */
+/* 앱 셸 — 중간 톤 한지 느낌 */
 .game-shell {
   overscroll-behavior-y: contain;
-  background-color: #faf6ef;
+  background-color: #e0dbd0;
   background-image:
-    radial-gradient(ellipse 110% 70% at 50% -12%, rgba(253, 224, 71, 0.28), transparent),
-    radial-gradient(ellipse 90% 55% at 100% 30%, rgba(147, 197, 253, 0.22), transparent),
-    radial-gradient(ellipse 70% 45% at 0% 90%, rgba(167, 243, 208, 0.2), transparent);
+    radial-gradient(ellipse 110% 70% at 50% -12%, rgba(180, 160, 90, 0.18), transparent),
+    radial-gradient(ellipse 90% 55% at 100% 30%, rgba(100, 140, 180, 0.14), transparent),
+    radial-gradient(ellipse 70% 45% at 0% 90%, rgba(120, 150, 130, 0.12), transparent);
   color: #1e293b;
 }
 

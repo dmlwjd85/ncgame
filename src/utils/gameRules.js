@@ -3,11 +3,11 @@ export const MAX_LEVEL = 15
 
 /**
  * 레벨 L의 2페이즈 제한 시간(초)
- * 이번 레벨에 배포되는 카드 L장 × 6초
+ * 1단계 10초, 이후 단계마다 +6초
  */
 export function phase2SecondsForLevel(level) {
   const L = Math.max(1, level)
-  return L * 6
+  return 10 + (L - 1) * 6
 }
 
 /**
@@ -45,5 +45,5 @@ export function phase1ComboRewards(comboAfterSuccess) {
   return { cheonryan, lives }
 }
 
-/** 생명 상한 */
-export const MAX_LIVES = 3
+/** 생명 상한 (초기 지급은 INITIAL_LIVES — userProgressConstants 참고) */
+export const MAX_LIVES = 5

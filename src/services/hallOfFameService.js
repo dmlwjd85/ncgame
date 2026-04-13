@@ -20,14 +20,15 @@ export async function syncUserBestToCloud(packId, uid, displayName, maxLevel) {
   try {
     const snap = await getDoc(ref)
     const prev = snap.exists() ? snap.data().maxLevel ?? 0 : 0
-    if (maxLevel <= prev) return false
+    const best = Math.max(prev, maxLevel)
+    if (best <= prev) return false
     await setDoc(
       ref,
       {
         packId,
         uid,
         displayName: displayName || '플레이어',
-        maxLevel,
+        maxLevel: best,
         updatedAt: new Date().toISOString(),
       },
       { merge: true },

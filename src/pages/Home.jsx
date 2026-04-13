@@ -8,11 +8,15 @@ import {
 import GameRulesModal from '../components/GameRulesModal'
 import JokboModal from '../components/JokboModal'
 import HallOfFamePanel from '../components/HallOfFamePanel'
+import ShopPanel from '../components/ShopPanel'
 import { useAuth } from '../contexts/AuthContext'
 import { useCardPacks } from '../contexts/CardPackContext'
+import { useUserProgress } from '../contexts/UserProgressContext'
+import { prepareGameBootstrap } from '../services/userShopService'
 import { DISPLAY_NAME_MAX_LEN, formatHoFDisplayName } from '../utils/displayName'
 import { maxLevelFromRowCount } from '../utils/gameRules'
 import { buildGameLocation } from '../utils/gameRoute'
+import { INITIAL_LIVES } from '../utils/userProgressConstants'
 
 /**
  * 홈 — 로그인·팩 선택·설명/족보 팝업·시작
@@ -23,7 +27,12 @@ export default function Home() {
     useAuth()
   const { packs, loading: packsLoading, error: packsError, reloadPacks } =
     useCardPacks()
-  const [tab, setTab] = useState(/** @type {'play'|'hof'} */ ('play'))
+  const { points: userPoints, refreshProgress } = useUserProgress()
+
+  useEffect(() => {
+    void refreshProgress()
+  }, [tab, refreshProgress])
+  const [tab, setTab] = useState(/** @type {'play'|'shop'|'hof'} */ ('play'))
   const [selectedPackId, setSelectedPackId] = useState(null)
   const [rulesOpen, setRulesOpen] = useState(false)
   const [jokboOpen, setJokboOpen] = useState(false)
@@ -58,13 +67,25 @@ export default function Home() {
     !!effectivePackId &&
     String(savedRun.packId) === String(effectivePackId)
 
-  const goGame = () => {
+  const goGame = async () => {
     if (!effectivePackId || !canStart) return
     clearStagedResume()
     clearRunSave()
     const loc = buildGameLocation(effectivePackId)
+    let gameBootstrap = {
+      startLevel: 1,
+      lives: INITIAL_LIVES,
+      cheonryan: 1,
+    }
+    if (user?.uid) {
+      try {
+        gameBootstrap = await prepareGameBootstrap(user.uid, maxLv)
+      } catch {
+        /* 폴백 */
+      }
+    }
     navigate(loc, {
-      state: { packId: effectivePackId, botCount: 1 },
+      state: { packId: effectivePackId, botCount: 1, gameBootstrap },
     })
   }
 
@@ -86,19 +107,27 @@ export default function Home() {
   }
 
   return (
-    <div className="game-shell relative min-h-dvh overflow-hidden text-slate-800">
+    <div className="game-shell relative flex min-h-dvh flex-col overflow-x-hidden text-slate-800">
       <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_100%_55%_at_50%_-8%,rgba(253,224,71,0.35),transparent)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_100%_55%_at_50%_-8%,rgba(120,100,60,0.12),transparent)]"
         aria-hidden
       />
 
-      <div className="relative mx-auto flex min-h-dvh max-w-lg flex-col px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]">
+      <div className="relative mx-auto flex min-h-dvh w-full max-w-lg flex-1 flex-col px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]">
         {/* 상단: 로그인 · 회원가입 (게스트) / 간단 프로필 */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-xl font-bold text-slate-900 md:text-2xl">
-              가나다 눈치게임
-            </h1>
+            <div className="min-w-0">
+              <h1 className="truncate text-xl font-bold text-slate-900 md:text-2xl">
+                가나다 눈치게임
+              </h1>
+              {user ? (
+                <p className="mt-0.5 text-xs font-medium text-slate-600">
+                  보유 포인트{' '}
+                  <span className="font-mono text-amber-800">{userPoints}</span> P
+                </p>
+              ) : null}
+            </div>
           </div>
           {authLoading ? (
             <span className="text-xs text-slate-500">…</span>
@@ -178,12 +207,12 @@ export default function Home() {
           </div>
         ) : null}
 
-        <div className="mx-auto mt-6 flex w-full rounded-2xl border border-slate-200 bg-white/90 p-1 shadow-md">
+        <div className="mx-auto mt-6 flex w-full rounded-2xl border border-slate-300/90 bg-white/80 p-1 shadow-md">
           <button
             type="button"
             className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition ${
               tab === 'play'
-                ? 'bg-gradient-to-r from-sky-500 to-violet-500 text-white shadow-md'
+                ? 'bg-gradient-to-r from-slate-600 to-slate-700 text-white shadow-md'
                 : 'text-slate-500'
             }`}
             onClick={() => setTab('play')}
@@ -193,8 +222,19 @@ export default function Home() {
           <button
             type="button"
             className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition ${
+              tab === 'shop'
+                ? 'bg-gradient-to-r from-amber-700 to-rose-800 text-white shadow-md'
+                : 'text-slate-500'
+            }`}
+            onClick={() => setTab('shop')}
+          >
+            상점
+          </button>
+          <button
+            type="button"
+            className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition ${
               tab === 'hof'
-                ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-md'
+                ? 'bg-gradient-to-r from-amber-600 to-amber-800 text-white shadow-md'
                 : 'text-slate-500'
             }`}
             onClick={() => setTab('hof')}
@@ -322,10 +362,17 @@ export default function Home() {
               </p>
             ) : null}
           </>
-        ) : (
-          <section className="mx-auto mt-6 w-full rounded-2xl border border-amber-200 bg-white/95 px-4 py-5 shadow-md">
-            <h2 className="text-sm font-semibold text-amber-900">명예의 전당</h2>
+        ) : tab === 'shop' ? (
+          <section className="mx-auto mt-6 w-full flex-1 rounded-2xl border border-slate-300/90 bg-white/85 px-4 py-5 shadow-md">
+            <h2 className="text-sm font-semibold text-slate-800">상점</h2>
             <div className="mt-4">
+              <ShopPanel />
+            </div>
+          </section>
+        ) : (
+          <section className="mx-auto mt-6 flex min-h-0 flex-1 flex-col rounded-2xl border border-slate-300/90 bg-white/85 px-4 py-5 shadow-md">
+            <h2 className="shrink-0 text-sm font-semibold text-slate-800">명예의 전당</h2>
+            <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1 [-webkit-overflow-scrolling:touch]">
               {packsLoading ? (
                 <p className="text-sm text-slate-500">불러오는 중…</p>
               ) : (

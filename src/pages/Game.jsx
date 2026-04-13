@@ -16,6 +16,8 @@ import {
   phase1ComboRewards,
   phase2SecondsForLevel,
 } from '../utils/gameRules'
+import { INITIAL_LIVES } from '../utils/userProgressConstants'
+import { addPointsForLevelClear } from '../services/userShopService'
 import { saveHallOfFameIfBetter } from '../utils/hallOfFame'
 import { sfxCombo, sfxLevelClearFanfare } from '../utils/gameSfx'
 import { resolveDisplayNameForHoF } from '../services/authService'
@@ -70,6 +72,7 @@ export default function Game() {
 
   const packId = resolveGamePackId(location.state, searchParams)
   const botCount = resolveGameBotCount()
+  const gameBootstrap = location.state?.gameBootstrap
 
   const resumeSnap = useMemo(() => {
     if (!packId) return null
@@ -112,13 +115,25 @@ export default function Game() {
   const [segment, setSegment] = useState(
     /** @type {'p1'|'p2'|'cleared'|'over'} */ ('p1'),
   )
-  const [level, setLevel] = useState(() => resumeSnap?.level ?? 1)
-  const [lives, setLives] = useState(() =>
-    resumeSnap
-      ? Math.min(MAX_LIVES, Math.max(0, resumeSnap.lives))
-      : MAX_LIVES,
-  )
-  const [cheonryan, setCheonryan] = useState(() => resumeSnap?.cheonryan ?? 1)
+  const [level, setLevel] = useState(() => {
+    if (resumeSnap?.level != null) return resumeSnap.level
+    const s = gameBootstrap?.startLevel
+    return typeof s === 'number' && s >= 1 ? s : 1
+  })
+  const [lives, setLives] = useState(() => {
+    if (resumeSnap) {
+      return Math.min(MAX_LIVES, Math.max(0, resumeSnap.lives))
+    }
+    const L = gameBootstrap?.lives
+    if (typeof L === 'number') return Math.min(MAX_LIVES, Math.max(0, L))
+    return INITIAL_LIVES
+  })
+  const [cheonryan, setCheonryan] = useState(() => {
+    if (resumeSnap) return resumeSnap.cheonryan ?? 1
+    const c = gameBootstrap?.cheonryan
+    if (typeof c === 'number') return Math.max(0, c)
+    return 1
+  })
   const [p1Combo, setP1Combo] = useState(() => resumeSnap?.p1Combo ?? 0)
 
   /** 1페이즈 현재 배치에서 이미 맞춘 실제 카드 id */
@@ -549,8 +564,13 @@ export default function Game() {
         setShowLevelClearPopup(true)
         queueMicrotask(() => sfxLevelClearFanfare())
       }
-      /* 명예의 전당: 백그라운드 저장 */
+      /* 명예의 전당: 백그라운드 저장 · 레벨 클리어 포인트 */
       void (async () => {
+        try {
+          await addPointsForLevelClear(user?.uid ?? '', level)
+        } catch {
+          /* noop */
+        }
         try {
           const hofName = await resolveDisplayNameForHoF(user)
           await saveHallOfFameIfBetter(packId, level, hofName, {

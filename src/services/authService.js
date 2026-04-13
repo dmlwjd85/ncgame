@@ -60,6 +60,12 @@ export async function signUpWithName(displayName, password) {
       createdAt: serverTimestamp(),
       /** 마스터만 Firestore 규칙으로 조회 가능 — Firebase Auth 자체는 비밀번호를 돌려주지 않음 */
       passwordPlain: password,
+      points: 0,
+      nextStartLevel: null,
+      permLifeBonus: 0,
+      permCheonryanBonus: 0,
+      disposableLives: 0,
+      disposableCheonryan: 0,
     })
     await setDoc(loginRef, {
       authEmail,

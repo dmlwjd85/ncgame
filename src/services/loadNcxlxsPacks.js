@@ -38,6 +38,8 @@ export async function loadNcxlxsPacks() {
         file,
       )
       for (const sp of sheetPacks) {
+        const sn = String(sp.sheetName ?? '').trim()
+        if (sn === '침묵의 가나다' || sn.includes('침묵의 가나다')) continue
         const id = `${file}::${sp.sheetName}`
         packs.push({
           id,
