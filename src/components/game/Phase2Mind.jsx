@@ -94,14 +94,43 @@ function sortHandByPlayOrder(hand, orderMode = 'topic') {
   })
 }
 
-function dealBot(poolRows, count, slot) {
-  if (!poolRows.length || count <= 0) return []
-  const p = shuffle([...poolRows])
-  const out = []
-  for (let i = 0; i < count; i++) {
-    out.push(p[(slot * count + i) % p.length])
+/**
+ * 플레이어 패와 동일 id 카드는 절대 봇에게 주지 않음.
+ * 풀에서 id 문자열로 한 번 더 걸러 내고, 봇1·봇2는 가능하면 서로 겹치지 않게 뽑음(부족 시에만 풀에서 반복).
+ * @param {object[]} playerCards
+ * @param {object[]} poolRows
+ * @param {number} n
+ * @param {number} botCount
+ */
+function dealBotsExclusive(playerCards, poolRows, n, botCount) {
+  const playerIds = new Set(playerCards.map((c) => String(c.id)))
+  const safe = shuffle(
+    poolRows.filter((r) => r && !playerIds.has(String(r.id))),
+  )
+  const used = new Set()
+  const take = (need) => {
+    const out = []
+    for (const row of safe) {
+      if (out.length >= need) break
+      const id = String(row.id)
+      if (used.has(id)) continue
+      used.add(id)
+      out.push(row)
+    }
+    let k = 0
+    while (out.length < need && safe.length > 0) {
+      const row = safe[k % safe.length]
+      const id = String(row.id)
+      if (!playerIds.has(id)) out.push(row)
+      k += 1
+      if (k > need * safe.length * 4) break
+    }
+    return shuffle(out)
   }
-  return shuffle(out)
+  return {
+    bot1Hand: n > 0 ? take(n) : [],
+    bot2Hand: botCount > 1 && n > 0 ? take(n) : [],
+  }
 }
 
 function removeFromHand(hand, card) {
@@ -309,8 +338,12 @@ function buildRoundState({
 }) {
   const playerHand = sortHandByPlayOrder(playerCards, orderMode)
   const n = playerCards.length
-  const bot1Hand = dealBot(poolRows, n, 0)
-  const bot2Hand = botCount > 1 ? dealBot(poolRows, n, 1) : []
+  const { bot1Hand, bot2Hand } = dealBotsExclusive(
+    playerCards,
+    poolRows,
+    n,
+    botCount,
+  )
   const schedule = buildBotScheduleFromHands(
     playerHand,
     bot1Hand,

@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { SHOP_ITEMS } from '../config/shopConfig'
 import { usePlayerProgressStore } from '../stores/playerProgressStore'
 import { useAuth } from '../contexts/AuthContext'
+import ShopWoodSign from './ShopWoodSign'
 
 /**
- * 포인트 상점 — 전통 과자·잡화 가게(전천당·막과자 가게) 분위기
+ * 포인트 상점 — 나무 간판 + 진열
  * TEMPORARY / PERMANENT 타입은 `shopConfig` 기준으로 `buyItem`에서 처리
  */
 export default function ShopPanel() {
@@ -45,21 +46,19 @@ export default function ShopPanel() {
 
   return (
     <div className="shop-storefront rounded-2xl px-3 pb-5 pt-9 text-amber-50">
-      <div className="shop-noren px-2 text-center">
-        <p className="font-display text-lg font-bold tracking-tight text-amber-100">
-          전천당 스타일 포인트 가게
-        </p>
-        <p className="mt-1 text-[11px] leading-relaxed text-amber-200/95">
-          나무 간판 아래 진열장을 살펴보고, 원하는 보따리를 골라 주세요.
-          <span className="block text-[10px] text-amber-300/90">
-            (이상한 과자가게 전천당의 막과자 가게 같은 구성이에요)
-          </span>
-        </p>
+      <div className="px-2">
+        <ShopWoodSign />
       </div>
 
-      <p className="mx-auto mt-4 max-w-md text-center text-[12px] leading-relaxed text-amber-100/95">
-        레벨을 클리어할 때마다 그 레벨 번호만큼 포인트가 쌓입니다. (예: 3단계 클리어 시
-        +3P)
+      <p className="mx-auto mt-5 max-w-md text-center text-[13px] leading-relaxed text-amber-100/95">
+        레벨을 클리어할 때마다
+        <br />
+        그 레벨 번호만큼
+        <br />
+        포인트가 쌓입니다.
+        <span className="mt-2 block text-[11px] text-amber-200/95">
+          (예: 3단계 클리어 시 +3P)
+        </span>
       </p>
 
       {msg ? (

@@ -78,6 +78,7 @@ export async function mergeHallOfFameFromCloud(uid, packs) {
       const cmax = Number(cloud?.maxLevel) || 0
       const prev = all[p.id]
       const lmax = prev?.maxLevel ?? 0
+
       if (cmax > lmax) {
         const u = cloud?.updatedAt
         const atStr =
@@ -92,6 +93,10 @@ export async function mergeHallOfFameFromCloud(uid, packs) {
           displayName: formatHoFDisplayName(cloud?.displayName),
         }
         changed = true
+      } else if (lmax > cmax && lmax >= 1) {
+        /** 로컬만 더 높을 때(예: 오프라인 플레이 후 로그인) 클라우드로 동기화 */
+        const name = formatHoFDisplayName(prev?.displayName ?? '')
+        await syncUserBestToCloud(p.id, uid, name, lmax)
       }
     } catch {
       /* noop */

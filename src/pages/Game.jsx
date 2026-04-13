@@ -439,10 +439,11 @@ export default function Game() {
     [p1Collected, cardsNeededThisLevel],
   )
 
+  /** 플레이어 2페이즈 패와 동일 id는 제외 — 문자열/숫자 id 혼용 시에도 봇 패와 겹치지 않게 함 */
   const poolRows = useMemo(() => {
     if (!pack) return []
-    const ids = new Set(levelDeck.map((r) => r.id))
-    return pack.rows.filter((r) => !ids.has(r.id))
+    const ids = new Set(levelDeck.map((r) => String(r.id)))
+    return pack.rows.filter((r) => !ids.has(String(r.id)))
   }, [pack, levelDeck])
 
   /* 1페이즈 배치 완료 시 — 필러 줄은 수집 대상에서 제외 */
