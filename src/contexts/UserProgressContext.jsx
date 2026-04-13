@@ -6,48 +6,42 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
 } from 'react'
 import { useAuth } from './AuthContext'
-import { loadUserProgress } from '../services/userShopService'
 import { mergeHallOfFameFromCloud } from '../utils/hallOfFame'
 import { useCardPacks } from './CardPackContext'
+import { usePlayerProgressStore } from '../stores/playerProgressStore'
 
 const UserProgressContext = createContext(null)
 
 export function UserProgressProvider({ children }) {
   const { user } = useAuth()
   const { packs } = useCardPacks()
-  const [points, setPoints] = useState(0)
-  const [loading, setLoading] = useState(false)
 
-  const refresh = useCallback(async () => {
+  const points = usePlayerProgressStore((s) => s.permanent.points)
+  const loading = usePlayerProgressStore((s) => s.loading)
+  const refreshFromServer = usePlayerProgressStore((s) => s.refreshFromServer)
+  const resetForLogout = usePlayerProgressStore((s) => s.resetForLogout)
+
+  const refreshProgress = useCallback(async () => {
     if (!user?.uid) {
-      setPoints(0)
+      resetForLogout()
       return
     }
-    setLoading(true)
-    try {
-      const p = await loadUserProgress(user.uid)
-      setPoints(p.points ?? 0)
-    } catch {
-      setPoints(0)
-    } finally {
-      setLoading(false)
-    }
-  }, [user?.uid])
+    await refreshFromServer(user.uid)
+  }, [user, refreshFromServer, resetForLogout])
 
   useEffect(() => {
-    void refresh()
-  }, [refresh])
+    void refreshProgress()
+  }, [refreshProgress])
 
   useEffect(() => {
     const onVis = () => {
-      if (document.visibilityState === 'visible') void refresh()
+      if (document.visibilityState === 'visible') void refreshProgress()
     }
     document.addEventListener('visibilitychange', onVis)
     return () => document.removeEventListener('visibilitychange', onVis)
-  }, [refresh])
+  }, [refreshProgress])
 
   const packIdsKey = useMemo(
     () => (packs?.length ? packs.map((p) => p.id).join('|') : ''),
@@ -70,9 +64,9 @@ export function UserProgressProvider({ children }) {
     () => ({
       points,
       loading,
-      refreshProgress: refresh,
+      refreshProgress,
     }),
-    [points, loading, refresh],
+    [points, loading, refreshProgress],
   )
 
   return (

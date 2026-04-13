@@ -17,6 +17,7 @@ import {
   phase2SecondsForLevel,
 } from '../utils/gameRules'
 import { INITIAL_LIVES } from '../utils/userProgressConstants'
+import { usePlayerProgressStore } from '../stores/playerProgressStore'
 import { addPointsForLevelClear } from '../services/userShopService'
 import { saveHallOfFameIfBetter } from '../utils/hallOfFame'
 import { sfxCombo, sfxLevelClearFanfare } from '../utils/gameSfx'
@@ -128,6 +129,15 @@ export default function Game() {
     if (typeof L === 'number') return Math.min(MAX_LIVES, Math.max(0, L))
     return INITIAL_LIVES
   })
+
+  const setSessionCurrentLives = usePlayerProgressStore(
+    (s) => s.setSessionCurrentLives,
+  )
+  /** 이번 판 임시 스탯 — Zustand `session.currentLives`와 동기화 (영구 스탯과 분리) */
+  useEffect(() => {
+    setSessionCurrentLives(lives)
+    return () => setSessionCurrentLives(null)
+  }, [lives, setSessionCurrentLives])
   const [cheonryan, setCheonryan] = useState(() => {
     if (resumeSnap) return resumeSnap.cheonryan ?? 1
     const c = gameBootstrap?.cheonryan
