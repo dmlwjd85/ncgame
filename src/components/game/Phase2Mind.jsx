@@ -634,7 +634,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
         ) {
           return s
         }
-        let next = { ...s, elapsedMs: s.elapsedMs + 50 }
+        let next = { ...s, elapsedMs: s.elapsedMs + 25 }
         const sched = s.schedule
 
         while (
@@ -715,7 +715,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
 
         return next
       })
-    }, 50)
+    }, 25)
     return () => window.clearInterval(id)
   }, [level, onRoundWin, onRoundLose, makeLosePayload, orderMode])
 
@@ -733,7 +733,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
             explanation: card.explanation ?? '',
             perfect,
           })
-          window.setTimeout(() => setPlayCardPop(null), 900)
+          window.setTimeout(() => setPlayCardPop(null), 520)
         })
         const prevP2 = s.p2Combo ?? 0
         const next = applyPlayerPlayWithRules(s, card, orderMode)
@@ -817,7 +817,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
     peekClearRef.current = window.setTimeout(() => {
       peekClearRef.current = null
       setState((s) => ({ ...s, revealed: new Set() }))
-    }, 1600)
+    }, 1100)
     setPostHintResumeLeft(3)
   }, [])
 
@@ -1212,7 +1212,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
             ) : null}
           </div>
 
-          <div className="relative mx-auto w-full max-w-[min(100%,16.5rem)] rounded-[1.35rem] border-[5px] border-amber-900/25 p2-table-felt p-1.5 shadow-[inset_0_2px_36px_rgba(120,53,15,0.1)] md:max-w-[min(100%,17.5rem)] md:p-2.5">
+          <div className="p2-table-ink relative mx-auto w-full max-w-[min(100%,16.5rem)] rounded-[1.35rem] border-[5px] border-amber-800/35 p2-table-felt p-1.5 text-slate-900 shadow-[inset_0_2px_24px_rgba(120,53,15,0.08)] md:max-w-[min(100%,17.5rem)] md:p-2.5">
             <div className="flex flex-col items-center gap-1">
               <div
                 key={state.shakeKey}
@@ -1237,18 +1237,20 @@ const Phase2Mind = forwardRef(function Phase2Mind(
                           {lastFieldEntry.explanation}
                         </p>
                       ) : (
-                        <p className="mt-1.5 text-[11px] text-slate-500">해설 없음</p>
+                        <p className="mt-1.5 text-[11px] font-medium text-slate-600">
+                          해설 없음
+                        </p>
                       )}
                     </div>
                   </div>
                 ) : (
                   <div className="flex w-full flex-col items-center gap-1.5 px-0.5 py-0.5">
-                    <p className="px-1 text-center text-[11px] leading-snug text-stone-200">
+                    <p className="px-1 text-center text-[11px] font-semibold leading-snug text-slate-800">
                       {orderMode === 'sheet'
                         ? '시간·사건 순으로 눈치껏 내세요!'
                         : '가나다 순으로 눈치껏 내세요!'}
                     </p>
-                    <p className="text-center text-[10px] leading-snug text-amber-200/95">
+                    <p className="text-center text-[10px] font-medium leading-snug text-amber-900/90">
                       (경고 : AI는 실수를 할 수 있습니다.)
                     </p>
                   </div>
@@ -1256,10 +1258,10 @@ const Phase2Mind = forwardRef(function Phase2Mind(
               </div>
             </div>
 
-            <div className="mt-1.5 w-full border-t border-amber-900/15 pt-1.5">
+            <div className="mt-1.5 w-full border-t border-amber-900/25 pt-1.5">
               <div className="flex min-h-[1.5rem] w-full flex-wrap items-center justify-center gap-x-1 gap-y-0.5">
                 {state.center.length === 0 ? (
-                  <span className="text-[11px] text-stone-300">—</span>
+                  <span className="text-[11px] font-medium text-slate-500">—</span>
                 ) : (
                   state.center.map((entry, i) => (
                     <span
@@ -1267,7 +1269,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
                       className="inline-flex items-center gap-1"
                     >
                       {i > 0 ? (
-                        <span className="select-none text-stone-200/90" aria-hidden>
+                        <span className="select-none font-semibold text-slate-600" aria-hidden>
                           →
                         </span>
                       ) : null}

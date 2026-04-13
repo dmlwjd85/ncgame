@@ -1,17 +1,17 @@
 /** 라운드 말미 — 플레이어 전용 구간(봇은 이 시간 안에 스케줄되지 않음) */
-export const USER_RESERVE_MS = 2000
+export const USER_RESERVE_MS = 1600
 
 /** 봇이 첫 카드를 내기 전 암묵적 대기(ms) — 유저가 끼워 넣을 시간 확보 */
-export const BOT_PLAY_START_DELAY_MS = 1000
+export const BOT_PLAY_START_DELAY_MS = 520
 
 /**
  * 족보상 이 봇 카드보다 앞에 있는 '플레이어' 카드 한 장당 최소로 더하는 대기(ms).
  * (앞에 낼 사람 손이 많을수록 봇 첫 제출이 뒤로 밀림 — ㅎ 쪽만 잡혀 있어도 앞선 가나다는 플레이어 몫으로 처리)
  */
-export const PLAYER_AHEAD_MS = 850
+export const PLAYER_AHEAD_MS = 480
 
 /** 봇 카드 사이 사람 반응 시간(ms) */
-export const BOT_HUMAN_GAP_MS = 1300
+export const BOT_HUMAN_GAP_MS = 880
 
 /** @deprecated USER_RESERVE_MS 사용 — 끝 비우기는 플레이어 예약과 동일 */
 export const BOT_END_BUFFER_MS = USER_RESERVE_MS
