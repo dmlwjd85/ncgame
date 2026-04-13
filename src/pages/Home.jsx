@@ -9,6 +9,7 @@ import GameRulesModal from '../components/GameRulesModal'
 import JokboModal from '../components/JokboModal'
 import HallOfFamePanel from '../components/HallOfFamePanel'
 import ShopPanel from '../components/ShopPanel'
+import { ComboLobby } from '../components/combo/ComboLobby'
 import { useAuth } from '../contexts/AuthContext'
 import { useCardPacks } from '../contexts/CardPackContext'
 import { useUserProgress } from '../contexts/UserProgressContext'
@@ -384,33 +385,18 @@ export default function Home() {
           </div>
         ) : tab === 'combo' ? (
           <div className="min-h-0 flex-1 overflow-y-auto [-webkit-overflow-scrolling:touch] pr-0.5">
-            <section className="card-lift-3d mx-auto mt-2 w-full rounded-2xl border border-violet-500/35 bg-slate-900/55 px-4 py-4 text-slate-200">
-              <h2 className="font-display text-base font-bold text-violet-200">
-                무한도전
-              </h2>
-              <p className="mt-2 text-xs leading-relaxed text-slate-400">
-                단어팩을 고른 뒤 도전모드(시간 제한·명예의 전당·가끔 포인트 도전) 또는
-                연습모드(무제한·기기에만 기록)를 선택합니다. 주제는 매 판 랜덤입니다.
-              </p>
-              <div className="mt-4 flex flex-col gap-2">
-                <Link
-                  className="block rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-800 py-3.5 text-center text-sm font-semibold text-white shadow-lg"
-                  to="/combo-challenge"
-                >
-                  {canStart && effectivePackId
-                    ? '도전 시작 (팩 선택)'
-                    : '단어팩 고르고 도전'}
-                </Link>
-                {canStart && effectivePackId ? (
-                  <Link
-                    className="block rounded-2xl border border-violet-500/50 py-2.5 text-center text-xs font-medium text-violet-200"
-                    to={`/combo-challenge?packId=${encodeURIComponent(String(effectivePackId))}`}
-                  >
-                    홈에서 고른 팩 미리 선택
-                  </Link>
-                ) : null}
-              </div>
-            </section>
+            <ComboLobby
+              variant="embedded"
+              defaultPackId={
+                effectivePackId != null ? String(effectivePackId) : null
+              }
+              defaultMode="challenge"
+              onBegin={(packId, mode) =>
+                navigate('/combo-challenge', {
+                  state: { comboAutoStart: { packId, mode } },
+                })
+              }
+            />
           </div>
         ) : tab === 'shop' ? (
           <div className="min-h-0 flex-1 overflow-y-auto [-webkit-overflow-scrolling:touch] pr-0.5">

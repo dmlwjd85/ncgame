@@ -1,11 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { ComboLobby } from '../components/combo/ComboLobby'
 import { useAuth } from '../contexts/AuthContext'
 import { useCardPacks } from '../contexts/CardPackContext'
 import { resolveDisplayNameForHoF } from '../services/authService'
 import { addPointsBonus } from '../services/userShopService'
 import {
-  getPracticeComboRecord,
   saveHallOfFameComboIfBetter,
   savePracticeComboIfBetter,
 } from '../utils/hallOfFame'
@@ -86,29 +93,17 @@ function buildExplanationChoiceSlots(targetRow, validRows, idPrefix) {
   }))
 }
 
-/**
- * 무한도전 — 주제어에 맞는 뜻을 3개 중 탭으로 고름. 주제는 매 판 랜덤.
- */
-function comboPackPlayable(p) {
-  const validRows = p.rows.filter((r) => r.topic && r.explanation)
-  const maxLv = maxLevelFromRowCount(validRows.length)
-  return (
-    maxLv >= 1 && p.missingColumns.length === 0 && validRows.length > 0
-  )
-}
-
 export default function ComboChallenge() {
   const [searchParams] = useSearchParams()
+  const location = useLocation()
+  const navigate = useNavigate()
   const { user } = useAuth()
   const { packs, loading, error } = useCardPacks()
   const refreshFromServer = usePlayerProgressStore((s) => s.refreshFromServer)
 
   /** 로비 한 화면 vs 플레이 */
   const [view, setView] = useState(/** @type {'lobby' | 'play'} */ ('lobby'))
-  const [lobbyPackId, setLobbyPackId] = useState(/** @type {string | null} */ (null))
-  const [lobbyMode, setLobbyMode] = useState(
-    /** @type {'challenge' | 'practice'} */ ('challenge'),
-  )
+  const autoStartConsumedRef = useRef(false)
   const [playPackId, setPlayPackId] = useState(/** @type {string | null} */ (null))
   const [playMode, setPlayMode] = useState(
     /** @type {'challenge' | 'practice'} */ ('challenge'),
@@ -129,21 +124,6 @@ export default function ComboChallenge() {
     () => (pack ? pack.rows.filter((r) => r.topic && r.explanation) : []),
     [pack],
   )
-
-  // URL로 들어온 packId·mode → 로비 초기값 (공유·홈 링크)
-  useEffect(() => {
-    const id = searchParams.get('packId')
-    const m = searchParams.get('mode')
-    if (view !== 'lobby') return
-    queueMicrotask(() => {
-      if (id && packs.length > 0) {
-        const exists = packs.some((p) => String(p.id) === String(id))
-        if (exists) setLobbyPackId(String(id))
-      }
-      if (m === 'practice') setLobbyMode('practice')
-      else if (m === 'challenge') setLobbyMode('challenge')
-    })
-  }, [searchParams, packs, view])
 
   const usedRowIdsRef = useRef(/** @type {Set<string>} */ (new Set()))
   const [queue, setQueue] = useState(/** @type {object[]} */ ([]))
@@ -524,56 +504,73 @@ export default function ComboChallenge() {
     ? String(topicRow.topic ?? '').trim() || '—'
     : ''
 
-  const playablePacks = useMemo(
-    () => packs.filter(comboPackPlayable),
+  const beginPlaySessionWith = useCallback(
+    (lobbyPackId, lobbyMode) => {
+      if (!lobbyPackId) return
+      const p = packs.find((x) => String(x.id) === String(lobbyPackId))
+      if (!p) return
+      const vr = p.rows.filter((r) => r.topic && r.explanation)
+      const ml = maxLevelFromRowCount(vr.length)
+      if (ml < 1 || p.missingColumns.length > 0 || vr.length === 0) return
+
+      setPlayPackId(String(lobbyPackId))
+      setPlayMode(lobbyMode)
+      setView('play')
+      setStarted(true)
+      queueMicrotask(() => {
+        usedRowIdsRef.current = new Set()
+        p1BatchCompleteFiredRef.current = false
+        comboSyncedRef.current = false
+        practiceSyncedRef.current = false
+        lastBonusAtComboRef.current = 0
+        setQueue([])
+        setQueueReady(false)
+        setRoundVersion((v) => v + 1)
+        setP1BatchMatchedIds(new Set())
+        setP1UsedExplanations([])
+        setP1Collected([])
+        setCombo(0)
+        setBestCombo(0)
+        setInterlude(false)
+        setGameOver(false)
+        setPointBonus(null)
+        const t = Date.now()
+        setNowMs(t)
+        if (lobbyMode === 'challenge') {
+          setDeadline(t + MATCH_WINDOW_MS)
+        } else {
+          setDeadline(Number.POSITIVE_INFINITY)
+        }
+      })
+    },
     [packs],
   )
 
-  const practiceRecordLobby =
-    lobbyPackId != null
-      ? getPracticeComboRecord(String(lobbyPackId))
-      : null
-
-  const beginPlaySession = useCallback(() => {
-    if (!lobbyPackId) return
-    const p = packs.find((x) => String(x.id) === String(lobbyPackId))
-    if (!p) return
-    const vr = p.rows.filter((r) => r.topic && r.explanation)
-    const ml = maxLevelFromRowCount(vr.length)
-    if (ml < 1 || p.missingColumns.length > 0 || vr.length === 0) return
-
-    setPlayPackId(String(lobbyPackId))
-    setPlayMode(lobbyMode)
-    setView('play')
-    setStarted(true)
+  // 홈 무한도전 탭에서 전달된 state로 바로 플레이 진입
+  useLayoutEffect(() => {
+    const s = location.state?.comboAutoStart
+    if (!s?.packId || loading || error || packs.length === 0) return
+    if (autoStartConsumedRef.current) return
+    const exists = packs.some((p) => String(p.id) === String(s.packId))
+    if (!exists) return
+    autoStartConsumedRef.current = true
+    const packIdStr = String(s.packId)
+    const m = s.mode === 'practice' ? 'practice' : 'challenge'
     queueMicrotask(() => {
-      usedRowIdsRef.current = new Set()
-      p1BatchCompleteFiredRef.current = false
-      comboSyncedRef.current = false
-      practiceSyncedRef.current = false
-      lastBonusAtComboRef.current = 0
-      setQueue([])
-      setQueueReady(false)
-      setRoundVersion((v) => v + 1)
-      setP1BatchMatchedIds(new Set())
-      setP1UsedExplanations([])
-      setP1Collected([])
-      setCombo(0)
-      setBestCombo(0)
-      setInterlude(false)
-      setGameOver(false)
-      setPointBonus(null)
-      const t = Date.now()
-      setNowMs(t)
-      if (lobbyMode === 'challenge') {
-        setDeadline(t + MATCH_WINDOW_MS)
-      } else {
-        setDeadline(Number.POSITIVE_INFINITY)
-      }
+      beginPlaySessionWith(packIdStr, m)
+      navigate('/combo-challenge', { replace: true, state: {} })
     })
-  }, [lobbyPackId, lobbyMode, packs])
+  }, [
+    location.state,
+    loading,
+    error,
+    packs,
+    beginPlaySessionWith,
+    navigate,
+  ])
 
   const returnToLobby = useCallback(() => {
+    autoStartConsumedRef.current = false
     setView('lobby')
     setPlayPackId(null)
     setStarted(false)
@@ -610,121 +607,17 @@ export default function ComboChallenge() {
     )
   }
 
-  // ——— 로비: 팩 + 모드 + 시작하기 한 화면 ———
+  // ——— 로비: 팩 + 모드 + 시작하기 (ComboLobby) ———
   if (view === 'lobby') {
     return (
-      <div className="game-shell combo-lobby min-h-dvh px-4 pb-8 pt-4 text-zinc-100">
-        <div className="mx-auto flex w-full max-w-lg flex-col gap-4">
-          <header className="flex flex-wrap items-center justify-between gap-2">
-            <Link
-              to="/"
-              className="text-sm font-medium text-sky-300 underline underline-offset-2"
-            >
-              ← 홈
-            </Link>
-            <span className="text-xs font-medium text-zinc-300">무한도전</span>
-          </header>
-
-          <div>
-            <h1 className="font-display text-xl font-bold text-violet-200">
-              무한도전
-            </h1>
-            <p className="mt-1.5 text-sm leading-relaxed text-zinc-200">
-              단어팩과 모드를 고른 뒤{' '}
-              <span className="font-semibold text-amber-200">시작하기</span>를 누르면
-              바로 플레이 화면으로 넘어갑니다.
-            </p>
-          </div>
-
-          <section className="rounded-2xl border border-zinc-600/80 bg-zinc-900/75 p-4 shadow-lg">
-            <h2 className="text-sm font-bold text-zinc-50">1. 단어팩</h2>
-            {playablePacks.length === 0 ? (
-              <p className="mt-3 text-sm text-zinc-200">
-                지금 도전 가능한 팩이 없어요. 홈에서 엑셀 구성을 확인해 주세요.
-              </p>
-            ) : (
-              <ul className="mt-3 max-h-[min(42dvh,20rem)] space-y-2 overflow-y-auto pr-1 [-webkit-overflow-scrolling:touch]">
-                {playablePacks.map((p) => {
-                  const sel = String(lobbyPackId) === String(p.id)
-                  return (
-                    <li key={p.id}>
-                      <button
-                        type="button"
-                        onClick={() => setLobbyPackId(String(p.id))}
-                        className={`flex w-full rounded-xl border-2 px-3 py-3 text-left text-sm font-semibold transition ${
-                          sel
-                            ? 'border-violet-400 bg-violet-950/50 text-zinc-50 ring-2 ring-violet-400/40'
-                            : 'border-zinc-600/90 bg-zinc-950/40 text-zinc-100 hover:border-zinc-500'
-                        }`}
-                      >
-                        {displaySheetName(p)}
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </section>
-
-          <section className="rounded-2xl border border-zinc-600/80 bg-zinc-900/75 p-4 shadow-lg">
-            <h2 className="text-sm font-bold text-zinc-50">2. 모드</h2>
-            <div className="mt-3 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setLobbyMode('challenge')}
-                className={`flex-1 rounded-xl py-3 text-sm font-semibold ${
-                  lobbyMode === 'challenge'
-                    ? 'bg-violet-600 text-white ring-2 ring-violet-300/80'
-                    : 'border border-zinc-600 bg-zinc-950/50 text-zinc-100 hover:bg-zinc-800/80'
-                }`}
-              >
-                도전모드
-              </button>
-              <button
-                type="button"
-                onClick={() => setLobbyMode('practice')}
-                className={`flex-1 rounded-xl py-3 text-sm font-semibold ${
-                  lobbyMode === 'practice'
-                    ? 'bg-emerald-600 text-white ring-2 ring-emerald-300/80'
-                    : 'border border-zinc-600 bg-zinc-950/50 text-zinc-100 hover:bg-zinc-800/80'
-                }`}
-              >
-                연습모드
-              </button>
-            </div>
-            <ul className="mt-3 list-inside list-disc space-y-1.5 text-xs leading-relaxed text-zinc-200">
-              {lobbyMode === 'challenge' ? (
-                <>
-                  <li>5초 제한, 명예의 전당(도전 최고 연속) 반영.</li>
-                  <li>
-                    로그인 시 가끔 1~5포인트 도전 팝업(튜토·동물·식물 팩 제외).
-                  </li>
-                </>
-              ) : (
-                <>
-                  <li>시간 제한 없음, 포인트·보상 팝업 없음.</li>
-                  <li>연습 최고 연속은 이 기기에만 저장됩니다.</li>
-                </>
-              )}
-            </ul>
-            {lobbyMode === 'practice' && practiceRecordLobby ? (
-              <p className="mt-2 text-xs font-medium text-emerald-200">
-                선택한 팩 연습 최고 연속:{' '}
-                <span className="font-mono">{practiceRecordLobby.maxCombo}</span>
-              </p>
-            ) : null}
-          </section>
-
-          <button
-            type="button"
-            disabled={!lobbyPackId || playablePacks.length === 0}
-            className="w-full rounded-2xl bg-gradient-to-r from-amber-600 to-rose-700 py-4 text-base font-bold text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-45"
-            onClick={() => beginPlaySession()}
-          >
-            시작하기
-          </button>
-        </div>
-      </div>
+      <ComboLobby
+        variant="page"
+        defaultPackId={searchParams.get('packId')}
+        defaultMode={
+          searchParams.get('mode') === 'practice' ? 'practice' : 'challenge'
+        }
+        onBegin={(packId, mode) => beginPlaySessionWith(packId, mode)}
+      />
     )
   }
 
