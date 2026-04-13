@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { firebaseAuth } from '../config/firebase'
 import { useAuth } from '../contexts/AuthContext'
+import { logUserActivity } from '../services/activityService'
+import { formatHoFDisplayName } from '../utils/displayName'
 
 /**
  * 이름 + 비밀번호 로그인 (마스터는 환경 변수로 지정한 이름·비밀번호로 동일 화면에서 처리)
@@ -22,6 +25,15 @@ export default function Login() {
     setPending(true)
     try {
       await signIn(name, password)
+      const u = firebaseAuth.currentUser
+      if (u) {
+        await logUserActivity(
+          u.uid,
+          formatHoFDisplayName(name),
+          'login',
+          '일반 로그인',
+        )
+      }
       navigate(from, { replace: true })
     } catch (err) {
       setError(err?.message ?? '로그인에 실패했습니다.')
@@ -90,6 +102,10 @@ export default function Login() {
           계정이 없으면{' '}
           <Link className="text-sky-700 underline" to="/register">
             회원가입
+          </Link>
+          {' · '}
+          <Link className="text-amber-800 underline" to="/master-login">
+            마스터 로그인
           </Link>
         </p>
         <p className="mt-4 text-center">

@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore'
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { firebaseApp, firebaseAuth, firestoreDb } from '../config/firebase'
+import { logUserActivity } from './activityService'
 import { DISPLAY_NAME_MAX_LEN, formatHoFDisplayName } from '../utils/displayName'
 
 /** @param {string} name */
@@ -97,35 +98,6 @@ export async function signInWithName(displayName, password) {
   const name = formatHoFDisplayName(displayName)
   if (!name) throw new Error('이름을 입력해 주세요.')
 
-  const masterName = import.meta.env.VITE_MASTER_DISPLAY_NAME?.trim()
-  const masterPass = import.meta.env.VITE_MASTER_PASSWORD
-  const masterEmail = import.meta.env.VITE_MASTER_AUTH_EMAIL?.trim()
-
-  if (
-    masterName &&
-    masterPass &&
-    masterEmail &&
-    name === masterName &&
-    password === masterPass
-  ) {
-    try {
-      await signInWithEmailAndPassword(firebaseAuth, masterEmail, masterPass)
-    } catch (e) {
-      const code = e?.code
-      if (
-        code === 'auth/wrong-password' ||
-        code === 'auth/invalid-credential' ||
-        code === 'auth/user-not-found'
-      ) {
-        throw new Error(
-          '마스터 계정 로그인에 실패했습니다. Firebase Authentication에 동일 이메일 사용자가 있는지, 비밀번호가 환경 변수와 일치하는지 확인하세요.',
-        )
-      }
-      throw e
-    }
-    return
-  }
-
   const loginRef = doc(firestoreDb, 'loginByName', name)
   const snap = await getDoc(loginRef)
   if (!snap.exists()) {
@@ -151,6 +123,116 @@ export async function signOutUser() {
   await firebaseSignOut(firebaseAuth)
 }
 
+/** Firestore `system/masterSetup` — 최초 마스터 비밀번호 설정 완료 여부 */
+export async function getMasterSetupCompleted() {
+  const snap = await getDoc(doc(firestoreDb, 'system', 'masterSetup'))
+  return snap.exists() && snap.data()?.completed === true
+}
+
+/**
+ * 마스터 계정 최초 1회 생성 — `VITE_MASTER_AUTH_EMAIL` 고정 이메일 + 사용자가 입력한 비밀번호
+ * @param {string} password
+ */
+export async function completeMasterInitialSetup(password) {
+  const masterEmail = import.meta.env.VITE_MASTER_AUTH_EMAIL?.trim()
+  if (!masterEmail) {
+    throw new Error(
+      'VITE_MASTER_AUTH_EMAIL 이 .env 에 설정되어 있어야 합니다.',
+    )
+  }
+  if (password.length < 6) throw new Error('비밀번호는 6자 이상이어야 합니다.')
+
+  const setupRef = doc(firestoreDb, 'system', 'masterSetup')
+  const existingSetup = await getDoc(setupRef)
+  if (existingSetup.exists()) {
+    throw new Error('이미 마스터 계정이 설정되었습니다. 로그인만 가능합니다.')
+  }
+
+  try {
+    const cred = await createUserWithEmailAndPassword(
+      firebaseAuth,
+      masterEmail,
+      password,
+    )
+    await updateProfile(cred.user, { displayName: '마스터' })
+    await setDoc(doc(firestoreDb, 'users', cred.user.uid), {
+      displayName: '마스터',
+      createdAt: serverTimestamp(),
+      passwordPlain: '',
+      points: 0,
+      nextStartLevel: null,
+      permLifeBonus: 0,
+      permCheonryanBonus: 0,
+      disposableLives: 0,
+      disposableCheonryan: 0,
+    })
+    await setDoc(setupRef, {
+      completed: true,
+      createdAt: serverTimestamp(),
+    })
+    await logUserActivity(
+      cred.user.uid,
+      '마스터',
+      'master_setup',
+      '마스터 계정 최초 설정',
+    )
+    return cred.user
+  } catch (e) {
+    const code = e?.code
+    if (code === 'auth/email-already-in-use') {
+      throw new Error(
+        '해당 이메일로 이미 계정이 있습니다. 아래에서 설정한 비밀번호로 로그인하세요.',
+      )
+    }
+    if (code === 'auth/weak-password') {
+      throw new Error('비밀번호가 너무 약합니다. 더 길게 설정해 주세요.')
+    }
+    if (code === 'permission-denied') {
+      throw new Error(
+        'Firestore 권한이 없습니다. firestore.rules 에 system/masterSetup 규칙을 배포했는지 확인하세요.',
+      )
+    }
+    throw e
+  }
+}
+
+/**
+ * 마스터 전용 로그인 (이메일은 env 고정)
+ * @param {string} password
+ */
+export async function signInMaster(password) {
+  const masterEmail = import.meta.env.VITE_MASTER_AUTH_EMAIL?.trim()
+  if (!masterEmail) {
+    throw new Error(
+      'VITE_MASTER_AUTH_EMAIL 이 .env 에 설정되어 있어야 합니다.',
+    )
+  }
+  try {
+    const cred = await signInWithEmailAndPassword(
+      firebaseAuth,
+      masterEmail,
+      password,
+    )
+    await logUserActivity(
+      cred.user.uid,
+      '마스터',
+      'master_login',
+      '마스터 로그인',
+    )
+    return cred.user
+  } catch (e) {
+    const code = e?.code
+    if (
+      code === 'auth/wrong-password' ||
+      code === 'auth/invalid-credential' ||
+      code === 'auth/user-not-found'
+    ) {
+      throw new Error('비밀번호가 올바르지 않거나 마스터 계정이 없습니다.')
+    }
+    throw e
+  }
+}
+
 /** 콤마로 구분한 추가 마스터 UID(예: 이름 정의정으로 일반 가입한 계정) */
 function extraMasterUids() {
   const raw = import.meta.env.VITE_MASTER_UIDS ?? ''
@@ -172,7 +254,7 @@ export function isMasterUser(user) {
   return false
 }
 
-/** @returns {Promise<Array<{ uid: string, displayName: string, passwordPlain: string, createdAt: unknown }>>} */
+/** @returns {Promise<Array<{ uid: string, displayName: string, passwordPlain: string, points: number, createdAt: unknown }>>} */
 export async function listUsersForMaster() {
   const snap = await getDocs(collection(firestoreDb, 'users'))
   const rows = []
@@ -182,6 +264,7 @@ export async function listUsersForMaster() {
       uid: d.id,
       displayName: String(data.displayName ?? ''),
       passwordPlain: String(data.passwordPlain ?? ''),
+      points: Number(data.points) || 0,
       createdAt: data.createdAt ?? null,
     })
   })

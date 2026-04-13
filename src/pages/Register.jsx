@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { DISPLAY_NAME_MAX_LEN } from '../utils/displayName'
+import { logUserActivity } from '../services/activityService'
+import { DISPLAY_NAME_MAX_LEN, formatHoFDisplayName } from '../utils/displayName'
 
 /**
  * 이름 + 비밀번호 회원가입 (Firebase Auth + Firestore 이름 매핑)
@@ -25,7 +26,15 @@ export default function Register() {
     }
     setPending(true)
     try {
-      await signUp(name, password)
+      const u = await signUp(name, password)
+      if (u) {
+        await logUserActivity(
+          u.uid,
+          formatHoFDisplayName(name),
+          'register',
+          '회원가입',
+        )
+      }
       navigate('/', { replace: true })
     } catch (err) {
       setError(err?.message ?? '회원가입에 실패했습니다.')
@@ -119,6 +128,10 @@ export default function Register() {
           이미 계정이 있으면{' '}
           <Link className="text-sky-700 underline" to="/login">
             로그인
+          </Link>
+          {' · '}
+          <Link className="text-amber-800 underline" to="/master-login">
+            마스터 로그인
           </Link>
         </p>
       </div>

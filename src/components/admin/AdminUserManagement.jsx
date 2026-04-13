@@ -9,7 +9,7 @@ import {
  */
 export default function AdminUserManagement() {
   const [rows, setRows] = useState(
-    /** @type {Array<{ uid: string, displayName: string, passwordPlain: string, createdAt: unknown }>} */ (
+    /** @type {Array<{ uid: string, displayName: string, passwordPlain: string, points: number, createdAt: unknown }>} */ (
       []
     ),
   )
@@ -102,6 +102,7 @@ export default function AdminUserManagement() {
               <tr>
                 <th className="px-2 py-2 font-medium">이름</th>
                 <th className="px-2 py-2 font-medium">비밀번호</th>
+                <th className="px-2 py-2 font-medium">포인트</th>
                 <th className="px-2 py-2 font-medium">가입</th>
                 <th className="px-2 py-2 font-medium">uid</th>
                 <th className="px-2 py-2 font-medium">삭제</th>
@@ -113,6 +114,9 @@ export default function AdminUserManagement() {
                   <td className="px-2 py-2 font-medium">{r.displayName || '—'}</td>
                   <td className="max-w-[10rem] break-all px-2 py-2 text-amber-100/90">
                     {r.passwordPlain ? r.passwordPlain : '— (미저장)'}
+                  </td>
+                  <td className="whitespace-nowrap px-2 py-2 font-mono text-slate-300">
+                    {r.points ?? 0}
                   </td>
                   <td className="whitespace-nowrap px-2 py-2 text-slate-400">
                     {fmtDate(r.createdAt)}

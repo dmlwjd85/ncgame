@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import AdminActivity from './components/admin/AdminActivity'
 import AdminExcelUpload from './components/admin/AdminExcelUpload'
 import AdminLayout from './components/admin/AdminLayout'
 import AdminUserManagement from './components/admin/AdminUserManagement'
@@ -8,6 +9,7 @@ import Home from './pages/Home'
 import Game from './pages/Game'
 import ComboChallenge from './pages/ComboChallenge'
 import Login from './pages/Login'
+import MasterLogin from './pages/MasterLogin'
 import Register from './pages/Register'
 
 /** 게임 진입마다 상태 초기화 (동일 팩 재도전 포함) */
@@ -27,6 +29,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/master-login" element={<MasterLogin />} />
       <Route path="/register" element={<Register />} />
       <Route path="/" element={<Home />} />
       <Route path="/combo-challenge" element={<ComboChallenge />} />
@@ -42,6 +45,7 @@ export default function App() {
         <Route index element={<Navigate to="/admin/excel" replace />} />
         <Route path="excel" element={<AdminExcelUpload />} />
         <Route path="users" element={<AdminUserManagement />} />
+        <Route path="activity" element={<AdminActivity />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
