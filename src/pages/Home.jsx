@@ -14,6 +14,7 @@ import { useCardPacks } from '../contexts/CardPackContext'
 import { useUserProgress } from '../contexts/UserProgressContext'
 import { prepareGameBootstrap } from '../services/userShopService'
 import { DISPLAY_NAME_MAX_LEN, formatHoFDisplayName } from '../utils/displayName'
+import { displaySheetName } from '../utils/tutorialPack'
 import { maxLevelFromRowCount } from '../utils/gameRules'
 import { buildGameLocation } from '../utils/gameRoute'
 import { INITIAL_LIVES } from '../utils/userProgressConstants'
@@ -294,7 +295,9 @@ export default function Home() {
                             onChange={() => setSelectedPackId(p.id)}
                           />
                           <div className="min-w-0 flex-1">
-                            <p className="font-medium text-slate-900">{p.sheetName}</p>
+                            <p className="font-medium text-slate-900">
+                              {displaySheetName(p)}
+                            </p>
                             <p className="text-xs text-slate-500">
                               최대 {ml}단계 · 카드 {v}장
                               {broken ? ' · 설정 필요' : ''}
@@ -390,18 +393,24 @@ export default function Home() {
                 눌러 고릅니다(주제는 매 판 랜덤). 5초 안에 맞추면 타이머가 갱신되고,
                 오답·시간 초과 시 종료입니다. 연속 10번마다 포인트 1 (로그인 시 지급)
               </p>
-              {canStart && effectivePackId ? (
+              <div className="mt-4 flex flex-col gap-2">
                 <Link
-                  className="mt-4 block rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-800 py-3.5 text-center text-sm font-semibold text-white shadow-lg"
-                  to={`/combo-challenge?packId=${encodeURIComponent(String(effectivePackId))}`}
+                  className="block rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-800 py-3.5 text-center text-sm font-semibold text-white shadow-lg"
+                  to="/combo-challenge"
                 >
-                  도전 시작
+                  {canStart && effectivePackId
+                    ? '도전 시작 (팩 선택)'
+                    : '단어팩 고르고 도전'}
                 </Link>
-              ) : (
-                <p className="mt-4 text-center text-xs text-slate-500">
-                  눈치게임 탭에서 단어팩을 먼저 골라 주세요.
-                </p>
-              )}
+                {canStart && effectivePackId ? (
+                  <Link
+                    className="block rounded-2xl border border-violet-500/50 py-2.5 text-center text-xs font-medium text-violet-200"
+                    to={`/combo-challenge?packId=${encodeURIComponent(String(effectivePackId))}`}
+                  >
+                    홈에서 고른 팩으로 바로 시작
+                  </Link>
+                ) : null}
+              </div>
             </section>
           </div>
         ) : tab === 'shop' ? (

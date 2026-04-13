@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, Navigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useCardPacks } from '../contexts/CardPackContext'
 import { resolveDisplayNameForHoF } from '../services/authService'
@@ -7,6 +7,7 @@ import { addPointsBonus } from '../services/userShopService'
 import { saveHallOfFameComboIfBetter } from '../utils/hallOfFame'
 import { sfxCombo } from '../utils/gameSfx'
 import { maxLevelFromRowCount } from '../utils/gameRules'
+import { displaySheetName } from '../utils/tutorialPack'
 import { usePlayerProgressStore } from '../stores/playerProgressStore'
 
 /** 한 번에 주제어 1개 + 보기(뜻) 3개 — 탭으로 선택 */
@@ -25,8 +26,17 @@ function shuffleRows(rows) {
 /**
  * 무한도전 — 주제어에 맞는 뜻을 3개 중 탭으로 고름. 주제는 매 판 랜덤.
  */
+function comboPackPlayable(p) {
+  const validRows = p.rows.filter((r) => r.topic && r.explanation)
+  const maxLv = maxLevelFromRowCount(validRows.length)
+  return (
+    maxLv >= 1 && p.missingColumns.length === 0 && validRows.length > 0
+  )
+}
+
 export default function ComboChallenge() {
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const packId = searchParams.get('packId')
   const { user } = useAuth()
   const { packs, loading, error } = useCardPacks()
@@ -62,6 +72,7 @@ export default function ComboChallenge() {
   const [deadline, setDeadline] = useState(() => Date.now() + MATCH_WINDOW_MS)
   const [nowMs, setNowMs] = useState(() => Date.now())
   const p1BatchCompleteFiredRef = useRef(false)
+  const comboSyncedRef = useRef(false)
 
   const cardsNeededThisLevel = WAVE_SIZE
   const need = cardsNeededThisLevel - p1Collected.length
@@ -86,6 +97,28 @@ export default function ComboChallenge() {
       setQueueReady(true)
     })
   }, [pack, queueReady, validRows, refillQueueFromPool])
+
+  // URL의 packId가 바뀌면 진행 상태 초기화 (다른 팩으로 전환)
+  useEffect(() => {
+    usedRowIdsRef.current = new Set()
+    p1BatchCompleteFiredRef.current = false
+    comboSyncedRef.current = false
+    queueMicrotask(() => {
+      setQueue([])
+      setQueueReady(false)
+      setRoundVersion((v) => v + 1)
+      setP1BatchMatchedIds(new Set())
+      setP1UsedExplanations([])
+      setP1Collected([])
+      setCombo(0)
+      setBestCombo(0)
+      setInterlude(false)
+      setGameOver(false)
+      setStarted(false)
+      setDeadline(Date.now() + MATCH_WINDOW_MS)
+      setNowMs(Date.now())
+    })
+  }, [packId])
 
   const handleP1BatchComplete = useCallback(
     (rows) => {
@@ -304,8 +337,6 @@ export default function ComboChallenge() {
     return () => window.clearInterval(id)
   }, [started, gameOver, interlude, deadline])
 
-  const comboSyncedRef = useRef(false)
-
   useEffect(() => {
     if (!gameOver || !pack || !user?.uid) return
     if (comboSyncedRef.current) return
@@ -335,8 +366,74 @@ export default function ComboChallenge() {
     ? String(topicRow.topic ?? '').trim() || '—'
     : ''
 
+  const playablePacks = useMemo(
+    () => packs.filter(comboPackPlayable),
+    [packs],
+  )
+
   if (!packId) {
-    return <Navigate to="/" replace />
+    if (loading) {
+      return (
+        <div className="game-shell flex min-h-dvh items-center justify-center text-slate-300">
+          불러오는 중…
+        </div>
+      )
+    }
+    if (error) {
+      return (
+        <div className="game-shell flex min-h-dvh flex-col items-center justify-center gap-3 px-4 text-center text-slate-300">
+          <p>팩을 불러오지 못했어요.</p>
+          <Link className="text-sky-400 underline" to="/">
+            홈으로
+          </Link>
+        </div>
+      )
+    }
+    return (
+      <div className="game-shell min-h-dvh px-4 pb-8 pt-4 text-slate-200">
+        <div className="mx-auto w-full max-w-lg">
+          <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <Link
+              to="/"
+              className="text-sm text-sky-400 underline underline-offset-2"
+            >
+              ← 홈
+            </Link>
+            <span className="text-xs text-slate-400">무한도전</span>
+          </header>
+          <h1 className="font-display text-lg font-bold text-violet-200">
+            단어팩 선택
+          </h1>
+          <p className="mt-2 text-xs leading-relaxed text-slate-400">
+            도전할 단어팩을 고른 뒤 규칙 화면에서 시작하세요. 목록 순서는 눈치게임과
+            같습니다(따라하기 팩이 맨 위).
+          </p>
+          {playablePacks.length === 0 ? (
+            <p className="mt-6 text-center text-sm text-slate-500">
+              지금 도전 가능한 팩이 없어요. 홈에서 엑셀 구성을 확인해 주세요.
+            </p>
+          ) : (
+            <ul className="mt-4 flex flex-col gap-2">
+              {playablePacks.map((p) => (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    className="w-full rounded-2xl border border-violet-500/40 bg-slate-900/70 px-4 py-3.5 text-left text-sm font-semibold text-slate-100 transition hover:border-violet-400/70 hover:bg-slate-800/80"
+                    onClick={() =>
+                      navigate(
+                        `/combo-challenge?packId=${encodeURIComponent(String(p.id))}`,
+                      )
+                    }
+                  >
+                    {displaySheetName(p)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    )
   }
 
   if (loading) {
@@ -351,6 +448,9 @@ export default function ComboChallenge() {
     return (
       <div className="game-shell flex min-h-dvh flex-col items-center justify-center gap-3 px-4 text-center text-slate-300">
         <p>이 팩으로 도전할 수 없어요.</p>
+        <Link className="text-violet-300 underline" to="/combo-challenge">
+          단어팩 다시 고르기
+        </Link>
         <Link className="text-sky-400 underline" to="/">
           홈으로
         </Link>
@@ -371,7 +471,7 @@ export default function ComboChallenge() {
             ← 홈
           </Link>
           <div className="text-right text-xs text-slate-400">
-            <p className="font-medium text-slate-100">{pack.sheetName}</p>
+            <p className="font-medium text-slate-100">{displaySheetName(pack)}</p>
             <p>무한도전</p>
           </div>
         </header>
@@ -417,6 +517,12 @@ export default function ComboChallenge() {
             >
               시작
             </button>
+            <Link
+              className="mt-3 block text-center text-sm text-violet-300 underline underline-offset-2"
+              to="/combo-challenge"
+            >
+              다른 단어팩 고르기
+            </Link>
           </div>
         ) : gameOver ? (
           <div className="rounded-2xl border border-slate-600 bg-slate-900/50 p-6 text-center">

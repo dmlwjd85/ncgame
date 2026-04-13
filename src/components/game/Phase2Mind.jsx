@@ -908,7 +908,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
 
   return (
     <div
-      className={`relative flex flex-col gap-3 md:gap-4 ${
+      className={`relative flex flex-col gap-3 text-stone-100 md:gap-4 ${
         timerPaused ? 'cheonryan-ring' : ''
       }`}
     >
@@ -1242,11 +1242,16 @@ const Phase2Mind = forwardRef(function Phase2Mind(
                     </div>
                   </div>
                 ) : (
-                  <p className="px-1 text-center text-[11px] leading-snug text-slate-600">
-                    {orderMode === 'sheet'
-                      ? '시간·사건 순으로 눈치껏 내세요!'
-                      : '가나다 순으로 눈치껏 내세요!'}
-                  </p>
+                  <div className="flex w-full flex-col items-center gap-1.5 px-0.5 py-0.5">
+                    <p className="px-1 text-center text-[11px] leading-snug text-stone-200">
+                      {orderMode === 'sheet'
+                        ? '시간·사건 순으로 눈치껏 내세요!'
+                        : '가나다 순으로 눈치껏 내세요!'}
+                    </p>
+                    <p className="text-center text-[10px] leading-snug text-amber-200/95">
+                      (경고 : AI는 실수를 할 수 있습니다.)
+                    </p>
+                  </div>
                 )}
               </div>
             </div>
@@ -1254,7 +1259,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
             <div className="mt-1.5 w-full border-t border-amber-900/15 pt-1.5">
               <div className="flex min-h-[1.5rem] w-full flex-wrap items-center justify-center gap-x-1 gap-y-0.5">
                 {state.center.length === 0 ? (
-                  <span className="text-[11px] text-slate-400">—</span>
+                  <span className="text-[11px] text-stone-300">—</span>
                 ) : (
                   state.center.map((entry, i) => (
                     <span
@@ -1262,7 +1267,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
                       className="inline-flex items-center gap-1"
                     >
                       {i > 0 ? (
-                        <span className="select-none text-slate-300" aria-hidden>
+                        <span className="select-none text-stone-200/90" aria-hidden>
                           →
                         </span>
                       ) : null}
@@ -1333,7 +1338,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
       ) : null}
 
       <div>
-        <p className="mb-1.5 text-center text-sm font-semibold text-slate-800">
+        <p className="mb-1.5 text-center text-sm font-semibold text-stone-100">
           내가 가진 카드
         </p>
         {tutorialMode && coachTargetId != null ? (
@@ -1354,7 +1359,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
             노란 테두리부터 탭
           </p>
         ) : null}
-        <div className="max-h-[min(48dvh,26rem)] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-inner sm:p-2.5">
+        <div className="max-h-[min(48dvh,26rem)] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-2 text-slate-900 shadow-inner sm:p-2.5">
           <div className="grid w-full grid-cols-3 gap-2 sm:gap-2.5">
             {playerHandSorted.map((c) => (
               <button
@@ -1383,7 +1388,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
         </div>
       </div>
 
-      <p className="text-center text-[11px] text-slate-500 md:text-xs">
+      <p className="text-center text-[11px] text-stone-400 md:text-xs">
         Lv.{level}
       </p>
     </div>

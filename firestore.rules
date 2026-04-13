@@ -65,6 +65,13 @@ service cloud.firestore {
     }
 
     // 마스터 최초 설정 완료 플래그 — 읽기는 누구나(로그인 화면), 생성은 해당 이메일로 막 생성된 인증 사용자만 1회
+    // 삼봉당 말풍선 멘트 — 누구나 읽기, 마스터만 쓰기
+    match /system/sambongShop {
+      allow read: if true;
+      allow create, update: if isNcgameMaster();
+      allow delete: if isNcgameMaster();
+    }
+
     match /system/masterSetup {
       allow read: if true;
       allow create: if !exists(/databases/$(database)/documents/system/masterSetup)

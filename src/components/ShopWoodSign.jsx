@@ -8,7 +8,7 @@ export default function ShopWoodSign() {
       viewBox="0 0 280 88"
       className="mx-auto h-auto w-[min(100%,280px)] drop-shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
       role="img"
-      aria-label="포인트 상점"
+      aria-label="삼봉당"
     >
       <defs>
         <linearGradient id="shopWoodGrad" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -42,7 +42,7 @@ export default function ShopWoodSign() {
           strokeWidth: 0.5,
         }}
       >
-        포인트 상점
+        삼봉당
       </text>
     </svg>
   )

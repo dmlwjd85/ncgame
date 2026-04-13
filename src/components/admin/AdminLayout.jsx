@@ -50,6 +50,18 @@ export default function AdminLayout() {
           >
             활동 내역
           </NavLink>
+          <NavLink
+            to="/admin/sambong"
+            className={({ isActive }) =>
+              `rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                isActive
+                  ? 'bg-emerald-900/50 text-emerald-100 ring-1 ring-emerald-500/40'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`
+            }
+          >
+            삼봉당 멘트
+          </NavLink>
         </nav>
         <div className="mt-6">
           <Outlet />

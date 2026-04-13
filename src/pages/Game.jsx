@@ -673,7 +673,7 @@ export default function Game() {
   const displayCombo = segment === 'p1' ? p1Combo : p2Combo
 
   return (
-    <div className="game-shell min-h-dvh px-[max(1rem,env(safe-area-inset-left))] pb-[max(1rem,env(safe-area-inset-bottom))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(0.75rem,env(safe-area-inset-top))] text-slate-800">
+    <div className="game-shell min-h-dvh px-[max(1rem,env(safe-area-inset-left))] pb-[max(1rem,env(safe-area-inset-bottom))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(0.75rem,env(safe-area-inset-top))] text-stone-100">
       {((segment === 'p1' && p1ComboOverlayVisible && displayCombo >= 1) ||
         (segment === 'p2' &&
           p2ComboOverlayVisible &&
@@ -734,15 +734,15 @@ export default function Game() {
           >
             ← 홈
           </Link>
-          <div className="text-right text-[10px] text-slate-600 md:text-xs">
-            <p className="font-medium text-slate-800">{pack.sheetName}</p>
+          <div className="text-right text-[10px] text-stone-300 md:text-xs">
+            <p className="font-medium text-stone-100">{pack.sheetName}</p>
             <p>
               {Math.min(level, maxLevel)}단계 · {phase2SecondsForLevel(level)}초
             </p>
           </div>
         </header>
 
-        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-amber-200/80 bg-white/85 px-3 py-2.5 shadow-md shadow-amber-900/5 md:gap-x-4 md:px-4 md:py-3">
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-amber-200/80 bg-white/85 px-3 py-2.5 text-slate-800 shadow-md shadow-amber-900/5 md:gap-x-4 md:px-4 md:py-3">
           <div className="text-xs md:text-sm">
             <span className="text-slate-600">라이프 </span>
             <span className="text-rose-500">
@@ -783,10 +783,10 @@ export default function Game() {
 
         {segment === 'p1' ? (
           <>
-            <h1 className="text-lg font-semibold tracking-tight text-slate-900 md:text-xl">
+            <h1 className="text-lg font-semibold tracking-tight text-stone-100 md:text-xl">
               단어 맞추기
             </h1>
-            <p className="mt-1 text-xs text-slate-600 md:text-sm">
+            <p className="mt-1 text-xs text-stone-300 md:text-sm">
               {p1Collected.length}/{cardsNeededThisLevel}장
             </p>
             {deckNotice ? (
@@ -842,18 +842,18 @@ export default function Game() {
 
         {segment === 'p2' ? (
           <div className="relative">
-            <h1 className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-lg font-semibold tracking-tight text-slate-900 md:text-xl">
+            <h1 className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-lg font-semibold tracking-tight text-stone-100 md:text-xl">
               {phase2OrderMode === 'sheet' ? (
                 <>
                   <span>시간 순 눈치게임 시작!</span>
-                  <span className="text-[11px] font-normal leading-snug text-slate-500 md:text-xs">
+                  <span className="text-[11px] font-normal leading-snug text-stone-400 md:text-xs">
                     (엑셀·사건 순)
                   </span>
                 </>
               ) : (
                 <>
                   <span>가나다 순 눈치게임 시작!</span>
-                  <span className="text-[11px] font-normal leading-snug text-slate-500 md:text-xs">
+                  <span className="text-[11px] font-normal leading-snug text-stone-400 md:text-xs">
                     (한글→영문→숫자)
                   </span>
                 </>

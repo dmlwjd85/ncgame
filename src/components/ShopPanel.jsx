@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { SHOP_ITEMS } from '../config/shopConfig'
+import { subscribeSambongShopMent } from '../services/sambongShopService'
 import { usePlayerProgressStore } from '../stores/playerProgressStore'
 import { useAuth } from '../contexts/AuthContext'
+import { publicUrl } from '../utils/publicUrl'
 import ShopWoodSign from './ShopWoodSign'
 
 /**
- * 포인트 상점 — 나무 간판 + 진열
- * TEMPORARY / PERMANENT 타입은 `shopConfig` 기준으로 `buyItem`에서 처리
+ * 삼봉당 — 할아버지 + 말풍선(마스터 멘트)
  */
 export default function ShopPanel() {
   const { user } = useAuth()
@@ -14,6 +15,15 @@ export default function ShopPanel() {
   const buyItem = usePlayerProgressStore((s) => s.buyItem)
   const [msg, setMsg] = useState('')
   const [pending, setPending] = useState(/** @type {string | null} */ (null))
+  const [bubbleMent, setBubbleMent] = useState('')
+
+  useEffect(() => {
+    const unsub = subscribeSambongShopMent(
+      (m) => setBubbleMent(m),
+      () => {},
+    )
+    return () => unsub()
+  }, [])
 
   const buy = async (kind) => {
     if (!user?.uid) {
@@ -45,29 +55,39 @@ export default function ShopPanel() {
   }
 
   return (
-    <div className="shop-storefront rounded-2xl px-3 pb-5 pt-9 text-amber-50">
+    <div className="shop-storefront rounded-2xl px-3 pb-5 pt-6 text-amber-50">
       <div className="px-2">
         <ShopWoodSign />
       </div>
 
-      <p className="mx-auto mt-5 max-w-md text-center text-[13px] leading-relaxed text-amber-100/95">
-        레벨을 클리어할 때마다
-        <br />
-        그 레벨 번호만큼
-        <br />
-        포인트가 쌓입니다.
-        <span className="mt-2 block text-[11px] text-amber-200/95">
-          (예: 3단계 클리어 시 +3P)
-        </span>
-      </p>
+      <div className="mx-auto mt-6 flex max-w-lg flex-col gap-4 sm:flex-row sm:items-stretch">
+        <div className="flex shrink-0 justify-center sm:w-[7.5rem]">
+          <img
+            src={publicUrl('images/sambong-grandpa.svg')}
+            alt=""
+            className="h-28 w-28 object-contain drop-shadow-md sm:h-32 sm:w-32"
+            width={128}
+            height={128}
+          />
+        </div>
+        <div className="relative min-h-[5rem] flex-1 rounded-2xl border-2 border-amber-800/50 bg-amber-50 px-3 py-3 text-slate-900 shadow-inner">
+          <div
+            className="absolute -left-1.5 top-6 hidden h-4 w-4 rotate-45 border-b-0 border-l-2 border-t-2 border-amber-800/40 bg-amber-50 sm:block"
+            aria-hidden
+          />
+          <p className="text-[13px] leading-relaxed whitespace-pre-wrap">
+            {bubbleMent.trim() ? bubbleMent : '\u00a0'}
+          </p>
+        </div>
+      </div>
 
       {msg ? (
-        <p className="mx-auto mt-3 max-w-md rounded-lg border border-amber-400/40 bg-black/20 px-3 py-2 text-center text-xs text-amber-50">
+        <p className="mx-auto mt-4 max-w-md rounded-lg border border-amber-400/40 bg-black/20 px-3 py-2 text-center text-xs text-amber-50">
           {msg}
         </p>
       ) : null}
 
-      <div className="mt-5 space-y-3">
+      <div className="mt-6 space-y-3">
         {SHOP_ITEMS.map((item) => (
           <div
             key={item.kind}
@@ -75,9 +95,6 @@ export default function ShopPanel() {
           >
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-slate-900">{item.label}</p>
-              <p className="mt-0.5 text-[11px] leading-snug text-slate-600">
-                {item.detail}
-              </p>
             </div>
             <button
               type="button"

@@ -1,4 +1,5 @@
 import { parseWorkbookAllSheets } from '../utils/parseExcelCardPack'
+import { isTutorialPack } from '../utils/tutorialPack'
 import { publicUrl } from '../utils/publicUrl'
 
 /**
@@ -50,6 +51,13 @@ export async function loadNcxlxsPacks() {
         })
       }
     }
+
+    packs.sort((a, b) => {
+      const ta = isTutorialPack(a) ? 0 : 1
+      const tb = isTutorialPack(b) ? 0 : 1
+      if (ta !== tb) return ta - tb
+      return String(a.sheetName ?? '').localeCompare(String(b.sheetName ?? ''), 'ko')
+    })
 
     return { packs, error: null }
   } catch (e) {
