@@ -23,6 +23,7 @@ import {
   PLAYER_AHEAD_MS,
   scheduleBotFireTimesFromFloors,
 } from '../../utils/phase2Utils'
+import { topicAlphabetPosition01 } from '../../utils/topicAlphabetBias'
 
 const BOT_NAMES = ['A봇', 'B봇']
 
@@ -316,9 +317,13 @@ function buildBotScheduleFromHands(
     botPlays.push({ card: e.card, bot: e.bot, precedingPlayers })
   }
 
-  const minFloors = botPlays.map(
-    (bp) => BOT_PLAY_START_DELAY_MS + bp.precedingPlayers * PLAYER_AHEAD_MS,
-  )
+  /** 앞쪽 주제(가나다 앞)일수록 선행 플레이어 페널티를 덜 받아 봇이 상대적으로 빨리 나옴 */
+  const minFloors = botPlays.map((bp) => {
+    const pos = topicAlphabetPosition01(String(bp.card.topic ?? ''))
+    const ahead =
+      bp.precedingPlayers * PLAYER_AHEAD_MS * (0.48 + 0.52 * (1 - pos))
+    return BOT_PLAY_START_DELAY_MS + ahead
+  })
   const times = scheduleBotFireTimesFromFloors(minFloors, durationMs)
   return botPlays.map((bp, i) => ({
     fireAt: times[i],

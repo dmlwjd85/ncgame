@@ -6,6 +6,7 @@ import MasterRoute from './components/MasterRoute'
 import ProtectedRoute from './components/ProtectedRoute'
 import Home from './pages/Home'
 import Game from './pages/Game'
+import ComboChallenge from './pages/ComboChallenge'
 import Login from './pages/Login'
 import Register from './pages/Register'
 
@@ -28,6 +29,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/" element={<Home />} />
+      <Route path="/combo-challenge" element={<ComboChallenge />} />
       <Route path="/game" element={<GameScreen />} />
       <Route
         path="/admin"

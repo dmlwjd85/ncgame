@@ -1,3 +1,4 @@
+/** 라운드 말미 — 플레이어 전용 구간(봇은 이 시간 안에 스케줄되지 않음) */
 export const USER_RESERVE_MS = 2000
 
 /** 봇이 첫 카드를 내기 전 암묵적 대기(ms) — 유저가 끼워 넣을 시간 확보 */
@@ -7,11 +8,13 @@ export const BOT_PLAY_START_DELAY_MS = 1000
  * 족보상 이 봇 카드보다 앞에 있는 '플레이어' 카드 한 장당 최소로 더하는 대기(ms).
  * (앞에 낼 사람 손이 많을수록 봇 첫 제출이 뒤로 밀림 — ㅎ 쪽만 잡혀 있어도 앞선 가나다는 플레이어 몫으로 처리)
  */
-export const PLAYER_AHEAD_MS = 1000
+export const PLAYER_AHEAD_MS = 850
 
-/** 봇 카드 사이 사람 반응 시간(ms), 라운드 끝 여유(ms) */
-export const BOT_HUMAN_GAP_MS = 1500
-export const BOT_END_BUFFER_MS = 1500
+/** 봇 카드 사이 사람 반응 시간(ms) */
+export const BOT_HUMAN_GAP_MS = 1300
+
+/** @deprecated USER_RESERVE_MS 사용 — 끝 비우기는 플레이어 예약과 동일 */
+export const BOT_END_BUFFER_MS = USER_RESERVE_MS
 
 /** 족보 앞쪽(ㄱ에 가까운 순)일수록 빠르게, 뒤(ㅎ)일수록 늦게 보이도록 슬랙 분배 */
 function easeOutQuad(t) {
@@ -33,12 +36,12 @@ export function scheduleTimes(n, durationMs, reserveMs) {
  * 플레이어 선행 매수·최소 시각(minFloors)을 반영해 봇 제출 시각(ms) 배열을 만든다.
  * - minFloors[i]: i번째 봇 플레이(족보 순)가 **이 시각 이전에는** 오지 않도록 하는 하한.
  * - 봇 사이는 BOT_HUMAN_GAP_MS를 기본으로 두되, 라운드 길이에 안 맞으면 간격을 줄여 맞춘다.
- * - 끝 BOT_END_BUFFER_MS 앞까지 ease-out으로 남는 시간을 뒤쪽 봇에 더 분배.
+ * - 끝 USER_RESERVE_MS(ms) 앞까지 ease-out으로 남는 시간을 뒤쪽 봇에 더 분배(맨 뒤 2초는 봇 미사용).
  */
 export function scheduleBotFireTimesFromFloors(minFloors, durationMs) {
   const k = minFloors.length
   if (k === 0) return []
-  const playEnd = Math.max(0, durationMs - BOT_END_BUFFER_MS)
+  const playEnd = Math.max(0, durationMs - USER_RESERVE_MS)
   const f = minFloors.map((m) => Math.min(Math.max(0, m), playEnd))
 
   let gap = BOT_HUMAN_GAP_MS
@@ -92,7 +95,9 @@ export function scheduleBotFireTimesFromFloors(minFloors, durationMs) {
     }
   }
 
-  return t.map((x) => Math.round(x))
+  /** 앞쪽 족보(ㄱ~) 카드는 너무 늦게 나오지 않도록 상한 */
+  const lateCap = playEnd * 0.9
+  return t.map((x) => Math.round(Math.min(x, lateCap)))
 }
 
 /**

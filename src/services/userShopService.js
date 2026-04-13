@@ -116,7 +116,7 @@ export async function prepareGameBootstrap(uid, maxPackLevel) {
 }
 
 /**
- * 레벨 클리어 포인트 (클리어한 레벨 번호만큼)
+ * 레벨 클리어 포인트 — 매 클리어 시 해당 레벨 번호만큼 가산(누적 합은 1+2+3+… 형태, 예: 3레벨까지면 6P)
  * @param {string} uid
  * @param {number} clearedLevel 방금 클리어한 레벨
  */
@@ -133,6 +133,31 @@ export async function addPointsForLevelClear(uid, clearedLevel) {
       ref,
       {
         points: clearedLevel,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    )
+  }
+}
+
+/**
+ * 무한 콤보 등 보너스 포인트
+ * @param {string} uid
+ * @param {number} delta
+ */
+export async function addPointsBonus(uid, delta) {
+  if (!uid || delta <= 0) return
+  const ref = doc(firestoreDb, 'users', uid)
+  try {
+    await updateDoc(ref, {
+      points: increment(delta),
+      updatedAt: serverTimestamp(),
+    })
+  } catch {
+    await setDoc(
+      ref,
+      {
+        points: delta,
         updatedAt: serverTimestamp(),
       },
       { merge: true },

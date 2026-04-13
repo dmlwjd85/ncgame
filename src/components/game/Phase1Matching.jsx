@@ -72,17 +72,16 @@ export default function Phase1Matching({
   }, [slotsKey])
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  /* eslint-disable react-hooks/set-state-in-effect -- 새 배치(라운드)마다 모음 초기화 */
+  /* eslint-disable react-hooks/set-state-in-effect -- 새 배치(라운드)마다 모음만 초기화(합치기 연출은 타이머로만 닫힘) */
   useEffect(() => {
     setStagedCards([])
-    setSuccessFlash(null)
   }, [roundVersion])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (!successFlash) return
-    /* 맞춤 직후 황금 카드를 충분히 읽을 수 있도록 */
-    const id = window.setTimeout(() => setSuccessFlash(null), 3200)
+    /* 빠른 연속 매칭 시에도 연출이 한 번 보이도록 짧게 유지 */
+    const id = window.setTimeout(() => setSuccessFlash(null), 1000)
     return () => window.clearTimeout(id)
   }, [successFlash])
 

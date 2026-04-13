@@ -27,7 +27,9 @@ export default function Home() {
     useAuth()
   const { packs, loading: packsLoading, error: packsError, reloadPacks } =
     useCardPacks()
-  const [tab, setTab] = useState(/** @type {'play'|'shop'|'hof'} */ ('play'))
+  const [tab, setTab] = useState(
+    /** @type {'play'|'shop'|'hof'|'combo'} */ ('play'),
+  )
   const [selectedPackId, setSelectedPackId] = useState(null)
   const [rulesOpen, setRulesOpen] = useState(false)
   const [jokboOpen, setJokboOpen] = useState(false)
@@ -119,13 +121,13 @@ export default function Home() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="min-w-0">
-              <h1 className="font-display truncate text-xl font-bold text-slate-900 md:text-2xl">
+              <h1 className="font-display truncate text-xl font-bold text-slate-100 md:text-2xl">
                 가나다 눈치게임
               </h1>
               {user ? (
-                <p className="mt-0.5 text-xs font-medium text-slate-600">
+                <p className="mt-0.5 text-xs font-medium text-slate-300">
                   보유 포인트{' '}
-                  <span className="font-mono text-amber-800">{userPoints}</span> P
+                  <span className="font-mono text-amber-300">{userPoints}</span> P
                 </p>
               ) : null}
             </div>
@@ -134,7 +136,7 @@ export default function Home() {
             <span className="text-xs text-slate-500">…</span>
           ) : user ? (
             <div className="flex items-center gap-2">
-              <span className="max-w-[140px] truncate text-sm text-slate-700">
+              <span className="max-w-[140px] truncate text-sm text-slate-200">
                 {formatHoFDisplayName(user.displayName)}
               </span>
               <button
@@ -208,13 +210,13 @@ export default function Home() {
           </div>
         ) : null}
 
-        <div className="tab-rail-3d mx-auto mt-4 flex w-full rounded-2xl border border-slate-300/90 bg-gradient-to-b from-white/95 to-slate-100/90 p-1">
+        <div className="tab-rail-3d mx-auto mt-4 grid w-full grid-cols-2 gap-1 rounded-2xl border border-slate-600/80 bg-gradient-to-b from-slate-800/95 to-slate-900/90 p-1 sm:grid-cols-4">
           <button
             type="button"
-            className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition ${
+            className={`rounded-xl py-2.5 text-xs font-medium transition sm:text-sm ${
               tab === 'play'
                 ? 'bg-gradient-to-b from-slate-600 to-slate-800 text-white shadow-[0_4px_0_rgba(15,23,42,0.35),0_8px_20px_rgba(15,23,42,0.25)]'
-                : 'text-slate-500'
+                : 'text-slate-400'
             }`}
             onClick={() => setTab('play')}
           >
@@ -222,10 +224,21 @@ export default function Home() {
           </button>
           <button
             type="button"
-            className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition ${
+            className={`rounded-xl py-2.5 text-xs font-medium transition sm:text-sm ${
+              tab === 'combo'
+                ? 'bg-gradient-to-b from-violet-700 to-indigo-950 text-white shadow-[0_4px_0_rgba(40,30,90,0.45),0_8px_20px_rgba(40,30,90,0.28)]'
+                : 'text-slate-400'
+            }`}
+            onClick={() => setTab('combo')}
+          >
+            무한 콤보
+          </button>
+          <button
+            type="button"
+            className={`rounded-xl py-2.5 text-xs font-medium transition sm:text-sm ${
               tab === 'shop'
                 ? 'bg-gradient-to-b from-amber-700 to-rose-900 text-white shadow-[0_4px_0_rgba(120,30,30,0.45),0_8px_20px_rgba(120,20,20,0.3)]'
-                : 'text-slate-500'
+                : 'text-slate-400'
             }`}
             onClick={() => setTab('shop')}
           >
@@ -233,10 +246,10 @@ export default function Home() {
           </button>
           <button
             type="button"
-            className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition ${
+            className={`rounded-xl py-2.5 text-xs font-medium transition sm:text-sm ${
               tab === 'hof'
                 ? 'bg-gradient-to-b from-amber-600 to-amber-950 text-white shadow-[0_4px_0_rgba(120,80,20,0.45),0_8px_20px_rgba(120,80,20,0.28)]'
-                : 'text-slate-500'
+                : 'text-slate-400'
             }`}
             onClick={() => setTab('hof')}
           >
@@ -365,6 +378,31 @@ export default function Home() {
               </p>
             ) : null}
           </>
+          </div>
+        ) : tab === 'combo' ? (
+          <div className="min-h-0 flex-1 overflow-y-auto [-webkit-overflow-scrolling:touch] pr-0.5">
+            <section className="card-lift-3d mx-auto mt-2 w-full rounded-2xl border border-violet-500/35 bg-slate-900/55 px-4 py-4 text-slate-200">
+              <h2 className="font-display text-base font-bold text-violet-200">
+                무한 콤보 도전
+              </h2>
+              <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                플레이에서 고른 단어팩으로 1페이즈만 무한 진행합니다. 5초 이내에
+                한 번 이상 조합에 성공하면 타이머가 다시 5초로 갱신되고, 오답이나
+                시간 초과 시 종료입니다. 10콤보당 포인트 1 (로그인 시 지급)
+              </p>
+              {canStart && effectivePackId ? (
+                <Link
+                  className="mt-4 block rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-800 py-3.5 text-center text-sm font-semibold text-white shadow-lg"
+                  to={`/combo-challenge?packId=${encodeURIComponent(String(effectivePackId))}`}
+                >
+                  도전 시작
+                </Link>
+              ) : (
+                <p className="mt-4 text-center text-xs text-slate-500">
+                  플레이 탭에서 단어팩을 먼저 골라 주세요.
+                </p>
+              )}
+            </section>
           </div>
         ) : tab === 'shop' ? (
           <div className="min-h-0 flex-1 overflow-y-auto [-webkit-overflow-scrolling:touch] pr-0.5">

@@ -167,6 +167,7 @@ export default function Game() {
   const [deckNotice, setDeckNotice] = useState(/** @type {string | null} */ (null))
   /** 콤보 타격 이펙트용 키(값이 바뀔 때마다 애니메이션 재생) */
   const [comboFxKey, setComboFxKey] = useState(0)
+  const [p1ComboOverlayVisible, setP1ComboOverlayVisible] = useState(false)
   /** 2페이즈 연속 정답 콤보(1페이즈와 별도) */
   const [p2Combo, setP2Combo] = useState(0)
   /** 1페이즈에서 이미 꺼낸 카드 id — 부족 시 제외 덱, 전부 소진 시 초기화 */
@@ -237,7 +238,7 @@ export default function Game() {
   }, [pack, queueReady, validRows, packId, resumeSnap])
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  /* eslint-disable react-hooks/set-state-in-effect -- 1페이즈 콤보 증가 시 타격감 연출 */
+  /* eslint-disable react-hooks/set-state-in-effect -- 1페이즈 콤보 증가 시 타격감·1초 콤보 팝업 */
   useEffect(() => {
     if (segment !== 'p1') {
       prevComboRef.current = p1Combo
@@ -246,12 +247,16 @@ export default function Game() {
     if (p1Combo > prevComboRef.current && p1Combo >= 1) {
       setComboFxKey((k) => k + 1)
       sfxCombo(p1Combo)
+      setP1ComboOverlayVisible(true)
+      const id = window.setTimeout(() => setP1ComboOverlayVisible(false), 1000)
+      prevComboRef.current = p1Combo
+      return () => window.clearTimeout(id)
     }
     prevComboRef.current = p1Combo
   }, [p1Combo, segment])
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  /* eslint-disable react-hooks/set-state-in-effect -- 2페이즈 콤보 증가 시 타격감·SFX·2초 뒤 팝업 숨김 */
+  /* eslint-disable react-hooks/set-state-in-effect -- 2페이즈 콤보 증가 시 타격감·SFX·1초 뒤 팝업 숨김 */
   useEffect(() => {
     if (segment !== 'p2') {
       prevP2ComboRef.current = p2Combo
@@ -272,7 +277,7 @@ export default function Game() {
       p2ComboFlashTimerRef.current = window.setTimeout(() => {
         setP2ComboOverlayVisible(false)
         p2ComboFlashTimerRef.current = null
-      }, 2000)
+      }, 1000)
     }
     prevP2ComboRef.current = p2Combo
   }, [p2Combo, segment])
@@ -669,7 +674,7 @@ export default function Game() {
 
   return (
     <div className="game-shell min-h-dvh px-[max(1rem,env(safe-area-inset-left))] pb-[max(1rem,env(safe-area-inset-bottom))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(0.75rem,env(safe-area-inset-top))] text-slate-800">
-      {((segment === 'p1' && comboFxKey > 0 && displayCombo >= 1) ||
+      {((segment === 'p1' && p1ComboOverlayVisible && displayCombo >= 1) ||
         (segment === 'p2' &&
           p2ComboOverlayVisible &&
           comboFxKey > 0 &&
