@@ -1,5 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useAuth } from './AuthContext'
 import { loadUserProgress } from '../services/userShopService'
 import { mergeHallOfFameFromCloud } from '../utils/hallOfFame'
@@ -41,10 +49,22 @@ export function UserProgressProvider({ children }) {
     return () => document.removeEventListener('visibilitychange', onVis)
   }, [refresh])
 
+  const packIdsKey = useMemo(
+    () => (packs?.length ? packs.map((p) => p.id).join('|') : ''),
+    [packs],
+  )
+  const mergedUidRef = useRef(/** @type {string | null} */ (null))
   useEffect(() => {
-    if (!user?.uid || !packs?.length) return
+    if (!user?.uid) {
+      mergedUidRef.current = null
+      return
+    }
+    if (!packs?.length || !packIdsKey) return
+    const key = `${user.uid}:${packIdsKey}`
+    if (mergedUidRef.current === key) return
+    mergedUidRef.current = key
     void mergeHallOfFameFromCloud(user.uid, packs)
-  }, [user?.uid, packs])
+  }, [user?.uid, packs, packIdsKey])
 
   const value = useMemo(
     () => ({

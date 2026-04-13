@@ -27,11 +27,6 @@ export default function Home() {
     useAuth()
   const { packs, loading: packsLoading, error: packsError, reloadPacks } =
     useCardPacks()
-  const { points: userPoints, refreshProgress } = useUserProgress()
-
-  useEffect(() => {
-    void refreshProgress()
-  }, [tab, refreshProgress])
   const [tab, setTab] = useState(/** @type {'play'|'shop'|'hof'} */ ('play'))
   const [selectedPackId, setSelectedPackId] = useState(null)
   const [rulesOpen, setRulesOpen] = useState(false)
@@ -39,6 +34,12 @@ export default function Home() {
   const [nameEdit, setNameEdit] = useState('')
   const [nameMsg, setNameMsg] = useState(/** @type {string} */ (''))
   const [nameSaving, setNameSaving] = useState(false)
+
+  const { points: userPoints, refreshProgress } = useUserProgress()
+
+  useEffect(() => {
+    void refreshProgress()
+  }, [tab, refreshProgress])
 
   useEffect(() => {
     if (user?.displayName) {
