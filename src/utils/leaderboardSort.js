@@ -26,3 +26,16 @@ function rowAchievedTimeMs(row) {
   }
   return Number.MAX_SAFE_INTEGER
 }
+
+/**
+ * 무한도전 명예 — 최고 콤보 내림차순, 동률이면 먼저 달성한 순
+ * @param {Array<{ maxCombo?: number, achievedAt?: string, updatedAt?: unknown }>} rows
+ */
+export function sortComboLeaderboardRows(rows) {
+  return [...rows].sort((a, b) => {
+    const ma = Number(a.maxCombo) || 0
+    const mb = Number(b.maxCombo) || 0
+    if (mb !== ma) return mb - ma
+    return rowAchievedTimeMs(a) - rowAchievedTimeMs(b)
+  })
+}

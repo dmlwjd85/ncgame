@@ -47,6 +47,16 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // 무한도전(콤보) 명예의 전당
+    match /ncgameHofComboByPack/{packId}/entries/{uid} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && request.resource.data.packId == packId;
+      allow delete: if false;
+    }
+
     // 마스터 최초 설정 완료 플래그 — 읽기는 누구나(로그인 화면), 생성은 해당 이메일로 막 생성된 인증 사용자만 1회
     match /system/masterSetup {
       allow read: if true;

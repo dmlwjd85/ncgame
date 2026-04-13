@@ -1,10 +1,13 @@
 import {
   loadUserBestFromCloud,
+  loadUserComboBestFromCloud,
   syncUserBestToCloud,
+  syncUserComboBestToCloud,
 } from '../services/hallOfFameService'
 import { formatHoFDisplayName } from './displayName'
 
 const STORAGE_KEY = 'ncgame-hall-of-fame-v1'
+const STORAGE_KEY_COMBO = 'ncgame-hall-combo-v1'
 
 /**
  * @returns {Record<string, { maxLevel: number, at: string, displayName: string }>}
@@ -112,4 +115,67 @@ export async function mergeHallOfFameFromCloud(uid, packs) {
 
 export function getPackRecord(packId) {
   return loadHallOfFame()[packId] ?? null
+}
+
+/**
+ * @returns {Record<string, { maxCombo: number, at: string, displayName: string }>}
+ */
+export function loadHallOfFameCombo() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_COMBO)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return typeof parsed === 'object' && parsed !== null ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * @param {string} packId
+ * @param {number} maxCombo
+ * @param {string} displayName
+ * @param {{ uid?: string | null }} auth
+ */
+export async function saveHallOfFameComboIfBetter(
+  packId,
+  maxCombo,
+  displayName,
+  auth = {},
+) {
+  const name = formatHoFDisplayName(displayName)
+  const n = Math.max(0, Math.floor(Number(maxCombo)) || 0)
+  if (n < 1) return false
+
+  let cloudMax = 0
+  if (auth?.uid) {
+    try {
+      const cloud = await loadUserComboBestFromCloud(packId, auth.uid)
+      cloudMax = Number(cloud?.maxCombo) || 0
+    } catch {
+      /* noop */
+    }
+  }
+
+  const all = loadHallOfFameCombo()
+  const prev = all[packId]
+  const localMax = prev?.maxCombo ?? 0
+  const best = Math.max(localMax, n, cloudMax)
+  const improved = !prev || best > localMax
+  if (improved) {
+    all[packId] = {
+      maxCombo: best,
+      at: new Date().toISOString(),
+      displayName: name,
+    }
+    try {
+      localStorage.setItem(STORAGE_KEY_COMBO, JSON.stringify(all))
+    } catch {
+      return false
+    }
+  }
+  if (auth?.uid) {
+    await syncUserComboBestToCloud(packId, auth.uid, name, best)
+  }
+  return improved
 }

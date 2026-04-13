@@ -3,12 +3,15 @@ import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import Phase1Matching from '../components/game/Phase1Matching'
 import { useAuth } from '../contexts/AuthContext'
 import { useCardPacks } from '../contexts/CardPackContext'
+import { resolveDisplayNameForHoF } from '../services/authService'
 import { addPointsBonus } from '../services/userShopService'
+import { saveHallOfFameComboIfBetter } from '../utils/hallOfFame'
 import { sfxCombo } from '../utils/gameSfx'
 import { maxLevelFromRowCount } from '../utils/gameRules'
 import { usePlayerProgressStore } from '../stores/playerProgressStore'
 
-const WAVE_SIZE = 3
+/** 한 번에 주제어 1개 + 보기(뜻) 3개만 유지 */
+const WAVE_SIZE = 1
 const MATCH_WINDOW_MS = 5000
 
 function shuffleRows(rows) {
@@ -21,7 +24,8 @@ function shuffleRows(rows) {
 }
 
 /**
- * 무한 콤보 도전 — 선택한 팩으로 1페이즈만, 5초 안에 한 번이라도 맞추면 타이머 갱신, 틀리면 종료. 10콤보당 1P.
+ * 무한도전 — 선택한 팩으로 1페이즈만, 주제어 1개·선택지 3개를 반복(주제어는 매 판 랜덤).
+ * 5초 안에 맞추면 타이머 갱신, 오답·시간 초과 시 종료. 10콤보당 포인트 1(로그인 시).
  */
 export default function ComboChallenge() {
   const [searchParams] = useSearchParams()
@@ -64,24 +68,27 @@ export default function ComboChallenge() {
   const cardsNeededThisLevel = WAVE_SIZE
   const need = cardsNeededThisLevel - p1Collected.length
 
+  /** 미사용 행이 없으면 풀을 비우고 다시 랜덤 추출 */
   const refillQueueFromPool = useCallback(() => {
     const used = usedRowIdsRef.current
-    const unused = validRows.filter((r) => !used.has(String(r.id)))
-    if (unused.length === 0) {
+    let pool = validRows.filter((r) => !used.has(String(r.id)))
+    if (pool.length === 0) {
       used.clear()
-      return shuffleRows(validRows)
+      pool = validRows
     }
-    return shuffleRows(unused)
+    if (pool.length === 0) return []
+    const pick = pool[Math.floor(Math.random() * pool.length)]
+    return [pick]
   }, [validRows])
 
   useEffect(() => {
     if (!pack || queueReady || validRows.length === 0) return
     usedRowIdsRef.current = new Set()
     queueMicrotask(() => {
-      setQueue(shuffleRows(validRows))
+      setQueue(refillQueueFromPool())
       setQueueReady(true)
     })
-  }, [pack, queueReady, validRows])
+  }, [pack, queueReady, validRows, refillQueueFromPool])
 
   const handleP1BatchComplete = useCallback(
     (rows) => {
@@ -89,11 +96,11 @@ export default function ComboChallenge() {
       if (real.length === 0) return
       setP1Collected((c) => {
         const newC = [...c, ...real]
-        const needAfter = cardsNeededThisLevel - newC.length
         setQueue((q) => {
           const next = q.slice(real.length)
           real.forEach((r) => usedRowIdsRef.current.add(String(r.id)))
-          if (next.length === 0 && needAfter > 0) {
+          /* 웨이브당 주제 1개(WAVE_SIZE=1) — 큐가 비면 항상 다음 랜덤 주제어 */
+          if (next.length === 0) {
             return refillQueueFromPool()
           }
           return next
@@ -264,6 +271,28 @@ export default function ComboChallenge() {
     return () => window.clearInterval(id)
   }, [started, gameOver, deadline])
 
+  const comboSyncedRef = useRef(false)
+
+  useEffect(() => {
+    if (!gameOver || !pack || !user?.uid) return
+    if (comboSyncedRef.current) return
+    const bc = bestCombo
+    if (bc < 1) return
+    comboSyncedRef.current = true
+    void (async () => {
+      try {
+        const name = await resolveDisplayNameForHoF(user)
+        await saveHallOfFameComboIfBetter(pack.id, bc, name, { uid: user.uid })
+      } catch {
+        /* noop */
+      }
+    })()
+  }, [gameOver, pack, user, bestCombo])
+
+  useEffect(() => {
+    if (!gameOver) comboSyncedRef.current = false
+  }, [gameOver])
+
   const packKey = pack?.id ?? ''
   const maxLv = maxLevelFromRowCount(validRows.length)
   const canPlay =
@@ -306,13 +335,13 @@ export default function ComboChallenge() {
           </Link>
           <div className="text-right text-xs text-slate-400">
             <p className="font-medium text-slate-100">{pack.sheetName}</p>
-            <p>무한 콤보 도전</p>
+            <p>무한도전</p>
           </div>
         </header>
 
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-600/80 bg-slate-900/60 px-4 py-3">
           <div>
-            <p className="text-[11px] text-slate-400">콤보</p>
+            <p className="text-[11px] text-slate-400">연속 성공</p>
             <p className="font-mono text-2xl font-bold text-amber-300">{combo}</p>
           </div>
           <div className="text-right">
@@ -327,9 +356,10 @@ export default function ComboChallenge() {
           <div className="rounded-2xl border border-slate-600 bg-slate-900/50 p-5 text-sm leading-relaxed text-slate-300">
             <p className="font-semibold text-slate-100">규칙</p>
             <ul className="mt-2 list-inside list-disc space-y-1 text-xs">
-              <li>5초 안에 카드를 한 번 이상 맞추면 타이머가 다시 5초로 갱신됩니다.</li>
+              <li>주제어 1개와 뜻 카드 3장 중 올바른 조합을 고릅니다. 주제어는 매 판 랜덤입니다.</li>
+              <li>5초 안에 한 번 이상 맞추면 타이머가 다시 5초로 갱신됩니다.</li>
               <li>시간이 0이 되거나 오답이면 종료입니다.</li>
-              <li>10콤보당 포인트 1 (로그인 시 지급)</li>
+              <li>연속 성공 10번마다 포인트 1 (로그인 시 지급)</li>
             </ul>
             <button
               type="button"
@@ -350,7 +380,7 @@ export default function ComboChallenge() {
           <div className="rounded-2xl border border-slate-600 bg-slate-900/50 p-6 text-center">
             <p className="text-lg font-bold text-slate-100">종료</p>
             <p className="mt-2 text-slate-300">
-              최고 콤보 <span className="font-mono text-amber-300">{bestCombo}</span>
+              최고 연속 <span className="font-mono text-amber-300">{bestCombo}</span>
             </p>
             <button
               type="button"

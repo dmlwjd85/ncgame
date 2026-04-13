@@ -141,7 +141,7 @@ export async function addPointsForLevelClear(uid, clearedLevel) {
 }
 
 /**
- * 무한 콤보 등 보너스 포인트
+ * 무한도전 등 보너스 포인트
  * @param {string} uid
  * @param {number} delta
  */

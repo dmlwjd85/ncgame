@@ -231,7 +231,7 @@ export default function Home() {
             }`}
             onClick={() => setTab('combo')}
           >
-            무한 콤보
+            무한도전
           </button>
           <button
             type="button"
@@ -383,12 +383,12 @@ export default function Home() {
           <div className="min-h-0 flex-1 overflow-y-auto [-webkit-overflow-scrolling:touch] pr-0.5">
             <section className="card-lift-3d mx-auto mt-2 w-full rounded-2xl border border-violet-500/35 bg-slate-900/55 px-4 py-4 text-slate-200">
               <h2 className="font-display text-base font-bold text-violet-200">
-                무한 콤보 도전
+                무한도전
               </h2>
               <p className="mt-2 text-xs leading-relaxed text-slate-400">
-                플레이에서 고른 단어팩으로 1페이즈만 무한 진행합니다. 5초 이내에
-                한 번 이상 조합에 성공하면 타이머가 다시 5초로 갱신되고, 오답이나
-                시간 초과 시 종료입니다. 10콤보당 포인트 1 (로그인 시 지급)
+                플레이에서 고른 단어팩으로 주제어 1개·선택지 3개를 반복합니다(주제는
+                매 판 랜덤). 5초 안에 맞추면 타이머가 갱신되고, 오답·시간 초과 시
+                종료입니다. 연속 10번마다 포인트 1 (로그인 시 지급)
               </p>
               {canStart && effectivePackId ? (
                 <Link
@@ -418,9 +418,10 @@ export default function Home() {
                 Hall of Fame — agōn
               </p>
               <p className="mt-1.5 text-[11px] leading-snug text-[var(--hof-muted)]">
-                팩마다 최고 레벨을 올린 분을 올립니다. 같은 레벨이면 그 기록을{' '}
-                <span className="font-semibold text-[var(--hof-ink)]">먼저 달성한 분</span>
-                이 위입니다.
+                <span className="font-semibold text-[var(--hof-ink)]">눈치게임</span>은 팩별
+                최고 레벨,{' '}
+                <span className="font-semibold text-[var(--hof-ink)]">무한도전</span>은 최고
+                연속 성공을 각각 올립니다. 동점이면 먼저 달성한 분이 위입니다.
               </p>
             </div>
             <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1 [-webkit-overflow-scrolling:touch]">

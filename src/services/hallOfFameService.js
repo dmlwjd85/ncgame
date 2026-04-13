@@ -57,6 +57,19 @@ export async function loadUserBestFromCloud(packId, uid) {
   }
 }
 
+/** 무한도전 개인 최고 기록 */
+export async function loadUserComboBestFromCloud(packId, uid) {
+  if (!packId || !uid) return null
+  const ref = doc(firestoreDb, 'ncgameHofComboByPack', packId, 'entries', uid)
+  try {
+    const snap = await getDoc(ref)
+    if (!snap.exists()) return null
+    return snap.data()
+  } catch {
+    return null
+  }
+}
+
 export async function loadPackLeaderboard(packId, maxEntries = 40) {
   if (!packId) return []
   try {
@@ -87,6 +100,60 @@ export function subscribePackLeaderboard(packId, maxEntries, onData, onError) {
     onError ??
       ((e) => {
         console.warn('[hallOfFameService] 리더보드 구독 오류', e)
+      }),
+  )
+}
+
+/**
+ * 무한도전 — ncgameHofComboByPack/{packId}/entries/{uid}
+ */
+export async function syncUserComboBestToCloud(packId, uid, displayName, maxCombo) {
+  if (!packId || !uid) return false
+  const n = Math.max(0, Math.floor(Number(maxCombo)) || 0)
+  if (n < 1) return false
+  const ref = doc(firestoreDb, 'ncgameHofComboByPack', packId, 'entries', uid)
+  try {
+    const snap = await getDoc(ref)
+    const prevData = snap.exists() ? snap.data() : {}
+    const prevCombo = Number(prevData.maxCombo) || 0
+    const best = Math.max(prevCombo, n)
+    if (best <= prevCombo) return false
+
+    const nowIso = new Date().toISOString()
+    const payload = {
+      packId,
+      uid,
+      displayName: displayName || '플레이어',
+      maxCombo: best,
+      updatedAt: nowIso,
+    }
+    if (best > prevCombo) {
+      payload.achievedAt = nowIso
+    }
+
+    await setDoc(ref, payload, { merge: true })
+    return true
+  } catch (e) {
+    console.warn('[hallOfFameService] 무한도전 sync 실패', e)
+    return false
+  }
+}
+
+/**
+ * 팩별 무한도전 리더보드 구독
+ */
+export function subscribePackComboLeaderboard(packId, maxEntries, onData, onError) {
+  if (!packId) return () => {}
+  const ref = collection(firestoreDb, 'ncgameHofComboByPack', packId, 'entries')
+  const q = query(ref, orderBy('maxCombo', 'desc'), limit(maxEntries))
+  return onSnapshot(
+    q,
+    (snap) => {
+      onData(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    },
+    onError ??
+      ((e) => {
+        console.warn('[hallOfFameService] 무한도전 리더보드 구독 오류', e)
       }),
   )
 }
