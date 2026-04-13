@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   subscribePackComboLeaderboard,
   subscribePackLeaderboard,
@@ -192,82 +193,88 @@ export default function HallOfFamePanel({ packs }) {
         })}
       </ul>
 
-      {openModal && openPack ? (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-3 sm:items-center"
-          role="presentation"
-          onClick={() => setOpenModal(null)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="hof-modal-title"
-            className="max-h-[min(85dvh,520px)] w-full max-w-md overflow-hidden rounded-2xl border border-[var(--hof-border)] bg-[var(--hof-card)] shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="border-b border-[var(--hof-border)] px-4 py-3">
-              <h2 id="hof-modal-title" className="text-base font-semibold text-[var(--hof-ink)]">
-                {openPack.sheetName}{' '}
-                <span className="text-[var(--hof-muted)]">
-                  — {openModal.mode === 'combo' ? '무한도전' : '눈치게임'}
-                </span>
-              </h2>
-              <p className="mt-0.5 text-xs text-[var(--hof-muted)]">
-                상위 1~5위 (
-                {openModal.mode === 'combo'
-                  ? '동일 연속은 먼저 달성한 순'
-                  : '동일 레벨은 먼저 달성한 순'}
-                )
-              </p>
-            </div>
-            <div className="max-h-[min(60dvh,360px)] overflow-y-auto px-3 py-2">
-              {topFive.length > 0 ? (
-                <ol className="space-y-2">
-                  {topFive.map((row, i) => (
-                    <li
-                      key={row.uid ?? row.id ?? `${openModal.packId}-${i}`}
-                      className={`flex items-center justify-between gap-2 rounded-xl px-2 py-2 text-sm ${
-                        i === 0
-                          ? openModal.mode === 'combo'
-                            ? 'bg-violet-100/80 text-stone-900'
-                            : 'bg-amber-100/70 text-stone-900'
-                          : 'text-[var(--hof-ink)]'
-                      }`}
-                    >
-                      <span className="min-w-0">
-                        <span className="inline-block w-7 font-mono font-bold text-[var(--hof-gold-dark)]">
-                          {i + 1}.
-                        </span>
-                        <span className="font-medium">
-                          {formatHoFDisplayName(row.displayName)}
-                        </span>
-                      </span>
-                      <span className="shrink-0 font-mono font-semibold text-[var(--hof-gold-dark)]">
-                        {openModal.mode === 'combo'
-                          ? `${row.maxCombo ?? '—'}연속`
-                          : `Lv.${row.maxLevel ?? '—'}`}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <p className="py-6 text-center text-sm text-[var(--hof-muted)]">
-                  아직 순위가 없어요.
-                </p>
-              )}
-            </div>
-            <div className="border-t border-[var(--hof-border)] px-3 py-3">
-              <button
-                type="button"
-                className="w-full rounded-xl bg-stone-800 py-2.5 text-sm font-medium text-white hover:bg-stone-700"
-                onClick={() => setOpenModal(null)}
+      {openModal && openPack
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[600] flex items-center justify-center bg-black/80 p-4"
+              role="presentation"
+              onClick={() => setOpenModal(null)}
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="hof-modal-title"
+                className="max-h-[min(85dvh,520px)] w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
               >
-                닫기
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+                <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                  <h2
+                    id="hof-modal-title"
+                    className="text-base font-semibold text-slate-900"
+                  >
+                    {openPack.sheetName}{' '}
+                    <span className="font-normal text-slate-600">
+                      — {openModal.mode === 'combo' ? '무한도전' : '눈치게임'}
+                    </span>
+                  </h2>
+                  <p className="mt-0.5 text-xs text-slate-600">
+                    상위 1~5위 (
+                    {openModal.mode === 'combo'
+                      ? '동일 연속은 먼저 달성한 순'
+                      : '동일 레벨은 먼저 달성한 순'}
+                    )
+                  </p>
+                </div>
+                <div className="max-h-[min(60dvh,360px)] overflow-y-auto bg-white px-3 py-3">
+                  {topFive.length > 0 ? (
+                    <ol className="space-y-2">
+                      {topFive.map((row, i) => (
+                        <li
+                          key={row.uid ?? row.id ?? `${openModal.packId}-${i}`}
+                          className={`flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-sm ${
+                            i === 0
+                              ? openModal.mode === 'combo'
+                                ? 'bg-violet-100 text-violet-950'
+                                : 'bg-amber-100 text-amber-950'
+                              : 'bg-slate-50 text-slate-900'
+                          }`}
+                        >
+                          <span className="min-w-0">
+                            <span className="inline-block w-7 font-mono font-bold text-amber-800">
+                              {i + 1}.
+                            </span>
+                            <span className="font-medium">
+                              {formatHoFDisplayName(row.displayName)}
+                            </span>
+                          </span>
+                          <span className="shrink-0 font-mono font-semibold text-amber-900">
+                            {openModal.mode === 'combo'
+                              ? `${row.maxCombo ?? '—'}연속`
+                              : `Lv.${row.maxLevel ?? '—'}`}
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <p className="py-6 text-center text-sm text-slate-600">
+                      아직 순위가 없어요.
+                    </p>
+                  )}
+                </div>
+                <div className="border-t border-slate-200 bg-white px-3 py-3">
+                  <button
+                    type="button"
+                    className="w-full rounded-xl bg-slate-900 py-2.5 text-sm font-medium text-white hover:bg-slate-800"
+                    onClick={() => setOpenModal(null)}
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   )
 }

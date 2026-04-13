@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
-import Phase1Matching from '../components/game/Phase1Matching'
 import { useAuth } from '../contexts/AuthContext'
 import { useCardPacks } from '../contexts/CardPackContext'
 import { resolveDisplayNameForHoF } from '../services/authService'
@@ -10,7 +9,7 @@ import { sfxCombo } from '../utils/gameSfx'
 import { maxLevelFromRowCount } from '../utils/gameRules'
 import { usePlayerProgressStore } from '../stores/playerProgressStore'
 
-/** 한 번에 주제어 1개 + 보기(뜻) 3개만 유지 */
+/** 한 번에 주제어 1개 + 보기(뜻) 3개 — 탭으로 선택 */
 const WAVE_SIZE = 1
 const MATCH_WINDOW_MS = 5000
 
@@ -24,8 +23,7 @@ function shuffleRows(rows) {
 }
 
 /**
- * 무한도전 — 선택한 팩으로 1페이즈만, 주제어 1개·선택지 3개를 반복(주제어는 매 판 랜덤).
- * 5초 안에 맞추면 타이머 갱신, 오답·시간 초과 시 종료. 10콤보당 포인트 1(로그인 시).
+ * 무한도전 — 주제어에 맞는 뜻을 3개 중 탭으로 고름. 주제는 매 판 랜덤.
  */
 export default function ComboChallenge() {
   const [searchParams] = useSearchParams()
@@ -54,12 +52,10 @@ export default function ComboChallenge() {
   const [p1UsedExplanations, setP1UsedExplanations] = useState(
     /** @type {string[]} */ ([]),
   )
-  const [p1DistractorVersion, setP1DistractorVersion] = useState(0)
   const [p1Collected, setP1Collected] = useState(/** @type {object[]} */ ([]))
 
   const [combo, setCombo] = useState(0)
   const [bestCombo, setBestCombo] = useState(0)
-  /** 정답 후 다음 판 카드가 나오기 전 1초 — 콤보 연출 중에는 카드 숨김 */
   const [interlude, setInterlude] = useState(false)
   const [gameOver, setGameOver] = useState(false)
   const [started, setStarted] = useState(false)
@@ -70,7 +66,6 @@ export default function ComboChallenge() {
   const cardsNeededThisLevel = WAVE_SIZE
   const need = cardsNeededThisLevel - p1Collected.length
 
-  /** 미사용 행이 없으면 풀을 비우고 다시 랜덤 추출 */
   const refillQueueFromPool = useCallback(() => {
     const used = usedRowIdsRef.current
     let pool = validRows.filter((r) => !used.has(String(r.id)))
@@ -101,7 +96,6 @@ export default function ComboChallenge() {
         setQueue((q) => {
           const next = q.slice(real.length)
           real.forEach((r) => usedRowIdsRef.current.add(String(r.id)))
-          /* 웨이브당 주제 1개(WAVE_SIZE=1) — 큐가 비면 항상 다음 랜덤 주제어 */
           if (next.length === 0) {
             return refillQueueFromPool()
           }
@@ -122,7 +116,6 @@ export default function ComboChallenge() {
     queueMicrotask(() => {
       setP1BatchMatchedIds(new Set())
       setP1UsedExplanations([])
-      setP1DistractorVersion(0)
       p1BatchCompleteFiredRef.current = false
     })
   }, [roundVersion])
@@ -187,7 +180,7 @@ export default function ComboChallenge() {
 
     const combined = shuffleRows([...correctParts, ...distractors]).slice(0, 3)
     return combined.map((item, i) => ({
-      id: `combo-slot-${roundVersion}-dv${p1DistractorVersion}-${i}`,
+      id: `combo-tap-${roundVersion}-${i}`,
       explanation: item.explanation,
       correctRowId: item.correctRowId,
       _p1Filler: item._p1Filler,
@@ -197,7 +190,6 @@ export default function ComboChallenge() {
     queue,
     validRows,
     roundVersion,
-    p1DistractorVersion,
     p1BatchMatchedIds,
     p1UsedExplanations,
   ])
@@ -214,7 +206,6 @@ export default function ComboChallenge() {
   const handleP1RealMatch = useCallback((row, explanationText) => {
     const t = String(explanationText).trim()
     setP1UsedExplanations((prev) => (prev.includes(t) ? prev : [...prev, t]))
-    setP1DistractorVersion((v) => v + 1)
     setP1BatchMatchedIds((prev) => {
       const next = new Set(prev)
       next.add(String(row.id))
@@ -263,7 +254,35 @@ export default function ComboChallenge() {
     [started, gameOver, interlude, user, refreshFromServer],
   )
 
-  /** 연속 성공 연출 1초 동안 타이머 정지 — 종료 후 다시 5초 부여 */
+  const onPickExplanation = useCallback(
+    (explanation) => {
+      if (!started || gameOver || interlude) return
+      const row = queue[0]
+      if (!row || !p1Slots.length) return
+      const exp = String(explanation).trim()
+      const slot = p1Slots.find((s) => String(s.explanation).trim() === exp)
+      const ok =
+        slot != null &&
+        slot.correctRowId != null &&
+        String(slot.correctRowId) === String(row.id)
+      if (ok) {
+        handleP1RealMatch(row, exp)
+        onMatchAttempt(true)
+      } else {
+        onMatchAttempt(false)
+      }
+    },
+    [
+      started,
+      gameOver,
+      interlude,
+      queue,
+      p1Slots,
+      handleP1RealMatch,
+      onMatchAttempt,
+    ],
+  )
+
   useEffect(() => {
     if (!interlude) return
     const id = window.setTimeout(() => {
@@ -307,10 +326,14 @@ export default function ComboChallenge() {
     if (!gameOver) comboSyncedRef.current = false
   }, [gameOver])
 
-  const packKey = pack?.id ?? ''
   const maxLv = maxLevelFromRowCount(validRows.length)
   const canPlay =
     pack && maxLv >= 1 && pack.missingColumns.length === 0 && validRows.length > 0
+
+  const topicRow = p1TopicRows[0]
+  const topicText = topicRow
+    ? String(topicRow.topic ?? '').trim() || '—'
+    : ''
 
   if (!packId) {
     return <Navigate to="/" replace />
@@ -374,9 +397,9 @@ export default function ComboChallenge() {
           <div className="rounded-2xl border border-slate-600 bg-slate-900/50 p-5 text-sm leading-relaxed text-slate-300">
             <p className="font-semibold text-slate-100">규칙</p>
             <ul className="mt-2 list-inside list-disc space-y-1 text-xs">
-              <li>주제어 1개와 뜻 카드 3장 중 올바른 조합을 고릅니다. 주제어는 매 판 랜덤입니다.</li>
-              <li>5초 안에 한 번 이상 맞추면 타이머가 다시 5초로 갱신됩니다.</li>
-              <li>시간이 0이 되거나 오답이면 종료입니다.</li>
+              <li>주제어에 맞는 뜻을 세 가지 중 하나를 눌러 고릅니다. 주제는 매 판 랜덤입니다.</li>
+              <li>5초 안에 맞추면 타이머가 다시 5초로 갱신됩니다.</li>
+              <li>오답이거나 시간이 0이 되면 종료입니다.</li>
               <li>연속 성공 10번마다 포인트 1 (로그인 시 지급)</li>
             </ul>
             <button
@@ -439,17 +462,33 @@ export default function ComboChallenge() {
             </div>
           </div>
         ) : (
-          <Phase1Matching
-            slots={p1Slots}
-            topicRows={p1TopicRows}
-            packKey={String(packKey)}
-            roundVersion={roundVersion}
-            combo={combo}
-            coachMode={false}
-            tutorialMode={false}
-            onMatchAttempt={onMatchAttempt}
-            onRealMatch={handleP1RealMatch}
-          />
+          <div className="rounded-2xl border border-slate-600 bg-slate-900/70 p-4">
+            <p className="text-center text-[11px] font-medium uppercase tracking-wide text-slate-500">
+              주제어
+            </p>
+            <p className="mt-2 min-h-[3rem] text-center text-xl font-bold leading-snug text-amber-100">
+              {topicText || '…'}
+            </p>
+            <p className="mt-4 text-center text-[11px] text-slate-500">
+              맞는 뜻을 고르세요
+            </p>
+            <ul className="mt-2 flex flex-col gap-2">
+              {p1Slots.map((s) => (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    className="w-full rounded-xl border border-slate-500/80 bg-slate-800/90 px-4 py-3.5 text-left text-base font-medium leading-snug text-slate-100 transition hover:border-amber-500/60 hover:bg-slate-700/90 active:scale-[0.99]"
+                    onClick={() => onPickExplanation(s.explanation)}
+                  >
+                    {s.explanation}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {p1Slots.length === 0 && topicText ? (
+              <p className="mt-3 text-center text-xs text-slate-500">다음 문제 준비 중…</p>
+            ) : null}
+          </div>
         )}
       </div>
     </div>
