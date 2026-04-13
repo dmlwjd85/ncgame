@@ -101,8 +101,8 @@ export default function MasterLogin() {
         {!setupDone ? (
           <form onSubmit={onSubmitSetup} className="mt-8 flex flex-col gap-4">
             <p className="rounded-xl border border-amber-500/30 bg-amber-950/40 px-3 py-2 text-xs text-amber-100/90">
-              .env 의 <code className="font-mono text-amber-200">VITE_MASTER_AUTH_EMAIL</code> 과
-              동일한 이메일로 Firebase에 마스터 계정이 만들어집니다.
+              이 앱이 연결된 Firebase 프로젝트 전용 주소로 마스터 계정이 만들어집니다. 별도
+              설정 없이 비밀번호만 정하면 됩니다.
             </p>
             <div>
               <label className="block text-sm text-slate-400" htmlFor="ms-pw">

@@ -220,7 +220,7 @@ export default function Home() {
             }`}
             onClick={() => setTab('play')}
           >
-            플레이
+            눈치게임
           </button>
           <button
             type="button"
@@ -386,7 +386,7 @@ export default function Home() {
                 무한도전
               </h2>
               <p className="mt-2 text-xs leading-relaxed text-slate-400">
-                플레이에서 고른 단어팩으로 주제어 1개·선택지 3개를 반복합니다(주제는
+                눈치게임에서 고른 단어팩으로 주제어 1개·선택지 3개를 반복합니다(주제는
                 매 판 랜덤). 5초 안에 맞추면 타이머가 갱신되고, 오답·시간 초과 시
                 종료입니다. 연속 10번마다 포인트 1 (로그인 시 지급)
               </p>
@@ -399,7 +399,7 @@ export default function Home() {
                 </Link>
               ) : (
                 <p className="mt-4 text-center text-xs text-slate-500">
-                  플레이 탭에서 단어팩을 먼저 골라 주세요.
+                  눈치게임 탭에서 단어팩을 먼저 골라 주세요.
                 </p>
               )}
             </section>

@@ -18,6 +18,18 @@ import { firebaseApp, firebaseAuth, firestoreDb } from '../config/firebase'
 import { logUserActivity } from './activityService'
 import { DISPLAY_NAME_MAX_LEN, formatHoFDisplayName } from '../utils/displayName'
 
+/**
+ * 마스터 전용 Firebase 이메일 — VITE_MASTER_AUTH_EMAIL 이 있으면 우선, 없으면 프로젝트마다 고정 가상 주소
+ * (.env 없이도 동일 프로젝트에서 항상 같은 계정으로 연결)
+ */
+export function getNcgameMasterAuthEmail() {
+  const fromEnv = import.meta.env.VITE_MASTER_AUTH_EMAIL?.trim()
+  if (fromEnv) return fromEnv
+  const projectId =
+    import.meta.env.VITE_FIREBASE_PROJECT_ID || 'sambong-world-2026'
+  return `ncgame-master@${projectId}.firebaseapp.com`
+}
+
 /** @param {string} name */
 function reservedName(name) {
   const n = name.trim()
@@ -134,12 +146,7 @@ export async function getMasterSetupCompleted() {
  * @param {string} password
  */
 export async function completeMasterInitialSetup(password) {
-  const masterEmail = import.meta.env.VITE_MASTER_AUTH_EMAIL?.trim()
-  if (!masterEmail) {
-    throw new Error(
-      'VITE_MASTER_AUTH_EMAIL 이 .env 에 설정되어 있어야 합니다.',
-    )
-  }
+  const masterEmail = getNcgameMasterAuthEmail()
   if (password.length < 6) throw new Error('비밀번호는 6자 이상이어야 합니다.')
 
   const setupRef = doc(firestoreDb, 'system', 'masterSetup')
@@ -201,12 +208,7 @@ export async function completeMasterInitialSetup(password) {
  * @param {string} password
  */
 export async function signInMaster(password) {
-  const masterEmail = import.meta.env.VITE_MASTER_AUTH_EMAIL?.trim()
-  if (!masterEmail) {
-    throw new Error(
-      'VITE_MASTER_AUTH_EMAIL 이 .env 에 설정되어 있어야 합니다.',
-    )
-  }
+  const masterEmail = getNcgameMasterAuthEmail()
   try {
     const cred = await signInWithEmailAndPassword(
       firebaseAuth,
@@ -248,8 +250,7 @@ function extraMasterUids() {
  */
 export function isMasterUser(user) {
   if (!user) return false
-  const masterEmail = import.meta.env.VITE_MASTER_AUTH_EMAIL?.trim()
-  if (masterEmail && user.email === masterEmail) return true
+  if (user.email === getNcgameMasterAuthEmail()) return true
   if (user.uid && extraMasterUids().includes(user.uid)) return true
   return false
 }

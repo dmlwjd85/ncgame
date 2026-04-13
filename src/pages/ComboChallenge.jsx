@@ -59,6 +59,8 @@ export default function ComboChallenge() {
 
   const [combo, setCombo] = useState(0)
   const [bestCombo, setBestCombo] = useState(0)
+  /** 정답 후 다음 판 카드가 나오기 전 1초 — 콤보 연출 중에는 카드 숨김 */
+  const [interlude, setInterlude] = useState(false)
   const [gameOver, setGameOver] = useState(false)
   const [started, setStarted] = useState(false)
   const [deadline, setDeadline] = useState(() => Date.now() + MATCH_WINDOW_MS)
@@ -240,9 +242,9 @@ export default function ComboChallenge() {
 
   const onMatchAttempt = useCallback(
     (ok) => {
-      if (!started || gameOver) return
+      if (!started || gameOver || interlude) return
       if (ok) {
-        setDeadline(Date.now() + MATCH_WINDOW_MS)
+        setInterlude(true)
         setCombo((c) => {
           const n = c + 1
           setBestCombo((b) => Math.max(b, n))
@@ -258,18 +260,30 @@ export default function ComboChallenge() {
         setGameOver(true)
       }
     },
-    [started, gameOver, user, refreshFromServer],
+    [started, gameOver, interlude, user, refreshFromServer],
   )
 
+  /** 연속 성공 연출 1초 동안 타이머 정지 — 종료 후 다시 5초 부여 */
   useEffect(() => {
-    if (!started || gameOver) return
+    if (!interlude) return
+    const id = window.setTimeout(() => {
+      setInterlude(false)
+      const t = Date.now()
+      setDeadline(t + MATCH_WINDOW_MS)
+      setNowMs(t)
+    }, 1000)
+    return () => window.clearTimeout(id)
+  }, [interlude])
+
+  useEffect(() => {
+    if (!started || gameOver || interlude) return
     const id = window.setInterval(() => {
       const t = Date.now()
       setNowMs(t)
       if (t > deadline) setGameOver(true)
     }, 100)
     return () => window.clearInterval(id)
-  }, [started, gameOver, deadline])
+  }, [started, gameOver, interlude, deadline])
 
   const comboSyncedRef = useRef(false)
 
@@ -347,7 +361,11 @@ export default function ComboChallenge() {
           <div className="text-right">
             <p className="text-[11px] text-slate-400">남은 시간</p>
             <p className="font-mono text-xl text-sky-300">
-              {started && !gameOver ? secLeft.toFixed(1) : '—'}초
+              {started && !gameOver
+                ? interlude
+                  ? '…'
+                  : `${secLeft.toFixed(1)}초`
+                : '—'}
             </p>
           </div>
         </div>
@@ -367,6 +385,7 @@ export default function ComboChallenge() {
               onClick={() => {
                 const t = Date.now()
                 setStarted(true)
+                setInterlude(false)
                 setDeadline(t + MATCH_WINDOW_MS)
                 setNowMs(t)
                 setGameOver(false)
@@ -387,6 +406,7 @@ export default function ComboChallenge() {
               className="mt-4 w-full rounded-2xl border border-slate-500 py-3 text-slate-200"
               onClick={() => {
                 setStarted(false)
+                setInterlude(false)
                 setGameOver(false)
                 setCombo(0)
                 setBestCombo(0)
@@ -406,6 +426,17 @@ export default function ComboChallenge() {
             >
               홈으로
             </Link>
+          </div>
+        ) : interlude ? (
+          <div
+            className="combo-hit-overlay !items-center !justify-center !pt-0"
+            aria-live="polite"
+            aria-label={`연속 ${combo}`}
+          >
+            <div key={combo} className="combo-hit-burst">
+              <span className="combo-hit-num">{combo}</span>
+              <span className="combo-hit-label">연속</span>
+            </div>
           </div>
         ) : (
           <Phase1Matching
