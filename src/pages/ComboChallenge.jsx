@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useCardPacks } from '../contexts/CardPackContext'
 import { resolveDisplayNameForHoF } from '../services/authService'
@@ -98,39 +98,52 @@ function comboPackPlayable(p) {
 }
 
 export default function ComboChallenge() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const navigate = useNavigate()
-  const packId = searchParams.get('packId')
-  const playMode =
-    searchParams.get('mode') === 'practice' ? 'practice' : 'challenge'
-  const isChallenge = playMode === 'challenge'
-  const isPractice = playMode === 'practice'
-
+  const [searchParams] = useSearchParams()
   const { user } = useAuth()
   const { packs, loading, error } = useCardPacks()
   const refreshFromServer = usePlayerProgressStore((s) => s.refreshFromServer)
 
-  const setPlayModeParam = useCallback(
-    (next) => {
-      if (!packId) return
-      const p = new URLSearchParams(searchParams)
-      p.set('packId', String(packId))
-      if (next === 'practice') p.set('mode', 'practice')
-      else p.delete('mode')
-      setSearchParams(p, { replace: true })
-    },
-    [packId, searchParams, setSearchParams],
+  /** 로비 한 화면 vs 플레이 */
+  const [view, setView] = useState(/** @type {'lobby' | 'play'} */ ('lobby'))
+  const [lobbyPackId, setLobbyPackId] = useState(/** @type {string | null} */ (null))
+  const [lobbyMode, setLobbyMode] = useState(
+    /** @type {'challenge' | 'practice'} */ ('challenge'),
+  )
+  const [playPackId, setPlayPackId] = useState(/** @type {string | null} */ (null))
+  const [playMode, setPlayMode] = useState(
+    /** @type {'challenge' | 'practice'} */ ('challenge'),
   )
 
+  const isChallenge = playMode === 'challenge'
+  const isPractice = playMode === 'practice'
+
   const pack = useMemo(
-    () => packs.find((p) => String(p.id) === String(packId)),
-    [packs, packId],
+    () =>
+      playPackId
+        ? packs.find((p) => String(p.id) === String(playPackId))
+        : null,
+    [packs, playPackId],
   )
 
   const validRows = useMemo(
     () => (pack ? pack.rows.filter((r) => r.topic && r.explanation) : []),
     [pack],
   )
+
+  // URL로 들어온 packId·mode → 로비 초기값 (공유·홈 링크)
+  useEffect(() => {
+    const id = searchParams.get('packId')
+    const m = searchParams.get('mode')
+    if (view !== 'lobby') return
+    queueMicrotask(() => {
+      if (id && packs.length > 0) {
+        const exists = packs.some((p) => String(p.id) === String(id))
+        if (exists) setLobbyPackId(String(id))
+      }
+      if (m === 'practice') setLobbyMode('practice')
+      else if (m === 'challenge') setLobbyMode('challenge')
+    })
+  }, [searchParams, packs, view])
 
   const usedRowIdsRef = useRef(/** @type {Set<string>} */ (new Set()))
   const [queue, setQueue] = useState(/** @type {object[]} */ ([]))
@@ -186,31 +199,6 @@ export default function ComboChallenge() {
       setQueueReady(true)
     })
   }, [pack, queueReady, validRows, refillQueueFromPool])
-
-  // URL의 packId가 바뀌면 진행 상태 초기화 (다른 팩으로 전환)
-  useEffect(() => {
-    usedRowIdsRef.current = new Set()
-    p1BatchCompleteFiredRef.current = false
-    comboSyncedRef.current = false
-    practiceSyncedRef.current = false
-    lastBonusAtComboRef.current = 0
-    queueMicrotask(() => {
-      setQueue([])
-      setQueueReady(false)
-      setRoundVersion((v) => v + 1)
-      setP1BatchMatchedIds(new Set())
-      setP1UsedExplanations([])
-      setP1Collected([])
-      setCombo(0)
-      setBestCombo(0)
-      setInterlude(false)
-      setGameOver(false)
-      setStarted(false)
-      setPointBonus(null)
-      setDeadline(Date.now() + MATCH_WINDOW_MS)
-      setNowMs(Date.now())
-    })
-  }, [packId])
 
   useEffect(() => {
     comboRef.current = combo
@@ -541,92 +529,218 @@ export default function ComboChallenge() {
     [packs],
   )
 
-  // 연습 최고 기록 표시용 — gameOver 시 갱신
-  const practiceRecordDisplay = packId
-    ? getPracticeComboRecord(String(packId))
-    : null
+  const practiceRecordLobby =
+    lobbyPackId != null
+      ? getPracticeComboRecord(String(lobbyPackId))
+      : null
 
-  if (!packId) {
-    if (loading) {
-      return (
-        <div className="game-shell flex min-h-dvh items-center justify-center text-slate-300">
-          불러오는 중…
-        </div>
-      )
-    }
-    if (error) {
-      return (
-        <div className="game-shell flex min-h-dvh flex-col items-center justify-center gap-3 px-4 text-center text-slate-300">
-          <p>팩을 불러오지 못했어요.</p>
-          <Link className="text-sky-400 underline" to="/">
-            홈으로
-          </Link>
-        </div>
-      )
-    }
-    return (
-      <div className="game-shell min-h-dvh px-4 pb-8 pt-4 text-slate-200">
-        <div className="mx-auto w-full max-w-lg">
-          <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <Link
-              to="/"
-              className="text-sm text-sky-400 underline underline-offset-2"
-            >
-              ← 홈
-            </Link>
-            <span className="text-xs text-slate-400">무한도전</span>
-          </header>
-          <h1 className="font-display text-lg font-bold text-violet-200">
-            단어팩 선택
-          </h1>
-          <p className="mt-2 text-xs leading-relaxed text-slate-400">
-            도전할 단어팩을 고른 뒤 규칙 화면에서 도전/연습을 고르고 시작하세요.
-            목록 순서는 눈치게임과 같습니다(따라하기 팩이 맨 위).
-          </p>
-          {playablePacks.length === 0 ? (
-            <p className="mt-6 text-center text-sm text-slate-500">
-              지금 도전 가능한 팩이 없어요. 홈에서 엑셀 구성을 확인해 주세요.
-            </p>
-          ) : (
-            <ul className="mt-4 flex flex-col gap-2">
-              {playablePacks.map((p) => (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    className="w-full rounded-2xl border border-violet-500/40 bg-slate-900/70 px-4 py-3.5 text-left text-sm font-semibold text-slate-100 transition hover:border-violet-400/70 hover:bg-slate-800/80"
-                    onClick={() =>
-                      navigate(
-                        `/combo-challenge?packId=${encodeURIComponent(String(p.id))}`,
-                      )
-                    }
-                  >
-                    {displaySheetName(p)}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-    )
-  }
+  const beginPlaySession = useCallback(() => {
+    if (!lobbyPackId) return
+    const p = packs.find((x) => String(x.id) === String(lobbyPackId))
+    if (!p) return
+    const vr = p.rows.filter((r) => r.topic && r.explanation)
+    const ml = maxLevelFromRowCount(vr.length)
+    if (ml < 1 || p.missingColumns.length > 0 || vr.length === 0) return
+
+    setPlayPackId(String(lobbyPackId))
+    setPlayMode(lobbyMode)
+    setView('play')
+    setStarted(true)
+    queueMicrotask(() => {
+      usedRowIdsRef.current = new Set()
+      p1BatchCompleteFiredRef.current = false
+      comboSyncedRef.current = false
+      practiceSyncedRef.current = false
+      lastBonusAtComboRef.current = 0
+      setQueue([])
+      setQueueReady(false)
+      setRoundVersion((v) => v + 1)
+      setP1BatchMatchedIds(new Set())
+      setP1UsedExplanations([])
+      setP1Collected([])
+      setCombo(0)
+      setBestCombo(0)
+      setInterlude(false)
+      setGameOver(false)
+      setPointBonus(null)
+      const t = Date.now()
+      setNowMs(t)
+      if (lobbyMode === 'challenge') {
+        setDeadline(t + MATCH_WINDOW_MS)
+      } else {
+        setDeadline(Number.POSITIVE_INFINITY)
+      }
+    })
+  }, [lobbyPackId, lobbyMode, packs])
+
+  const returnToLobby = useCallback(() => {
+    setView('lobby')
+    setPlayPackId(null)
+    setStarted(false)
+    setInterlude(false)
+    setGameOver(false)
+    setCombo(0)
+    setBestCombo(0)
+    usedRowIdsRef.current = new Set()
+    setP1Collected([])
+    setRoundVersion((v) => v + 1)
+    setQueueReady(false)
+    setQueue([])
+    setPointBonus(null)
+    lastBonusAtComboRef.current = 0
+    setDeadline(Date.now() + MATCH_WINDOW_MS)
+  }, [])
 
   if (loading) {
     return (
-      <div className="game-shell flex min-h-dvh items-center justify-center text-slate-300">
+      <div className="game-shell flex min-h-dvh items-center justify-center text-zinc-200">
         불러오는 중…
       </div>
     )
   }
 
-  if (error || !pack || !canPlay) {
+  if (error) {
     return (
-      <div className="game-shell flex min-h-dvh flex-col items-center justify-center gap-3 px-4 text-center text-slate-300">
-        <p>이 팩으로 도전할 수 없어요.</p>
-        <Link className="text-violet-300 underline" to="/combo-challenge">
-          단어팩 다시 고르기
+      <div className="game-shell flex min-h-dvh flex-col items-center justify-center gap-3 px-4 text-center text-zinc-200">
+        <p>팩을 불러오지 못했어요.</p>
+        <Link className="text-sky-300 underline underline-offset-2" to="/">
+          홈으로
         </Link>
-        <Link className="text-sky-400 underline" to="/">
+      </div>
+    )
+  }
+
+  // ——— 로비: 팩 + 모드 + 시작하기 한 화면 ———
+  if (view === 'lobby') {
+    return (
+      <div className="game-shell combo-lobby min-h-dvh px-4 pb-8 pt-4 text-zinc-100">
+        <div className="mx-auto flex w-full max-w-lg flex-col gap-4">
+          <header className="flex flex-wrap items-center justify-between gap-2">
+            <Link
+              to="/"
+              className="text-sm font-medium text-sky-300 underline underline-offset-2"
+            >
+              ← 홈
+            </Link>
+            <span className="text-xs font-medium text-zinc-300">무한도전</span>
+          </header>
+
+          <div>
+            <h1 className="font-display text-xl font-bold text-violet-200">
+              무한도전
+            </h1>
+            <p className="mt-1.5 text-sm leading-relaxed text-zinc-200">
+              단어팩과 모드를 고른 뒤{' '}
+              <span className="font-semibold text-amber-200">시작하기</span>를 누르면
+              바로 플레이 화면으로 넘어갑니다.
+            </p>
+          </div>
+
+          <section className="rounded-2xl border border-zinc-600/80 bg-zinc-900/75 p-4 shadow-lg">
+            <h2 className="text-sm font-bold text-zinc-50">1. 단어팩</h2>
+            {playablePacks.length === 0 ? (
+              <p className="mt-3 text-sm text-zinc-200">
+                지금 도전 가능한 팩이 없어요. 홈에서 엑셀 구성을 확인해 주세요.
+              </p>
+            ) : (
+              <ul className="mt-3 max-h-[min(42dvh,20rem)] space-y-2 overflow-y-auto pr-1 [-webkit-overflow-scrolling:touch]">
+                {playablePacks.map((p) => {
+                  const sel = String(lobbyPackId) === String(p.id)
+                  return (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        onClick={() => setLobbyPackId(String(p.id))}
+                        className={`flex w-full rounded-xl border-2 px-3 py-3 text-left text-sm font-semibold transition ${
+                          sel
+                            ? 'border-violet-400 bg-violet-950/50 text-zinc-50 ring-2 ring-violet-400/40'
+                            : 'border-zinc-600/90 bg-zinc-950/40 text-zinc-100 hover:border-zinc-500'
+                        }`}
+                      >
+                        {displaySheetName(p)}
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-zinc-600/80 bg-zinc-900/75 p-4 shadow-lg">
+            <h2 className="text-sm font-bold text-zinc-50">2. 모드</h2>
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setLobbyMode('challenge')}
+                className={`flex-1 rounded-xl py-3 text-sm font-semibold ${
+                  lobbyMode === 'challenge'
+                    ? 'bg-violet-600 text-white ring-2 ring-violet-300/80'
+                    : 'border border-zinc-600 bg-zinc-950/50 text-zinc-100 hover:bg-zinc-800/80'
+                }`}
+              >
+                도전모드
+              </button>
+              <button
+                type="button"
+                onClick={() => setLobbyMode('practice')}
+                className={`flex-1 rounded-xl py-3 text-sm font-semibold ${
+                  lobbyMode === 'practice'
+                    ? 'bg-emerald-600 text-white ring-2 ring-emerald-300/80'
+                    : 'border border-zinc-600 bg-zinc-950/50 text-zinc-100 hover:bg-zinc-800/80'
+                }`}
+              >
+                연습모드
+              </button>
+            </div>
+            <ul className="mt-3 list-inside list-disc space-y-1.5 text-xs leading-relaxed text-zinc-200">
+              {lobbyMode === 'challenge' ? (
+                <>
+                  <li>5초 제한, 명예의 전당(도전 최고 연속) 반영.</li>
+                  <li>
+                    로그인 시 가끔 1~5포인트 도전 팝업(튜토·동물·식물 팩 제외).
+                  </li>
+                </>
+              ) : (
+                <>
+                  <li>시간 제한 없음, 포인트·보상 팝업 없음.</li>
+                  <li>연습 최고 연속은 이 기기에만 저장됩니다.</li>
+                </>
+              )}
+            </ul>
+            {lobbyMode === 'practice' && practiceRecordLobby ? (
+              <p className="mt-2 text-xs font-medium text-emerald-200">
+                선택한 팩 연습 최고 연속:{' '}
+                <span className="font-mono">{practiceRecordLobby.maxCombo}</span>
+              </p>
+            ) : null}
+          </section>
+
+          <button
+            type="button"
+            disabled={!lobbyPackId || playablePacks.length === 0}
+            className="w-full rounded-2xl bg-gradient-to-r from-amber-600 to-rose-700 py-4 text-base font-bold text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-45"
+            onClick={() => beginPlaySession()}
+          >
+            시작하기
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ——— 플레이: 잘못된 팩 방어 ———
+  if (!pack || !canPlay) {
+    return (
+      <div className="game-shell flex min-h-dvh flex-col items-center justify-center gap-3 px-4 text-center text-zinc-200">
+        <p>이 팩으로 진행할 수 없어요.</p>
+        <button
+          type="button"
+          className="text-violet-300 underline"
+          onClick={() => returnToLobby()}
+        >
+          설정으로 돌아가기
+        </button>
+        <Link className="text-sky-300 underline" to="/">
           홈으로
         </Link>
       </div>
@@ -639,33 +753,43 @@ export default function ComboChallenge() {
       : null
 
   return (
-    <div className="game-shell min-h-dvh px-4 pb-8 pt-4 text-slate-200">
+    <div className="game-shell min-h-dvh px-4 pb-8 pt-4 text-zinc-100">
       <div className="mx-auto w-full max-w-lg">
         <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <Link
-            to="/"
-            className="text-sm text-sky-400 underline underline-offset-2"
-          >
-            ← 홈
-          </Link>
-          <div className="text-right text-xs text-slate-400">
-            <p className="font-medium text-slate-100">{displaySheetName(pack)}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to="/"
+              className="text-sm font-medium text-sky-300 underline underline-offset-2"
+            >
+              ← 홈
+            </Link>
+            <button
+              type="button"
+              onClick={() => returnToLobby()}
+              className="text-sm font-medium text-zinc-200 underline decoration-zinc-500 underline-offset-2 hover:text-white"
+            >
+              팩·모드 변경
+            </button>
+          </div>
+          <div className="text-right text-xs text-zinc-200">
+            <p className="font-semibold text-zinc-50">{displaySheetName(pack)}</p>
             <p>
-              무한도전 ·{' '}
-              <span className="text-violet-300">
-                {isPractice ? '연습모드' : '도전모드'}
+              <span className="text-zinc-300">무한도전</span>
+              {' · '}
+              <span className="font-medium text-violet-200">
+                {isPractice ? '연습' : '도전'}
               </span>
             </p>
           </div>
         </header>
 
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-600/80 bg-slate-900/60 px-4 py-3">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-500/70 bg-zinc-900/70 px-4 py-3">
           <div>
-            <p className="text-[11px] text-slate-400">연속 성공</p>
+            <p className="text-[11px] font-medium text-zinc-200">연속 성공</p>
             <p className="font-mono text-2xl font-bold text-amber-300">{combo}</p>
           </div>
           <div className="text-right">
-            <p className="text-[11px] text-slate-400">남은 시간</p>
+            <p className="text-[11px] font-medium text-zinc-200">남은 시간</p>
             <p className="font-mono text-xl text-sky-300">
               {!isChallenge
                 ? '∞'
@@ -680,103 +804,21 @@ export default function ComboChallenge() {
           </div>
         </div>
 
-        {!started ? (
-          <div className="rounded-2xl border border-slate-600 bg-slate-900/50 p-5 text-sm leading-relaxed text-slate-300">
-            <p className="font-semibold text-slate-100">모드</p>
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setPlayModeParam('challenge')}
-                className={`flex-1 rounded-xl py-2.5 text-xs font-semibold ${
-                  isChallenge
-                    ? 'bg-violet-600 text-white ring-2 ring-violet-400'
-                    : 'border border-slate-600 bg-slate-800/80 text-slate-300'
-                }`}
-              >
-                도전모드
-              </button>
-              <button
-                type="button"
-                onClick={() => setPlayModeParam('practice')}
-                className={`flex-1 rounded-xl py-2.5 text-xs font-semibold ${
-                  isPractice
-                    ? 'bg-emerald-700 text-white ring-2 ring-emerald-500'
-                    : 'border border-slate-600 bg-slate-800/80 text-slate-300'
-                }`}
-              >
-                연습모드
-              </button>
-            </div>
-            <p className="mt-4 font-semibold text-slate-100">규칙</p>
-            <ul className="mt-2 list-inside list-disc space-y-1 text-xs">
-              <li>주제어에 맞는 뜻을 세 가지 중 하나를 눌러 고릅니다. 주제는 매 판 랜덤입니다.</li>
-              {isChallenge ? (
-                <>
-                  <li>5초 안에 맞추면 타이머가 다시 5초로 갱신됩니다.</li>
-                  <li>오답이거나 시간이 0이 되면 종료입니다. 명예의 전당(도전 최고 연속)에 반영됩니다.</li>
-                  <li>
-                    로그인 시, 도전 중 가끔 1~5포인트 도전! 팝업이 뜹니다(튜토·동물·식물 팩
-                    제외). 맞추면 포인트가 지급됩니다.
-                  </li>
-                </>
-              ) : (
-                <>
-                  <li>시간 제한 없이 연습합니다. 포인트·도전 보상 팝업은 없습니다.</li>
-                  <li>오답 시에만 종료합니다. 연습 최고 연속은 이 기기에만 저장됩니다.</li>
-                </>
-              )}
-            </ul>
-            {isPractice && practiceRecordDisplay ? (
-              <p className="mt-3 text-xs text-emerald-300/90">
-                이 팩 연습 최고 연속:{' '}
-                <span className="font-mono font-bold">
-                  {practiceRecordDisplay.maxCombo}
-                </span>
-              </p>
-            ) : null}
-            <button
-              type="button"
-              className="mt-4 w-full rounded-2xl bg-gradient-to-r from-amber-700 to-rose-800 py-3 text-base font-semibold text-white shadow-lg"
-              onClick={() => {
-                const t = Date.now()
-                setStarted(true)
-                setInterlude(false)
-                setPointBonus(null)
-                lastBonusAtComboRef.current = 0
-                if (isChallenge) {
-                  setDeadline(t + MATCH_WINDOW_MS)
-                } else {
-                  setDeadline(Number.POSITIVE_INFINITY)
-                }
-                setNowMs(t)
-                setGameOver(false)
-                setCombo(0)
-              }}
-            >
-              시작
-            </button>
-            <Link
-              className="mt-3 block text-center text-sm text-violet-300 underline underline-offset-2"
-              to="/combo-challenge"
-            >
-              다른 단어팩 고르기
-            </Link>
-          </div>
-        ) : gameOver ? (
-          <div className="rounded-2xl border border-slate-600 bg-slate-900/50 p-6 text-center">
-            <p className="text-lg font-bold text-slate-100">종료</p>
-            <p className="mt-2 text-slate-300">
+        {gameOver ? (
+          <div className="rounded-2xl border border-zinc-600 bg-zinc-900/60 p-6 text-center">
+            <p className="text-lg font-bold text-zinc-50">종료</p>
+            <p className="mt-2 text-zinc-100">
               이번 최고 연속{' '}
               <span className="font-mono text-amber-300">{bestCombo}</span>
             </p>
             {isPractice ? (
-              <p className="mt-1 text-xs text-emerald-300/90">
-                연습 기록은 이 기기에만 저장되며, 명예의 전당에는 올라가지 않습니다.
+              <p className="mt-1 text-xs text-emerald-200">
+                연습 기록은 이 기기에만 저장됩니다.
               </p>
             ) : null}
             <button
               type="button"
-              className="mt-4 w-full rounded-2xl border border-slate-500 py-3 text-slate-200"
+              className="mt-4 w-full rounded-2xl border border-zinc-500 bg-zinc-800/80 py-3 font-medium text-zinc-50"
               onClick={() => {
                 setStarted(false)
                 setInterlude(false)
@@ -790,13 +832,27 @@ export default function ComboChallenge() {
                 setQueue([])
                 setPointBonus(null)
                 lastBonusAtComboRef.current = 0
-                setDeadline(Date.now() + MATCH_WINDOW_MS)
+                const t = Date.now()
+                if (isChallenge) {
+                  setDeadline(t + MATCH_WINDOW_MS)
+                } else {
+                  setDeadline(Number.POSITIVE_INFINITY)
+                }
+                setNowMs(t)
+                setStarted(true)
               }}
             >
               다시 도전
             </button>
+            <button
+              type="button"
+              className="mt-3 w-full rounded-2xl border border-violet-500/50 py-2.5 text-sm font-medium text-violet-200"
+              onClick={() => returnToLobby()}
+            >
+              팩·모드 다시 고르기
+            </button>
             <Link
-              className="mt-3 block text-sm text-sky-400 underline"
+              className="mt-3 block text-sm text-sky-300 underline"
               to="/"
             >
               홈으로
@@ -815,27 +871,27 @@ export default function ComboChallenge() {
           </div>
         ) : pointBonus ? (
           <div
-            className="relative rounded-2xl border-2 border-amber-400/90 bg-gradient-to-b from-amber-950/95 to-slate-900/95 p-4 shadow-xl shadow-amber-900/40"
+            className="relative rounded-2xl border-2 border-amber-400/90 bg-gradient-to-b from-amber-950/95 to-zinc-950/95 p-4 shadow-xl shadow-amber-900/40"
             role="dialog"
             aria-modal="true"
             aria-labelledby="pt-bonus-title"
           >
             <p
               id="pt-bonus-title"
-              className="text-center text-base font-black text-amber-300"
+              className="text-center text-base font-black text-amber-200"
             >
               {pointBonus.points}포인트 도전!
             </p>
-            <p className="mt-1 text-center text-[11px] text-amber-200/90">
+            <p className="mt-1 text-center text-[11px] text-amber-100/95">
               맞추면 포인트가 지급됩니다
             </p>
-            <p className="mt-4 text-center text-[11px] font-medium uppercase tracking-wide text-slate-400">
+            <p className="mt-4 text-center text-[11px] font-semibold uppercase tracking-wide text-zinc-200">
               주제어
             </p>
-            <p className="mt-1 min-h-[2.5rem] text-center text-lg font-bold leading-snug text-amber-100">
+            <p className="mt-1 min-h-[2.5rem] text-center text-lg font-bold leading-snug text-amber-50">
               {String(pointBonus.row.topic ?? '').trim() || '—'}
             </p>
-            <p className="mt-3 text-center text-[11px] text-slate-500">
+            <p className="mt-3 text-center text-[11px] text-zinc-200">
               맞는 뜻을 고르세요
             </p>
             <ul className="mt-2 flex flex-col gap-2">
@@ -843,7 +899,7 @@ export default function ComboChallenge() {
                 <li key={s.id}>
                   <button
                     type="button"
-                    className="w-full rounded-xl border border-amber-600/50 bg-slate-800/90 px-4 py-3.5 text-left text-base font-medium leading-snug text-slate-100 transition hover:border-amber-400 hover:bg-slate-700/90 active:scale-[0.99]"
+                    className="w-full rounded-xl border border-amber-500/60 bg-zinc-800/95 px-4 py-3.5 text-left text-base font-medium leading-snug text-zinc-50 transition hover:border-amber-300 hover:bg-zinc-700/95 active:scale-[0.99]"
                     onClick={() => onPickPointBonus(s.explanation)}
                   >
                     {s.explanation}
@@ -853,14 +909,14 @@ export default function ComboChallenge() {
             </ul>
           </div>
         ) : (
-          <div className="rounded-2xl border border-slate-600 bg-slate-900/70 p-4">
-            <p className="text-center text-[11px] font-medium uppercase tracking-wide text-slate-500">
+          <div className="rounded-2xl border border-zinc-600 bg-zinc-900/75 p-4">
+            <p className="text-center text-[11px] font-semibold uppercase tracking-wide text-zinc-200">
               주제어
             </p>
             <p className="mt-2 min-h-[3rem] text-center text-xl font-bold leading-snug text-amber-100">
               {topicText || '…'}
             </p>
-            <p className="mt-4 text-center text-[11px] text-slate-500">
+            <p className="mt-4 text-center text-[11px] text-zinc-200">
               맞는 뜻을 고르세요
             </p>
             <ul className="mt-2 flex flex-col gap-2">
@@ -868,7 +924,7 @@ export default function ComboChallenge() {
                 <li key={s.id}>
                   <button
                     type="button"
-                    className="w-full rounded-xl border border-slate-500/80 bg-slate-800/90 px-4 py-3.5 text-left text-base font-medium leading-snug text-slate-100 transition hover:border-amber-500/60 hover:bg-slate-700/90 active:scale-[0.99]"
+                    className="w-full rounded-xl border border-zinc-500 bg-zinc-800/95 px-4 py-3.5 text-left text-base font-medium leading-snug text-zinc-50 transition hover:border-amber-400/70 hover:bg-zinc-700/95 active:scale-[0.99]"
                     onClick={() => onPickExplanation(s.explanation)}
                   >
                     {s.explanation}
@@ -877,7 +933,9 @@ export default function ComboChallenge() {
               ))}
             </ul>
             {p1Slots.length === 0 && topicText ? (
-              <p className="mt-3 text-center text-xs text-slate-500">다음 문제 준비 중…</p>
+              <p className="mt-3 text-center text-xs text-zinc-300">
+                다음 문제 준비 중…
+              </p>
             ) : null}
           </div>
         )}

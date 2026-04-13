@@ -406,7 +406,7 @@ export default function Home() {
                     className="block rounded-2xl border border-violet-500/50 py-2.5 text-center text-xs font-medium text-violet-200"
                     to={`/combo-challenge?packId=${encodeURIComponent(String(effectivePackId))}`}
                   >
-                    홈에서 고른 팩으로 바로 시작
+                    홈에서 고른 팩 미리 선택
                   </Link>
                 ) : null}
               </div>

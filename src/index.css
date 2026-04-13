@@ -289,7 +289,7 @@ body::before {
     radial-gradient(ellipse 110% 70% at 50% -12%, rgba(90, 75, 50, 0.22), transparent),
     radial-gradient(ellipse 90% 55% at 100% 30%, rgba(50, 70, 95, 0.16), transparent),
     radial-gradient(ellipse 70% 45% at 0% 90%, rgba(55, 75, 60, 0.14), transparent);
-  color: #e8e4dc;
+  color: #f2efe6;
 }
 
 @media (orientation: landscape) and (min-width: 700px) {
