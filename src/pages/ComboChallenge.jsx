@@ -4,10 +4,17 @@ import { useAuth } from '../contexts/AuthContext'
 import { useCardPacks } from '../contexts/CardPackContext'
 import { resolveDisplayNameForHoF } from '../services/authService'
 import { addPointsBonus } from '../services/userShopService'
-import { saveHallOfFameComboIfBetter } from '../utils/hallOfFame'
+import {
+  getPracticeComboRecord,
+  saveHallOfFameComboIfBetter,
+  savePracticeComboIfBetter,
+} from '../utils/hallOfFame'
 import { sfxCombo } from '../utils/gameSfx'
 import { maxLevelFromRowCount } from '../utils/gameRules'
-import { displaySheetName } from '../utils/tutorialPack'
+import {
+  displaySheetName,
+  isComboPointEligiblePack,
+} from '../utils/tutorialPack'
 import { usePlayerProgressStore } from '../stores/playerProgressStore'
 
 /** 한 번에 주제어 1개 + 보기(뜻) 3개 — 탭으로 선택 */
@@ -24,6 +31,62 @@ function shuffleRows(rows) {
 }
 
 /**
+ * 한 주제어(row)에 대해 보기 3칸(정답 1 + 오답 2) 생성 — 포인트 도전 팝업 등에 재사용
+ */
+function buildExplanationChoiceSlots(targetRow, validRows, idPrefix) {
+  if (!targetRow?.id || !validRows?.length) return []
+  const correctParts = [
+    {
+      explanation: String(targetRow.explanation ?? '').trim(),
+      correctRowId: String(targetRow.id),
+      _p1Filler: false,
+    },
+  ]
+  const excluded = new Set(correctParts.map((c) => c.explanation))
+  const pool = shuffleRows(
+    validRows.filter((r) => {
+      const exp = String(r.explanation ?? '').trim()
+      return r.topic && exp && !excluded.has(exp)
+    }),
+  )
+  const distractors = []
+  let guard = 0
+  while (distractors.length < 2 && guard < 500) {
+    guard += 1
+    const r = pool.pop()
+    if (!r) break
+    const exp = String(r.explanation ?? '').trim()
+    if (!exp || excluded.has(exp)) continue
+    excluded.add(exp)
+    distractors.push({
+      explanation: exp,
+      correctRowId: null,
+      _p1Filler: true,
+    })
+  }
+  let fb = 0
+  while (distractors.length < 2 && validRows.length > 0) {
+    const r = validRows[fb % validRows.length]
+    fb += 1
+    const exp = String(r?.explanation ?? '').trim()
+    if (!exp || excluded.has(exp)) continue
+    excluded.add(exp)
+    distractors.push({
+      explanation: exp,
+      correctRowId: null,
+      _p1Filler: true,
+    })
+  }
+  const combined = shuffleRows([...correctParts, ...distractors]).slice(0, 3)
+  return combined.map((item, i) => ({
+    id: `${idPrefix}-${i}`,
+    explanation: item.explanation,
+    correctRowId: item.correctRowId,
+    _p1Filler: item._p1Filler,
+  }))
+}
+
+/**
  * 무한도전 — 주제어에 맞는 뜻을 3개 중 탭으로 고름. 주제는 매 판 랜덤.
  */
 function comboPackPlayable(p) {
@@ -35,12 +98,29 @@ function comboPackPlayable(p) {
 }
 
 export default function ComboChallenge() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const packId = searchParams.get('packId')
+  const playMode =
+    searchParams.get('mode') === 'practice' ? 'practice' : 'challenge'
+  const isChallenge = playMode === 'challenge'
+  const isPractice = playMode === 'practice'
+
   const { user } = useAuth()
   const { packs, loading, error } = useCardPacks()
   const refreshFromServer = usePlayerProgressStore((s) => s.refreshFromServer)
+
+  const setPlayModeParam = useCallback(
+    (next) => {
+      if (!packId) return
+      const p = new URLSearchParams(searchParams)
+      p.set('packId', String(packId))
+      if (next === 'practice') p.set('mode', 'practice')
+      else p.delete('mode')
+      setSearchParams(p, { replace: true })
+    },
+    [packId, searchParams, setSearchParams],
+  )
 
   const pack = useMemo(
     () => packs.find((p) => String(p.id) === String(packId)),
@@ -73,6 +153,15 @@ export default function ComboChallenge() {
   const [nowMs, setNowMs] = useState(() => Date.now())
   const p1BatchCompleteFiredRef = useRef(false)
   const comboSyncedRef = useRef(false)
+  const practiceSyncedRef = useRef(false)
+  /** 도전모드 랜덤 포인트 팝업 */
+  const [pointBonus, setPointBonus] = useState(
+    /** @type {null | { points: number, row: object, slots: object[] }} */ (
+      null
+    ),
+  )
+  const lastBonusAtComboRef = useRef(0)
+  const comboRef = useRef(0)
 
   const cardsNeededThisLevel = WAVE_SIZE
   const need = cardsNeededThisLevel - p1Collected.length
@@ -103,6 +192,8 @@ export default function ComboChallenge() {
     usedRowIdsRef.current = new Set()
     p1BatchCompleteFiredRef.current = false
     comboSyncedRef.current = false
+    practiceSyncedRef.current = false
+    lastBonusAtComboRef.current = 0
     queueMicrotask(() => {
       setQueue([])
       setQueueReady(false)
@@ -115,10 +206,15 @@ export default function ComboChallenge() {
       setInterlude(false)
       setGameOver(false)
       setStarted(false)
+      setPointBonus(null)
       setDeadline(Date.now() + MATCH_WINDOW_MS)
       setNowMs(Date.now())
     })
   }, [packId])
+
+  useEffect(() => {
+    comboRef.current = combo
+  }, [combo])
 
   const handleP1BatchComplete = useCallback(
     (rows) => {
@@ -273,18 +369,13 @@ export default function ComboChallenge() {
           const n = c + 1
           setBestCombo((b) => Math.max(b, n))
           sfxCombo(n)
-          if (n > 0 && n % 10 === 0 && user?.uid) {
-            void addPointsBonus(user.uid, 1).then(() =>
-              refreshFromServer(user.uid),
-            )
-          }
           return n
         })
       } else {
         setGameOver(true)
       }
     },
-    [started, gameOver, interlude, user, refreshFromServer],
+    [started, gameOver, interlude],
   )
 
   const onPickExplanation = useCallback(
@@ -316,29 +407,94 @@ export default function ComboChallenge() {
     ],
   )
 
+  // 연속 성공 후 1초 딜레이 — 끝나면 도전모드에서 랜덤 포인트 팝업 시도 또는 다음 타이머
   useEffect(() => {
     if (!interlude) return
     const id = window.setTimeout(() => {
       setInterlude(false)
       const t = Date.now()
-      setDeadline(t + MATCH_WINDOW_MS)
       setNowMs(t)
+      const c = comboRef.current
+
+      const canOfferPointBonus =
+        isChallenge &&
+        user?.uid &&
+        pack &&
+        isComboPointEligiblePack(pack) &&
+        validRows.length > 0 &&
+        c >= 2 &&
+        c - lastBonusAtComboRef.current >= 2 &&
+        Math.random() < 0.28
+
+      if (canOfferPointBonus) {
+        const row = validRows[Math.floor(Math.random() * validRows.length)]
+        const slots = buildExplanationChoiceSlots(row, validRows, `pb-${t}`)
+        if (slots.length >= 3 && row) {
+          lastBonusAtComboRef.current = c
+          const points = 1 + Math.floor(Math.random() * 5)
+          setPointBonus({ points, row, slots })
+          return
+        }
+      }
+
+      if (isChallenge) {
+        setDeadline(t + MATCH_WINDOW_MS)
+      } else {
+        setDeadline(Number.POSITIVE_INFINITY)
+      }
     }, 1000)
     return () => window.clearTimeout(id)
-  }, [interlude])
+  }, [interlude, isChallenge, user, pack, validRows])
 
   useEffect(() => {
-    if (!started || gameOver || interlude) return
+    if (!started || gameOver || interlude || pointBonus) return
+    if (isPractice) return
     const id = window.setInterval(() => {
       const t = Date.now()
       setNowMs(t)
       if (t > deadline) setGameOver(true)
     }, 100)
     return () => window.clearInterval(id)
-  }, [started, gameOver, interlude, deadline])
+  }, [started, gameOver, interlude, deadline, pointBonus, isPractice])
+
+  const dismissPointBonusAndResume = useCallback(() => {
+    setPointBonus(null)
+    const t = Date.now()
+    setNowMs(t)
+    if (isChallenge) {
+      setDeadline(t + MATCH_WINDOW_MS)
+    } else {
+      setDeadline(Number.POSITIVE_INFINITY)
+    }
+  }, [isChallenge])
+
+  const onPickPointBonus = useCallback(
+    (explanation) => {
+      if (!pointBonus || !user?.uid) {
+        dismissPointBonusAndResume()
+        return
+      }
+      const exp = String(explanation).trim()
+      const slot = pointBonus.slots.find(
+        (s) => String(s.explanation).trim() === exp,
+      )
+      const ok =
+        slot != null &&
+        slot.correctRowId != null &&
+        String(slot.correctRowId) === String(pointBonus.row.id)
+      if (ok) {
+        const pts = pointBonus.points
+        void addPointsBonus(user.uid, pts).then(() =>
+          refreshFromServer(user.uid),
+        )
+      }
+      dismissPointBonusAndResume()
+    },
+    [pointBonus, user, refreshFromServer, dismissPointBonusAndResume],
+  )
 
   useEffect(() => {
-    if (!gameOver || !pack || !user?.uid) return
+    if (!gameOver || !pack || !user?.uid || !isChallenge) return
     if (comboSyncedRef.current) return
     const bc = bestCombo
     if (bc < 1) return
@@ -351,10 +507,24 @@ export default function ComboChallenge() {
         /* noop */
       }
     })()
-  }, [gameOver, pack, user, bestCombo])
+  }, [gameOver, pack, user, bestCombo, isChallenge])
 
   useEffect(() => {
-    if (!gameOver) comboSyncedRef.current = false
+    if (!gameOver || !pack || isChallenge) return
+    if (practiceSyncedRef.current) return
+    const bc = bestCombo
+    if (bc < 1) return
+    practiceSyncedRef.current = true
+    queueMicrotask(() => {
+      savePracticeComboIfBetter(String(pack.id), bc)
+    })
+  }, [gameOver, pack, bestCombo, isChallenge])
+
+  useEffect(() => {
+    if (!gameOver) {
+      comboSyncedRef.current = false
+      practiceSyncedRef.current = false
+    }
   }, [gameOver])
 
   const maxLv = maxLevelFromRowCount(validRows.length)
@@ -370,6 +540,11 @@ export default function ComboChallenge() {
     () => packs.filter(comboPackPlayable),
     [packs],
   )
+
+  // 연습 최고 기록 표시용 — gameOver 시 갱신
+  const practiceRecordDisplay = packId
+    ? getPracticeComboRecord(String(packId))
+    : null
 
   if (!packId) {
     if (loading) {
@@ -405,8 +580,8 @@ export default function ComboChallenge() {
             단어팩 선택
           </h1>
           <p className="mt-2 text-xs leading-relaxed text-slate-400">
-            도전할 단어팩을 고른 뒤 규칙 화면에서 시작하세요. 목록 순서는 눈치게임과
-            같습니다(따라하기 팩이 맨 위).
+            도전할 단어팩을 고른 뒤 규칙 화면에서 도전/연습을 고르고 시작하세요.
+            목록 순서는 눈치게임과 같습니다(따라하기 팩이 맨 위).
           </p>
           {playablePacks.length === 0 ? (
             <p className="mt-6 text-center text-sm text-slate-500">
@@ -458,7 +633,10 @@ export default function ComboChallenge() {
     )
   }
 
-  const secLeft = Math.max(0, (deadline - nowMs) / 1000)
+  const secLeft =
+    isChallenge && Number.isFinite(deadline)
+      ? Math.max(0, (deadline - nowMs) / 1000)
+      : null
 
   return (
     <div className="game-shell min-h-dvh px-4 pb-8 pt-4 text-slate-200">
@@ -472,7 +650,12 @@ export default function ComboChallenge() {
           </Link>
           <div className="text-right text-xs text-slate-400">
             <p className="font-medium text-slate-100">{displaySheetName(pack)}</p>
-            <p>무한도전</p>
+            <p>
+              무한도전 ·{' '}
+              <span className="text-violet-300">
+                {isPractice ? '연습모드' : '도전모드'}
+              </span>
+            </p>
           </div>
         </header>
 
@@ -484,24 +667,73 @@ export default function ComboChallenge() {
           <div className="text-right">
             <p className="text-[11px] text-slate-400">남은 시간</p>
             <p className="font-mono text-xl text-sky-300">
-              {started && !gameOver
-                ? interlude
-                  ? '…'
-                  : `${secLeft.toFixed(1)}초`
-                : '—'}
+              {!isChallenge
+                ? '∞'
+                : started && !gameOver
+                  ? interlude
+                    ? '…'
+                    : pointBonus
+                      ? '…'
+                      : `${secLeft != null ? secLeft.toFixed(1) : '—'}초`
+                  : '—'}
             </p>
           </div>
         </div>
 
         {!started ? (
           <div className="rounded-2xl border border-slate-600 bg-slate-900/50 p-5 text-sm leading-relaxed text-slate-300">
-            <p className="font-semibold text-slate-100">규칙</p>
+            <p className="font-semibold text-slate-100">모드</p>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPlayModeParam('challenge')}
+                className={`flex-1 rounded-xl py-2.5 text-xs font-semibold ${
+                  isChallenge
+                    ? 'bg-violet-600 text-white ring-2 ring-violet-400'
+                    : 'border border-slate-600 bg-slate-800/80 text-slate-300'
+                }`}
+              >
+                도전모드
+              </button>
+              <button
+                type="button"
+                onClick={() => setPlayModeParam('practice')}
+                className={`flex-1 rounded-xl py-2.5 text-xs font-semibold ${
+                  isPractice
+                    ? 'bg-emerald-700 text-white ring-2 ring-emerald-500'
+                    : 'border border-slate-600 bg-slate-800/80 text-slate-300'
+                }`}
+              >
+                연습모드
+              </button>
+            </div>
+            <p className="mt-4 font-semibold text-slate-100">규칙</p>
             <ul className="mt-2 list-inside list-disc space-y-1 text-xs">
               <li>주제어에 맞는 뜻을 세 가지 중 하나를 눌러 고릅니다. 주제는 매 판 랜덤입니다.</li>
-              <li>5초 안에 맞추면 타이머가 다시 5초로 갱신됩니다.</li>
-              <li>오답이거나 시간이 0이 되면 종료입니다.</li>
-              <li>연속 성공 10번마다 포인트 1 (로그인 시 지급)</li>
+              {isChallenge ? (
+                <>
+                  <li>5초 안에 맞추면 타이머가 다시 5초로 갱신됩니다.</li>
+                  <li>오답이거나 시간이 0이 되면 종료입니다. 명예의 전당(도전 최고 연속)에 반영됩니다.</li>
+                  <li>
+                    로그인 시, 도전 중 가끔 1~5포인트 도전! 팝업이 뜹니다(튜토·동물·식물 팩
+                    제외). 맞추면 포인트가 지급됩니다.
+                  </li>
+                </>
+              ) : (
+                <>
+                  <li>시간 제한 없이 연습합니다. 포인트·도전 보상 팝업은 없습니다.</li>
+                  <li>오답 시에만 종료합니다. 연습 최고 연속은 이 기기에만 저장됩니다.</li>
+                </>
+              )}
             </ul>
+            {isPractice && practiceRecordDisplay ? (
+              <p className="mt-3 text-xs text-emerald-300/90">
+                이 팩 연습 최고 연속:{' '}
+                <span className="font-mono font-bold">
+                  {practiceRecordDisplay.maxCombo}
+                </span>
+              </p>
+            ) : null}
             <button
               type="button"
               className="mt-4 w-full rounded-2xl bg-gradient-to-r from-amber-700 to-rose-800 py-3 text-base font-semibold text-white shadow-lg"
@@ -509,7 +741,13 @@ export default function ComboChallenge() {
                 const t = Date.now()
                 setStarted(true)
                 setInterlude(false)
-                setDeadline(t + MATCH_WINDOW_MS)
+                setPointBonus(null)
+                lastBonusAtComboRef.current = 0
+                if (isChallenge) {
+                  setDeadline(t + MATCH_WINDOW_MS)
+                } else {
+                  setDeadline(Number.POSITIVE_INFINITY)
+                }
                 setNowMs(t)
                 setGameOver(false)
                 setCombo(0)
@@ -528,8 +766,14 @@ export default function ComboChallenge() {
           <div className="rounded-2xl border border-slate-600 bg-slate-900/50 p-6 text-center">
             <p className="text-lg font-bold text-slate-100">종료</p>
             <p className="mt-2 text-slate-300">
-              최고 연속 <span className="font-mono text-amber-300">{bestCombo}</span>
+              이번 최고 연속{' '}
+              <span className="font-mono text-amber-300">{bestCombo}</span>
             </p>
+            {isPractice ? (
+              <p className="mt-1 text-xs text-emerald-300/90">
+                연습 기록은 이 기기에만 저장되며, 명예의 전당에는 올라가지 않습니다.
+              </p>
+            ) : null}
             <button
               type="button"
               className="mt-4 w-full rounded-2xl border border-slate-500 py-3 text-slate-200"
@@ -544,6 +788,8 @@ export default function ComboChallenge() {
                 setRoundVersion((v) => v + 1)
                 setQueueReady(false)
                 setQueue([])
+                setPointBonus(null)
+                lastBonusAtComboRef.current = 0
                 setDeadline(Date.now() + MATCH_WINDOW_MS)
               }}
             >
@@ -566,6 +812,45 @@ export default function ComboChallenge() {
               <span className="combo-hit-num">{combo}</span>
               <span className="combo-hit-label">연속</span>
             </div>
+          </div>
+        ) : pointBonus ? (
+          <div
+            className="relative rounded-2xl border-2 border-amber-400/90 bg-gradient-to-b from-amber-950/95 to-slate-900/95 p-4 shadow-xl shadow-amber-900/40"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pt-bonus-title"
+          >
+            <p
+              id="pt-bonus-title"
+              className="text-center text-base font-black text-amber-300"
+            >
+              {pointBonus.points}포인트 도전!
+            </p>
+            <p className="mt-1 text-center text-[11px] text-amber-200/90">
+              맞추면 포인트가 지급됩니다
+            </p>
+            <p className="mt-4 text-center text-[11px] font-medium uppercase tracking-wide text-slate-400">
+              주제어
+            </p>
+            <p className="mt-1 min-h-[2.5rem] text-center text-lg font-bold leading-snug text-amber-100">
+              {String(pointBonus.row.topic ?? '').trim() || '—'}
+            </p>
+            <p className="mt-3 text-center text-[11px] text-slate-500">
+              맞는 뜻을 고르세요
+            </p>
+            <ul className="mt-2 flex flex-col gap-2">
+              {pointBonus.slots.map((s) => (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    className="w-full rounded-xl border border-amber-600/50 bg-slate-800/90 px-4 py-3.5 text-left text-base font-medium leading-snug text-slate-100 transition hover:border-amber-400 hover:bg-slate-700/90 active:scale-[0.99]"
+                    onClick={() => onPickPointBonus(s.explanation)}
+                  >
+                    {s.explanation}
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         ) : (
           <div className="rounded-2xl border border-slate-600 bg-slate-900/70 p-4">

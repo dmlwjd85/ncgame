@@ -8,6 +8,8 @@ import { formatHoFDisplayName } from './displayName'
 
 const STORAGE_KEY = 'ncgame-hall-of-fame-v1'
 const STORAGE_KEY_COMBO = 'ncgame-hall-combo-v1'
+/** 무한도전 연습모드 — 로컬 전용, 클라우드·명예의 전당 없음 */
+const STORAGE_KEY_COMBO_PRACTICE = 'ncgame-combo-practice-v1'
 
 /**
  * @returns {Record<string, { maxLevel: number, at: string, displayName: string }>}
@@ -178,4 +180,48 @@ export async function saveHallOfFameComboIfBetter(
     await syncUserComboBestToCloud(packId, auth.uid, name, best)
   }
   return improved
+}
+
+/**
+ * @returns {Record<string, { maxCombo: number, at: string }>}
+ */
+export function loadHallOfFameComboPractice() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_COMBO_PRACTICE)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return typeof parsed === 'object' && parsed !== null ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * 연습모드 무한도전 최고 연속 — 본인 기기 로컬만 (동기화 없음)
+ * @param {string} packId
+ * @param {number} maxCombo
+ * @returns {boolean} 기록 갱신 여부
+ */
+export function savePracticeComboIfBetter(packId, maxCombo) {
+  const n = Math.max(0, Math.floor(Number(maxCombo)) || 0)
+  if (n < 1) return false
+  const all = loadHallOfFameComboPractice()
+  const prev = all[packId]
+  const localMax = prev?.maxCombo ?? 0
+  if (n <= localMax) return false
+  all[packId] = {
+    maxCombo: n,
+    at: new Date().toISOString(),
+  }
+  try {
+    localStorage.setItem(STORAGE_KEY_COMBO_PRACTICE, JSON.stringify(all))
+  } catch {
+    return false
+  }
+  return true
+}
+
+/** @param {string} packId */
+export function getPracticeComboRecord(packId) {
+  return loadHallOfFameComboPractice()[packId] ?? null
 }

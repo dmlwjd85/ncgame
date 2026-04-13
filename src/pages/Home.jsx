@@ -389,9 +389,8 @@ export default function Home() {
                 무한도전
               </h2>
               <p className="mt-2 text-xs leading-relaxed text-slate-400">
-                눈치게임에서 고른 단어팩으로 주제어 하나에 맞는 뜻을 세 가지 중에서
-                눌러 고릅니다(주제는 매 판 랜덤). 5초 안에 맞추면 타이머가 갱신되고,
-                오답·시간 초과 시 종료입니다. 연속 10번마다 포인트 1 (로그인 시 지급)
+                단어팩을 고른 뒤 도전모드(시간 제한·명예의 전당·가끔 포인트 도전) 또는
+                연습모드(무제한·기기에만 기록)를 선택합니다. 주제는 매 판 랜덤입니다.
               </p>
               <div className="mt-4 flex flex-col gap-2">
                 <Link
