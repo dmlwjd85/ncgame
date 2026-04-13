@@ -1,8 +1,8 @@
-/** 라운드 말미 — 플레이어 전용 구간(봇은 이 시간 안에 스케줄되지 않음) */
-export const USER_RESERVE_MS = 1600
+/** 라운드 말미 — 플레이어 전용 구간(봇은 이 시간 안에 스케줄되지 않음). 뒤 2초. */
+export const USER_RESERVE_MS = 2000
 
-/** 봇이 첫 카드를 내기 전 암묵적 대기(ms) — 유저가 끼워 넣을 시간 확보 */
-export const BOT_PLAY_START_DELAY_MS = 520
+/** 봇이 첫 카드를 내기 전 암묵적 대기(ms) — 시작 후 앞 2초는 플레이어 끼워 넣기 여유 */
+export const BOT_PLAY_START_DELAY_MS = 2000
 
 /**
  * 족보상 이 봇 카드보다 앞에 있는 '플레이어' 카드 한 장당 최소로 더하는 대기(ms).
