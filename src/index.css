@@ -16,14 +16,149 @@ body {
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: contain;
   font-family:
-    'Pretendard',
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    system-ui,
+    'Gowun Dodum',
+    'Apple SD Gothic Neo',
+    'Malgun Gothic',
     sans-serif;
   background-color: #cfc8ba;
   color: #1e293b;
+}
+
+/* 제목·명예의 전당 — 획 끝이 살아 있는 바탕체 */
+.font-display {
+  font-family: 'Gowun Batang', 'Gowun Dodum', serif;
+}
+
+/* 아테네 파르테논 장식 느낌(라틴 소제목 전용) */
+.athens-subtitle {
+  font-family: 'Cormorant Garamond', 'Gowun Batang', serif;
+  font-style: italic;
+  letter-spacing: 0.06em;
+}
+
+:root {
+  --hof-marble: linear-gradient(
+    165deg,
+    #faf8f3 0%,
+    #f0ebe2 38%,
+    #e8e2d8 100%
+  );
+  --hof-card: var(--hof-marble);
+  --hof-border: rgba(120, 113, 98, 0.35);
+  --hof-ink: #2c2824;
+  --hof-muted: #5c564d;
+  --hof-gold-dark: #8a5f1c;
+  --hof-card-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.85) inset,
+    0 10px 28px rgba(44, 40, 36, 0.14),
+    0 3px 0 rgba(90, 82, 72, 0.12);
+}
+
+/* 앱 셸 — 살짝 떠 있는 두께감 */
+.shell-3d {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 12px 40px rgba(40, 36, 32, 0.12);
+}
+
+/* 탭 레일 — 눌린/튀어나온 버튼 */
+.tab-rail-3d {
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.06),
+    0 6px 18px rgba(40, 36, 32, 0.1),
+    0 2px 0 rgba(255, 255, 255, 0.65) inset;
+}
+
+.tab-rail-3d button {
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.tab-rail-3d button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* 카드 얹기 */
+.card-lift-3d {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.75) inset,
+    0 8px 22px rgba(40, 36, 32, 0.12),
+    0 3px 0 rgba(90, 82, 72, 0.1);
+}
+
+/* 전천당(이상한 과자가게) 느낌 — 목재 간판·노렌·진열 선반 */
+.shop-storefront {
+  position: relative;
+  background: linear-gradient(
+    180deg,
+    #4a3428 0%,
+    #5c4033 14%,
+    #6b4f3e 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 14px 36px rgba(30, 22, 18, 0.35),
+    0 4px 0 rgba(20, 14, 10, 0.4);
+}
+
+.shop-storefront::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 10px;
+  background: repeating-linear-gradient(
+    90deg,
+    #c45c5c 0px,
+    #c45c5c 14px,
+    #f5e6d3 14px,
+    #f5e6d3 28px
+  );
+  opacity: 0.92;
+  border-radius: 1rem 1rem 0 0;
+  pointer-events: none;
+}
+
+.shop-noren {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
+}
+
+.shop-shelf-row {
+  border-radius: 0.85rem;
+  background: linear-gradient(180deg, #fffdf8 0%, #f3e9dc 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 6px 0 rgba(74, 52, 40, 0.18),
+    0 10px 24px rgba(30, 22, 18, 0.2);
+  transform: perspective(520px) rotateX(2deg);
+}
+
+.shop-buy-btn {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 4px 0 rgba(120, 30, 30, 0.45),
+    0 8px 16px rgba(120, 20, 20, 0.25);
+}
+
+.shop-buy-btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.25) inset,
+    0 2px 0 rgba(120, 30, 30, 0.45);
+}
+
+.hof-temple {
+  background: var(--hof-marble);
+  border-color: rgba(180, 160, 120, 0.45) !important;
+  box-shadow: var(--hof-card-shadow);
+}
+
+.hof-marble-card {
+  background-image:
+    radial-gradient(ellipse 120% 80% at 10% 0%, rgba(255, 255, 255, 0.65), transparent),
+    var(--hof-marble);
 }
 
 /* 1페이즈 매칭 — 밝은 배경용 파스텔 단계별 글로우 */

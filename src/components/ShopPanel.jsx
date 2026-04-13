@@ -4,7 +4,7 @@ import { usePlayerProgressStore } from '../stores/playerProgressStore'
 import { useAuth } from '../contexts/AuthContext'
 
 /**
- * 포인트 상점 — 생명·천리안·시작 레벨 스킵
+ * 포인트 상점 — 전통 과자·잡화 가게(전천당·막과자 가게) 분위기
  * TEMPORARY / PERMANENT 타입은 `shopConfig` 기준으로 `buyItem`에서 처리
  */
 export default function ShopPanel() {
@@ -37,37 +37,54 @@ export default function ShopPanel() {
 
   if (!user) {
     return (
-      <p className="text-sm text-slate-500">상점은 로그인한 뒤 이용할 수 있어요.</p>
+      <p className="text-sm text-slate-600">
+        상점은 로그인한 뒤 이용할 수 있어요.
+      </p>
     )
   }
 
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-slate-600">
-        레벨을 클리어할 때마다 그 레벨 번호만큼 포인트가 쌓입니다. (예: 3단계 클리어
-        시 +3P)
+    <div className="shop-storefront rounded-2xl px-3 pb-5 pt-9 text-amber-50">
+      <div className="shop-noren px-2 text-center">
+        <p className="font-display text-lg font-bold tracking-tight text-amber-100">
+          전천당 스타일 포인트 가게
+        </p>
+        <p className="mt-1 text-[11px] leading-relaxed text-amber-200/95">
+          나무 간판 아래 진열장을 살펴보고, 원하는 보따리를 골라 주세요.
+          <span className="block text-[10px] text-amber-300/90">
+            (이상한 과자가게 전천당의 막과자 가게 같은 구성이에요)
+          </span>
+        </p>
+      </div>
+
+      <p className="mx-auto mt-4 max-w-md text-center text-[12px] leading-relaxed text-amber-100/95">
+        레벨을 클리어할 때마다 그 레벨 번호만큼 포인트가 쌓입니다. (예: 3단계 클리어 시
+        +3P)
       </p>
+
       {msg ? (
-        <p className="rounded-lg border border-sky-200/80 bg-sky-50/90 px-3 py-2 text-xs text-sky-900">
+        <p className="mx-auto mt-3 max-w-md rounded-lg border border-amber-400/40 bg-black/20 px-3 py-2 text-center text-xs text-amber-50">
           {msg}
         </p>
       ) : null}
 
-      <div className="space-y-2">
+      <div className="mt-5 space-y-3">
         {SHOP_ITEMS.map((item) => (
           <div
             key={item.kind}
-            className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200/90 bg-white/90 px-3 py-2.5"
+            className="shop-shelf-row flex flex-wrap items-center justify-between gap-3 px-3 py-3 text-slate-800"
           >
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-slate-800">{item.label}</p>
-              <p className="text-[11px] text-slate-500">{item.detail}</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-slate-900">{item.label}</p>
+              <p className="mt-0.5 text-[11px] leading-snug text-slate-600">
+                {item.detail}
+              </p>
             </div>
             <button
               type="button"
               disabled={pending != null || points < item.price}
               onClick={() => void buy(item.kind)}
-              className="shrink-0 rounded-lg bg-gradient-to-r from-amber-600 to-rose-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+              className="shop-buy-btn shrink-0 rounded-lg bg-gradient-to-b from-rose-600 to-rose-900 px-3 py-2 text-xs font-bold text-white transition disabled:opacity-40"
             >
               {pending === item.kind ? '…' : `${item.price} P`}
             </button>

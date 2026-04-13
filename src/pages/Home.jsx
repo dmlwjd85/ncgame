@@ -108,18 +108,18 @@ export default function Home() {
   }
 
   return (
-    <div className="game-shell relative flex min-h-dvh flex-col overflow-x-hidden text-slate-800">
+    <div className="game-shell shell-3d relative flex h-[100dvh] max-h-[100dvh] flex-col overflow-x-hidden overflow-y-hidden text-slate-800">
       <div
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_100%_55%_at_50%_-8%,rgba(120,100,60,0.12),transparent)]"
         aria-hidden
       />
 
-      <div className="relative mx-auto flex min-h-dvh w-full max-w-lg flex-1 flex-col px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]">
+      <div className="relative mx-auto flex min-h-0 w-full max-w-lg flex-1 flex-col px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]">
         {/* 상단: 로그인 · 회원가입 (게스트) / 간단 프로필 */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="min-w-0">
-              <h1 className="truncate text-xl font-bold text-slate-900 md:text-2xl">
+              <h1 className="font-display truncate text-xl font-bold text-slate-900 md:text-2xl">
                 가나다 눈치게임
               </h1>
               {user ? (
@@ -164,7 +164,7 @@ export default function Home() {
         </div>
 
         {user ? (
-          <div className="mx-auto mt-4 w-full rounded-2xl border border-amber-200/90 bg-white/95 px-3 py-3 shadow-md">
+          <div className="card-lift-3d mx-auto mt-4 w-full rounded-2xl border border-amber-200/90 bg-white/95 px-3 py-3">
             <p className="text-[11px] text-slate-600">
               명예의 전당 표시 이름 (최대 {DISPLAY_NAME_MAX_LEN}글자)
             </p>
@@ -208,12 +208,12 @@ export default function Home() {
           </div>
         ) : null}
 
-        <div className="mx-auto mt-6 flex w-full rounded-2xl border border-slate-300/90 bg-white/80 p-1 shadow-md">
+        <div className="tab-rail-3d mx-auto mt-4 flex w-full rounded-2xl border border-slate-300/90 bg-gradient-to-b from-white/95 to-slate-100/90 p-1">
           <button
             type="button"
             className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition ${
               tab === 'play'
-                ? 'bg-gradient-to-r from-slate-600 to-slate-700 text-white shadow-md'
+                ? 'bg-gradient-to-b from-slate-600 to-slate-800 text-white shadow-[0_4px_0_rgba(15,23,42,0.35),0_8px_20px_rgba(15,23,42,0.25)]'
                 : 'text-slate-500'
             }`}
             onClick={() => setTab('play')}
@@ -224,7 +224,7 @@ export default function Home() {
             type="button"
             className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition ${
               tab === 'shop'
-                ? 'bg-gradient-to-r from-amber-700 to-rose-800 text-white shadow-md'
+                ? 'bg-gradient-to-b from-amber-700 to-rose-900 text-white shadow-[0_4px_0_rgba(120,30,30,0.45),0_8px_20px_rgba(120,20,20,0.3)]'
                 : 'text-slate-500'
             }`}
             onClick={() => setTab('shop')}
@@ -235,7 +235,7 @@ export default function Home() {
             type="button"
             className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition ${
               tab === 'hof'
-                ? 'bg-gradient-to-r from-amber-600 to-amber-800 text-white shadow-md'
+                ? 'bg-gradient-to-b from-amber-600 to-amber-950 text-white shadow-[0_4px_0_rgba(120,80,20,0.45),0_8px_20px_rgba(120,80,20,0.28)]'
                 : 'text-slate-500'
             }`}
             onClick={() => setTab('hof')}
@@ -244,9 +244,11 @@ export default function Home() {
           </button>
         </div>
 
+        <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden">
         {tab === 'play' ? (
+          <div className="min-h-0 flex-1 overflow-y-auto [-webkit-overflow-scrolling:touch] pr-0.5">
           <>
-            <section className="mx-auto mt-5 w-full rounded-2xl border border-slate-200 bg-white/95 px-4 py-4 shadow-md">
+            <section className="card-lift-3d mx-auto mt-2 w-full rounded-2xl border border-slate-200 bg-white/95 px-4 py-4">
               <div className="mb-3 flex items-center justify-end">
                 <button
                   type="button"
@@ -297,7 +299,7 @@ export default function Home() {
               selectedPack &&
               maxLv >= 1 &&
               selectedPack.missingColumns.length === 0 ? (
-                <section className="mx-auto mt-4 w-full space-y-3 rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-violet-50 px-4 py-5 shadow-md">
+                <section className="card-lift-3d mx-auto mt-4 w-full space-y-3 rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-violet-50 px-4 py-5">
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
@@ -363,28 +365,39 @@ export default function Home() {
               </p>
             ) : null}
           </>
+          </div>
         ) : tab === 'shop' ? (
-          <section className="mx-auto mt-6 w-full flex-1 rounded-2xl border border-slate-300/90 bg-white/85 px-4 py-5 shadow-md">
-            <h2 className="text-sm font-semibold text-slate-800">상점</h2>
-            <div className="mt-4">
-              <ShopPanel />
-            </div>
-          </section>
+          <div className="min-h-0 flex-1 overflow-y-auto [-webkit-overflow-scrolling:touch] pr-0.5">
+            <ShopPanel />
+          </div>
         ) : (
-          <section className="mx-auto mt-6 flex min-h-0 flex-1 flex-col rounded-2xl border border-slate-300/90 bg-white/85 px-4 py-5 shadow-md">
-            <h2 className="shrink-0 text-sm font-semibold text-slate-800">명예의 전당</h2>
-            <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1 [-webkit-overflow-scrolling:touch]">
+          <section className="hof-temple mx-auto flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border px-4 py-4">
+            <div className="shrink-0 border-b border-[var(--hof-border)] pb-3">
+              <h2 className="font-display text-lg font-bold text-[var(--hof-ink)]">
+                명예의 전당
+              </h2>
+              <p className="athens-subtitle mt-0.5 text-[12px] text-[var(--hof-muted)]">
+                Hall of Fame — agōn
+              </p>
+              <p className="mt-1.5 text-[11px] leading-snug text-[var(--hof-muted)]">
+                팩마다 최고 레벨을 올린 분을 올립니다. 같은 레벨이면 그 기록을{' '}
+                <span className="font-semibold text-[var(--hof-ink)]">먼저 달성한 분</span>
+                이 위입니다.
+              </p>
+            </div>
+            <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1 [-webkit-overflow-scrolling:touch]">
               {packsLoading ? (
-                <p className="text-sm text-slate-500">불러오는 중…</p>
+                <p className="text-sm text-[var(--hof-muted)]">불러오는 중…</p>
               ) : (
                 <HallOfFamePanel packs={packs} />
               )}
             </div>
           </section>
         )}
+        </div>
 
         {isMaster ? (
-          <nav className="mx-auto mt-auto w-full pt-8">
+          <nav className="mx-auto mt-2 w-full shrink-0 pb-1 pt-4">
             <Link
               to="/admin"
               className="block rounded-2xl border border-amber-300 bg-amber-50 py-3 text-center text-sm text-amber-900"
@@ -392,9 +405,7 @@ export default function Home() {
               관리자
             </Link>
           </nav>
-        ) : (
-          <div className="mt-8 flex-1" aria-hidden />
-        )}
+        ) : null}
       </div>
 
       <GameRulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />

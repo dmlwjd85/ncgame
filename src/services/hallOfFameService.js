@@ -19,20 +19,25 @@ export async function syncUserBestToCloud(packId, uid, displayName, maxLevel) {
   const ref = doc(firestoreDb, 'ncgameHofByPack', packId, 'entries', uid)
   try {
     const snap = await getDoc(ref)
-    const prev = snap.exists() ? snap.data().maxLevel ?? 0 : 0
-    const best = Math.max(prev, maxLevel)
-    if (best <= prev) return false
-    await setDoc(
-      ref,
-      {
-        packId,
-        uid,
-        displayName: displayName || '플레이어',
-        maxLevel: best,
-        updatedAt: new Date().toISOString(),
-      },
-      { merge: true },
-    )
+    const prevData = snap.exists() ? snap.data() : {}
+    const prevLevel = Number(prevData.maxLevel) || 0
+    const best = Math.max(prevLevel, maxLevel)
+    if (best <= prevLevel) return false
+
+    const nowIso = new Date().toISOString()
+    /** 동률 시 먼저 달성한 순 — 레벨이 올랐을 때만 갱신 */
+    const payload = {
+      packId,
+      uid,
+      displayName: displayName || '플레이어',
+      maxLevel: best,
+      updatedAt: nowIso,
+    }
+    if (best > prevLevel) {
+      payload.achievedAt = nowIso
+    }
+
+    await setDoc(ref, payload, { merge: true })
     return true
   } catch (e) {
     console.warn('[hallOfFameService] sync 실패', e)
