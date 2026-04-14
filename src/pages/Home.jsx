@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   clearRunSave,
   clearStagedResume,
@@ -10,6 +10,11 @@ import JokboModal from '../components/JokboModal'
 import HallOfFamePanel from '../components/HallOfFamePanel'
 import ShopPanel from '../components/ShopPanel'
 import { ComboLobby } from '../components/combo/ComboLobby'
+import GuestRecordWarningModal from '../components/GuestRecordWarningModal'
+import {
+  hasGuestRecordWarningAck,
+  setGuestRecordWarningAck,
+} from '../utils/guestRecordWarningSession'
 import { useAuth } from '../contexts/AuthContext'
 import { useCardPacks } from '../contexts/CardPackContext'
 import { useUserProgress } from '../contexts/UserProgressContext'
@@ -25,6 +30,7 @@ import { INITIAL_LIVES } from '../utils/userProgressConstants'
  */
 export default function Home() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, loading: authLoading, signOut, isMaster, updateDisplayName } =
     useAuth()
   const { packs, loading: packsLoading, error: packsError, reloadPacks } =
@@ -35,6 +41,15 @@ export default function Home() {
   const [selectedPackId, setSelectedPackId] = useState(null)
   const [rulesOpen, setRulesOpen] = useState(false)
   const [jokboOpen, setJokboOpen] = useState(false)
+  const [guestWarnOpen, setGuestWarnOpen] = useState(false)
+  const [guestPending, setGuestPending] = useState(
+    /** @type {'game-new' | 'game-resume' | null} */ (null),
+  )
+  const [guestPendingCombo, setGuestPendingCombo] = useState(
+    /** @type {null | { packId: string, mode: 'challenge' | 'practice' }} */ (
+      null
+    ),
+  )
   const [nameEdit, setNameEdit] = useState('')
   const [nameMsg, setNameMsg] = useState(/** @type {string} */ (''))
   const [nameSaving, setNameSaving] = useState(false)
@@ -60,8 +75,7 @@ export default function Home() {
     : 0
   const maxLv = maxLevelFromRowCount(validCount)
 
-  const canStart =
-    user &&
+  const canStartPack =
     selectedPack &&
     maxLv >= 1 &&
     selectedPack.missingColumns.length === 0
@@ -72,8 +86,8 @@ export default function Home() {
     !!effectivePackId &&
     String(savedRun.packId) === String(effectivePackId)
 
-  const goGame = async () => {
-    if (!effectivePackId || !canStart) return
+  const goGameDirect = async () => {
+    if (!effectivePackId || !canStartPack) return
     clearStagedResume()
     clearRunSave()
     const loc = buildGameLocation(effectivePackId)
@@ -94,8 +108,19 @@ export default function Home() {
     })
   }
 
-  const continueGame = () => {
-    if (!effectivePackId || !canStart || !savedRun) return
+  const goGame = () => {
+    if (!effectivePackId || !canStartPack) return
+    if (!user && !hasGuestRecordWarningAck()) {
+      setGuestPending('game-new')
+      setGuestPendingCombo(null)
+      setGuestWarnOpen(true)
+      return
+    }
+    void goGameDirect()
+  }
+
+  const continueGameDirect = () => {
+    if (!effectivePackId || !canStartPack || !savedRun) return
     try {
       sessionStorage.setItem(
         `ncgame-resume-${effectivePackId}`,
@@ -109,6 +134,17 @@ export default function Home() {
     navigate(loc, {
       state: { packId: effectivePackId, botCount: 1 },
     })
+  }
+
+  const continueGame = () => {
+    if (!effectivePackId || !canStartPack || !savedRun) return
+    if (!user && !hasGuestRecordWarningAck()) {
+      setGuestPending('game-resume')
+      setGuestPendingCombo(null)
+      setGuestWarnOpen(true)
+      return
+    }
+    continueGameDirect()
   }
 
   return (
@@ -312,7 +348,7 @@ export default function Home() {
               )}
             </section>
 
-            {user && packs.length > 0 ? (
+            {packs.length > 0 ? (
               selectedPack &&
               maxLv >= 1 &&
               selectedPack.missingColumns.length === 0 ? (
@@ -340,7 +376,7 @@ export default function Home() {
                     <div className="flex w-full flex-col gap-2">
                       <button
                         type="button"
-                        disabled={!canStart}
+                        disabled={!canStartPack}
                         onClick={continueGame}
                         className="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-cyan-600 py-3.5 text-base font-semibold text-white shadow-lg disabled:opacity-40"
                       >
@@ -348,7 +384,7 @@ export default function Home() {
                       </button>
                       <button
                         type="button"
-                        disabled={!canStart}
+                        disabled={!canStartPack}
                         onClick={goGame}
                         className="w-full rounded-2xl border border-slate-300 bg-white py-3 text-base font-semibold text-slate-800 shadow-sm disabled:opacity-40"
                       >
@@ -358,7 +394,7 @@ export default function Home() {
                   ) : (
                     <button
                       type="button"
-                      disabled={!canStart}
+                      disabled={!canStartPack}
                       onClick={goGame}
                       className="w-full rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-600 py-3.5 text-base font-semibold text-white shadow-lg disabled:opacity-40"
                     >
@@ -378,7 +414,7 @@ export default function Home() {
             ) : null}
             {!user ? (
               <p className="mx-auto mt-6 text-center text-sm text-slate-500">
-                로그인하면 플레이할 수 있어요.
+                로그인하면 기록·포인트가 저장돼요. 비로그인으로도 플레이할 수 있어요.
               </p>
             ) : null}
           </>
@@ -391,11 +427,17 @@ export default function Home() {
                 effectivePackId != null ? String(effectivePackId) : null
               }
               defaultMode="challenge"
-              onBegin={(packId, mode) =>
+              onBegin={(packId, mode) => {
+                if (!user && !hasGuestRecordWarningAck()) {
+                  setGuestPending(null)
+                  setGuestPendingCombo({ packId, mode })
+                  setGuestWarnOpen(true)
+                  return
+                }
                 navigate('/combo-challenge', {
                   state: { comboAutoStart: { packId, mode } },
                 })
-              }
+              }}
             />
           </div>
         ) : tab === 'shop' ? (
@@ -446,6 +488,48 @@ export default function Home() {
         open={jokboOpen}
         pack={selectedPack}
         onClose={() => setJokboOpen(false)}
+      />
+
+      <GuestRecordWarningModal
+        open={guestWarnOpen}
+        onClose={() => {
+          setGuestWarnOpen(false)
+          setGuestPending(null)
+          setGuestPendingCombo(null)
+        }}
+        onGoLogin={() => {
+          setGuestWarnOpen(false)
+          setGuestPending(null)
+          setGuestPendingCombo(null)
+          navigate('/login', {
+            state: {
+              from: {
+                pathname: location.pathname,
+                search: location.search,
+              },
+            },
+          })
+        }}
+        onPlayAnyway={() => {
+          setGuestRecordWarningAck()
+          setGuestWarnOpen(false)
+          if (guestPending === 'game-new') {
+            void goGameDirect()
+          } else if (guestPending === 'game-resume') {
+            continueGameDirect()
+          } else if (guestPendingCombo) {
+            navigate('/combo-challenge', {
+              state: {
+                comboAutoStart: {
+                  packId: guestPendingCombo.packId,
+                  mode: guestPendingCombo.mode,
+                },
+              },
+            })
+          }
+          setGuestPending(null)
+          setGuestPendingCombo(null)
+        }}
       />
     </div>
   )

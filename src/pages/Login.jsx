@@ -12,7 +12,13 @@ export default function Login() {
   const { signIn } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const from = location.state?.from?.pathname || '/'
+  const rawFrom = location.state?.from
+  const redirectTo =
+    typeof rawFrom === 'string' && rawFrom.startsWith('/')
+      ? rawFrom
+      : rawFrom?.pathname
+        ? `${rawFrom.pathname}${rawFrom.search ?? ''}${rawFrom.hash ?? ''}`
+        : '/'
 
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
@@ -34,7 +40,7 @@ export default function Login() {
           '일반 로그인',
         )
       }
-      navigate(from, { replace: true })
+      navigate(redirectTo, { replace: true })
     } catch (err) {
       setError(err?.message ?? '로그인에 실패했습니다.')
     } finally {

@@ -5,7 +5,6 @@ import AdminExcelUpload from './components/admin/AdminExcelUpload'
 import AdminLayout from './components/admin/AdminLayout'
 import AdminUserManagement from './components/admin/AdminUserManagement'
 import MasterRoute from './components/MasterRoute'
-import ProtectedRoute from './components/ProtectedRoute'
 import Home from './pages/Home'
 import Game from './pages/Game'
 import ComboChallenge from './pages/ComboChallenge'
@@ -13,14 +12,10 @@ import Login from './pages/Login'
 import MasterLogin from './pages/MasterLogin'
 import Register from './pages/Register'
 
-/** 게임 진입마다 상태 초기화 (동일 팩 재도전 포함) */
+/** 게임 진입마다 상태 초기화 (동일 팩 재도전 포함) — 비로그인도 플레이 가능(기록은 로그인 시 저장) */
 function GameScreen() {
   const { key } = useLocation()
-  return (
-    <ProtectedRoute>
-      <Game key={key} />
-    </ProtectedRoute>
-  )
+  return <Game key={key} />
 }
 
 /**

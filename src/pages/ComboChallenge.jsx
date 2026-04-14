@@ -8,6 +8,11 @@ import {
 } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { ComboLobby } from '../components/combo/ComboLobby'
+import GuestRecordWarningModal from '../components/GuestRecordWarningModal'
+import {
+  hasGuestRecordWarningAck,
+  setGuestRecordWarningAck,
+} from '../utils/guestRecordWarningSession'
 import { useAuth } from '../contexts/AuthContext'
 import { useCardPacks } from '../contexts/CardPackContext'
 import { resolveDisplayNameForHoF } from '../services/authService'
@@ -109,6 +114,12 @@ export default function ComboChallenge() {
   const [playPackId, setPlayPackId] = useState(/** @type {string | null} */ (null))
   const [playMode, setPlayMode] = useState(
     /** @type {'challenge' | 'practice'} */ ('challenge'),
+  )
+  const [guestWarnOpen, setGuestWarnOpen] = useState(false)
+  const [guestPendingCombo, setGuestPendingCombo] = useState(
+    /** @type {null | { packId: string, mode: 'challenge' | 'practice' }} */ (
+      null
+    ),
   )
 
   const isChallenge = playMode === 'challenge'
@@ -593,6 +604,21 @@ export default function ComboChallenge() {
     [packs],
   )
 
+  const tryBeginPlaySession = useCallback(
+    (lobbyPackId, lobbyMode) => {
+      if (!user && !hasGuestRecordWarningAck()) {
+        setGuestPendingCombo({
+          packId: String(lobbyPackId),
+          mode: lobbyMode,
+        })
+        setGuestWarnOpen(true)
+        return
+      }
+      beginPlaySessionWith(lobbyPackId, lobbyMode)
+    },
+    [user, beginPlaySessionWith],
+  )
+
   // 홈 무한도전 탭에서 전달된 state로 바로 플레이 진입
   useLayoutEffect(() => {
     const s = location.state?.comboAutoStart
@@ -604,7 +630,12 @@ export default function ComboChallenge() {
     const packIdStr = String(s.packId)
     const m = s.mode === 'practice' ? 'practice' : 'challenge'
     queueMicrotask(() => {
-      beginPlaySessionWith(packIdStr, m)
+      if (!user && !hasGuestRecordWarningAck()) {
+        setGuestPendingCombo({ packId: packIdStr, mode: m })
+        setGuestWarnOpen(true)
+      } else {
+        beginPlaySessionWith(packIdStr, m)
+      }
       navigate('/combo-challenge', { replace: true, state: {} })
     })
   }, [
@@ -614,6 +645,7 @@ export default function ComboChallenge() {
     packs,
     beginPlaySessionWith,
     navigate,
+    user,
   ])
 
   const returnToLobby = useCallback(() => {
@@ -658,14 +690,46 @@ export default function ComboChallenge() {
   // ——— 로비: 팩 + 모드 + 시작하기 (ComboLobby) ———
   if (view === 'lobby') {
     return (
-      <ComboLobby
-        variant="page"
-        defaultPackId={searchParams.get('packId')}
-        defaultMode={
-          searchParams.get('mode') === 'practice' ? 'practice' : 'challenge'
-        }
-        onBegin={(packId, mode) => beginPlaySessionWith(packId, mode)}
-      />
+      <>
+        <ComboLobby
+          variant="page"
+          defaultPackId={searchParams.get('packId')}
+          defaultMode={
+            searchParams.get('mode') === 'practice' ? 'practice' : 'challenge'
+          }
+          onBegin={tryBeginPlaySession}
+        />
+        <GuestRecordWarningModal
+          open={guestWarnOpen}
+          onClose={() => {
+            setGuestWarnOpen(false)
+            setGuestPendingCombo(null)
+          }}
+          onGoLogin={() => {
+            setGuestWarnOpen(false)
+            setGuestPendingCombo(null)
+            navigate('/login', {
+              state: {
+                from: {
+                  pathname: '/combo-challenge',
+                  search: location.search ?? '',
+                },
+              },
+            })
+          }}
+          onPlayAnyway={() => {
+            setGuestRecordWarningAck()
+            setGuestWarnOpen(false)
+            if (guestPendingCombo) {
+              beginPlaySessionWith(
+                guestPendingCombo.packId,
+                guestPendingCombo.mode,
+              )
+              setGuestPendingCombo(null)
+            }
+          }}
+        />
+      </>
     )
   }
 
