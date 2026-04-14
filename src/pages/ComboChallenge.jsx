@@ -155,6 +155,14 @@ export default function ComboChallenge() {
   )
   const lastBonusAtComboRef = useRef(0)
   const comboRef = useRef(0)
+  /** 현재 문제(시간 초과 시 정답 안내용) */
+  const queueHeadRef = useRef(/** @type {object | null} */ (null))
+  /** 오답·시간 초과 종료 시 표시 */
+  const [wrongEndInfo, setWrongEndInfo] = useState(
+    /** @type {null | { kind: 'wrong' | 'timeout', topic: string, correctExplanation: string, pickedExplanation?: string }} */ (
+      null
+    ),
+  )
 
   const cardsNeededThisLevel = WAVE_SIZE
   const need = cardsNeededThisLevel - p1Collected.length
@@ -183,6 +191,10 @@ export default function ComboChallenge() {
   useEffect(() => {
     comboRef.current = combo
   }, [combo])
+
+  useLayoutEffect(() => {
+    queueHeadRef.current = queue[0] ?? null
+  }, [queue])
 
   const handleP1BatchComplete = useCallback(
     (rows) => {
@@ -361,7 +373,14 @@ export default function ComboChallenge() {
         handleP1RealMatch(row, exp)
         onMatchAttempt(true)
       } else {
-        onMatchAttempt(false)
+        const correctExplanation = String(row.explanation ?? '').trim()
+        setWrongEndInfo({
+          kind: 'wrong',
+          topic: String(row.topic ?? '').trim() || '—',
+          correctExplanation: correctExplanation || '—',
+          pickedExplanation: exp || '—',
+        })
+        setGameOver(true)
       }
     },
     [
@@ -420,7 +439,24 @@ export default function ComboChallenge() {
     const id = window.setInterval(() => {
       const t = Date.now()
       setNowMs(t)
-      if (t > deadline) setGameOver(true)
+      if (t > deadline) {
+        const row = queueHeadRef.current
+        if (row) {
+          setWrongEndInfo({
+            kind: 'timeout',
+            topic: String(row.topic ?? '').trim() || '—',
+            correctExplanation:
+              String(row.explanation ?? '').trim() || '—',
+          })
+        } else {
+          setWrongEndInfo({
+            kind: 'timeout',
+            topic: '—',
+            correctExplanation: '—',
+          })
+        }
+        setGameOver(true)
+      }
     }, 100)
     return () => window.clearInterval(id)
   }, [started, gameOver, interlude, deadline, pointBonus, isPractice])
@@ -534,6 +570,7 @@ export default function ComboChallenge() {
         setInterlude(false)
         setGameOver(false)
         setPointBonus(null)
+        setWrongEndInfo(null)
         const t = Date.now()
         setNowMs(t)
         if (lobbyMode === 'challenge') {
@@ -585,6 +622,7 @@ export default function ComboChallenge() {
     setQueue([])
     setPointBonus(null)
     lastBonusAtComboRef.current = 0
+    setWrongEndInfo(null)
     setDeadline(Date.now() + MATCH_WINDOW_MS)
   }, [])
 
@@ -698,14 +736,46 @@ export default function ComboChallenge() {
         </div>
 
         {gameOver ? (
-          <div className="rounded-2xl border border-zinc-600 bg-zinc-900/60 p-6 text-center">
-            <p className="text-lg font-bold text-zinc-50">종료</p>
-            <p className="mt-2 text-zinc-100">
+          <div className="rounded-2xl border border-zinc-600 bg-zinc-900/60 p-6 text-left">
+            <p className="text-center text-lg font-bold text-zinc-50">종료</p>
+            {wrongEndInfo ? (
+              <div
+                className="mt-4 rounded-xl border border-rose-500/40 bg-rose-950/35 px-3 py-3 text-sm leading-relaxed text-rose-50"
+                role="status"
+              >
+                <p className="font-bold text-rose-100">
+                  {wrongEndInfo.kind === 'timeout'
+                    ? '시간이 초과되었습니다.'
+                    : '오답입니다.'}
+                </p>
+                <p className="mt-2 text-rose-100/95">
+                  <span className="text-rose-200/90">주제어</span> — 「
+                  {wrongEndInfo.topic}」
+                </p>
+                <p className="mt-2 text-rose-50">
+                  <span className="font-semibold text-emerald-200">맞는 뜻</span>{' '}
+                  — {wrongEndInfo.correctExplanation}
+                </p>
+                {wrongEndInfo.kind === 'wrong' &&
+                wrongEndInfo.pickedExplanation != null ? (
+                  <p className="mt-2 text-rose-200/90">
+                    <span className="font-semibold">선택하신 뜻</span> —{' '}
+                    {wrongEndInfo.pickedExplanation}
+                  </p>
+                ) : null}
+                <p className="mt-2 text-xs text-rose-200/85">
+                  {wrongEndInfo.kind === 'timeout'
+                    ? '제한 시간 안에 맞는 뜻을 고르지 못했습니다.'
+                    : '선택한 해설은 이 주제어와 짝이 맞지 않습니다. 다른 카드의 뜻이 섞여 있을 수 있습니다.'}
+                </p>
+              </div>
+            ) : null}
+            <p className="mt-4 text-center text-zinc-100">
               이번 최고 연속{' '}
               <span className="font-mono text-amber-300">{bestCombo}</span>
             </p>
             {isPractice ? (
-              <p className="mt-1 text-xs text-emerald-200">
+              <p className="mt-1 text-center text-xs text-emerald-200">
                 연습 기록은 이 기기에만 저장됩니다.
               </p>
             ) : null}
@@ -716,6 +786,7 @@ export default function ComboChallenge() {
                 setStarted(false)
                 setInterlude(false)
                 setGameOver(false)
+                setWrongEndInfo(null)
                 setCombo(0)
                 setBestCombo(0)
                 usedRowIdsRef.current = new Set()
