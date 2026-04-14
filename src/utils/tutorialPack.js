@@ -26,3 +26,11 @@ export function isComboPointEligiblePack(pack) {
   if (sn === '튜토리얼' || sn === '동물' || sn === '식물') return false
   return true
 }
+
+/**
+ * 전근대사 100선 — 엑셀 행·시간 순 카드팩 (1·2페이즈 족보·덱이 행 순서 기준)
+ * @param {{ sheetName?: string } | null | undefined} pack
+ */
+export function isJeongeon100Pack(pack) {
+  return String(pack?.sheetName ?? '').trim() === '전근대사 100선'
+}

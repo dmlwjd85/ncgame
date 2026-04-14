@@ -21,7 +21,9 @@ import { maxLevelFromRowCount } from '../utils/gameRules'
 import {
   displaySheetName,
   isComboPointEligiblePack,
+  isJeongeon100Pack,
 } from '../utils/tutorialPack'
+import { orderPhase1DeckRows } from '../utils/packRowOrder'
 import { usePlayerProgressStore } from '../stores/playerProgressStore'
 
 /** 한 번에 주제어 1개 + 보기(뜻) 3개 — 탭으로 선택 */
@@ -120,10 +122,14 @@ export default function ComboChallenge() {
     [packs, playPackId],
   )
 
-  const validRows = useMemo(
-    () => (pack ? pack.rows.filter((r) => r.topic && r.explanation) : []),
-    [pack],
-  )
+  const validRows = useMemo(() => {
+    if (!pack) return []
+    const base = pack.rows.filter((r) => r.topic && r.explanation)
+    if (isJeongeon100Pack(pack)) {
+      return orderPhase1DeckRows(base, 'sheet')
+    }
+    return base
+  }, [pack])
 
   const usedRowIdsRef = useRef(/** @type {Set<string>} */ (new Set()))
   const [queue, setQueue] = useState(/** @type {object[]} */ ([]))
@@ -175,9 +181,13 @@ export default function ComboChallenge() {
       pool = validRows
     }
     if (pool.length === 0) return []
+    /** 전근대사: 엑셀 행(시간) 순 — 남은 카드 중 가장 앞 행부터 출제 */
+    if (pack && isJeongeon100Pack(pack)) {
+      return [pool[0]]
+    }
     const pick = pool[Math.floor(Math.random() * pool.length)]
     return [pick]
-  }, [validRows])
+  }, [validRows, pack])
 
   useEffect(() => {
     if (!pack || queueReady || validRows.length === 0) return
@@ -704,6 +714,11 @@ export default function ComboChallenge() {
           </div>
           <div className="text-right text-xs text-zinc-200">
             <p className="font-semibold text-zinc-50">{displaySheetName(pack)}</p>
+            {isJeongeon100Pack(pack) ? (
+              <p className="mt-0.5 text-[10px] font-medium text-amber-200/90">
+                시간 순(엑셀 행 순) 출제 · 제출 기준과 동일
+              </p>
+            ) : null}
             <p>
               <span className="text-zinc-300">무한도전</span>
               {' · '}

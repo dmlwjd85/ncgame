@@ -30,6 +30,7 @@ import {
   resolveGamePackId,
 } from '../utils/gameRoute'
 import { isTutorialPack } from '../utils/tutorialPack'
+import { orderPhase1DeckRows } from '../utils/packRowOrder'
 
 function shuffleRows(rows) {
   const a = [...rows]
@@ -207,13 +208,15 @@ export default function Game() {
     if (unused.length === 0) {
       used.clear()
       setDeckNotice(
-        '단어팩에서 쓸 카드가 부족해요. 덱을 처음부터 다시 섞어 이어갑니다.',
+        phase2OrderMode === 'sheet'
+          ? '단어팩에서 쓸 카드가 부족해요. 처음부터 시간(엑셀 행) 순으로 다시 이어갑니다.'
+          : '단어팩에서 쓸 카드가 부족해요. 덱을 처음부터 다시 섞어 이어갑니다.',
       )
       window.setTimeout(() => setDeckNotice(null), 6000)
-      return shuffleRows(validRows)
+      return orderPhase1DeckRows(validRows, phase2OrderMode)
     }
-    return shuffleRows(unused)
-  }, [validRows])
+    return orderPhase1DeckRows(unused, phase2OrderMode)
+  }, [validRows, phase2OrderMode])
 
   /* eslint-disable react-hooks/set-state-in-effect -- 덱 셔플 초기화·이어하기 복원 */
   useEffect(() => {
@@ -224,8 +227,9 @@ export default function Game() {
       const q = resumeSnap.queueRowIds
         .map((id) => byId.get(String(id)))
         .filter(Boolean)
-      const pool = shuffleRows(
+      const pool = orderPhase1DeckRows(
         validRows.filter((r) => !usedRowIdsRef.current.has(String(r.id))),
+        phase2OrderMode,
       )
       setQueue(q.length > 0 ? q : pool)
       clearStagedResume()
@@ -233,9 +237,9 @@ export default function Game() {
       return
     }
     usedRowIdsRef.current = new Set()
-    setQueue(shuffleRows(validRows))
+    setQueue(orderPhase1DeckRows(validRows, phase2OrderMode))
     setQueueReady(true)
-  }, [pack, queueReady, validRows, packId, resumeSnap])
+  }, [pack, queueReady, validRows, packId, resumeSnap, phase2OrderMode])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   /* eslint-disable react-hooks/set-state-in-effect -- 1페이즈 콤보 증가 시 타격감·1초 콤보 팝업 */
@@ -736,6 +740,11 @@ export default function Game() {
           </Link>
           <div className="text-right text-[10px] text-stone-300 md:text-xs">
             <p className="font-medium text-stone-100">{pack.sheetName}</p>
+            {phase2OrderMode === 'sheet' ? (
+              <p className="text-[9px] font-medium text-amber-200/95">
+                시간 순(엑셀 행 순) · 제출도 이 순서
+              </p>
+            ) : null}
             <p>
               {Math.min(level, maxLevel)}단계 · {phase2SecondsForLevel(level)}초
             </p>

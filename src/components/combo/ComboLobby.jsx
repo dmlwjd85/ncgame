@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useCardPacks } from '../../contexts/CardPackContext'
 import { getPracticeComboRecord } from '../../utils/hallOfFame'
 import { maxLevelFromRowCount } from '../../utils/gameRules'
-import { displaySheetName } from '../../utils/tutorialPack'
+import { displaySheetName, isJeongeon100Pack } from '../../utils/tutorialPack'
 
 function comboPackPlayable(p) {
   const validRows = p.rows.filter((r) => r.topic && r.explanation)
@@ -115,7 +115,12 @@ export function ComboLobby({
                             : 'border-zinc-600/90 bg-zinc-950/40 text-zinc-100 hover:border-zinc-500'
                         }`}
                       >
-                        {displaySheetName(p)}
+                        <span className="block">{displaySheetName(p)}</span>
+                        {isJeongeon100Pack(p) ? (
+                          <span className="mt-1 block text-[11px] font-normal text-amber-200/90">
+                            시간 순(엑셀 행 순) 카드팩
+                          </span>
+                        ) : null}
                       </button>
                     </li>
                   )
