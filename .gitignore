@@ -33,3 +33,6 @@ ios/
 
 # Firebase CLI 캐시
 .firebase/
+
+# 클라우드 동기 임시 폴더
+ncxlxs/.tmp.drivedownload/
