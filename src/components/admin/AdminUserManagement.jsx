@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
+  adjustUserPointsAsMaster,
   deleteUserAccountAsMaster,
   listUsersForMaster,
 } from '../../services/authService'
 
 /**
- * 마스터 전용: 가입자 목록(이름·비밀번호) 조회 및 계정 삭제
+ * 마스터 전용: 가입자 목록·포인트 지급/차감·계정 삭제
  */
 export default function AdminUserManagement() {
   const [rows, setRows] = useState(
@@ -17,6 +18,13 @@ export default function AdminUserManagement() {
   const [error, setError] = useState('')
   const [deletingUid, setDeletingUid] = useState(
     /** @type {string | null} */ (null),
+  )
+  const [pointsBusyUid, setPointsBusyUid] = useState(
+    /** @type {string | null} */ (null),
+  )
+  /** 행별 포인트 입력 숫자 (문자열로 두어 입력 중 0 등 허용) */
+  const [pointDraft, setPointDraft] = useState(
+    /** @type {Record<string, string>} */ ({}),
   )
 
   const load = useCallback(async () => {
@@ -59,6 +67,51 @@ export default function AdminUserManagement() {
     }
   }
 
+  const parseDraftAmount = (uid) => {
+    const raw = String(pointDraft[uid] ?? '').trim()
+    const n = parseInt(raw, 10)
+    if (!Number.isFinite(n) || n < 1) return null
+    return n
+  }
+
+  const onGrantPoints = async (uid) => {
+    const n = parseDraftAmount(uid)
+    if (n == null) {
+      setError('포인트 칸에 1 이상의 정수를 입력하세요.')
+      return
+    }
+    setPointsBusyUid(uid)
+    setError('')
+    try {
+      await adjustUserPointsAsMaster(uid, n)
+      setPointDraft((d) => ({ ...d, [uid]: '' }))
+      await load()
+    } catch (e) {
+      setError(e?.message ?? '지급에 실패했습니다.')
+    } finally {
+      setPointsBusyUid(null)
+    }
+  }
+
+  const onDeductPoints = async (uid) => {
+    const n = parseDraftAmount(uid)
+    if (n == null) {
+      setError('포인트 칸에 1 이상의 정수를 입력하세요.')
+      return
+    }
+    setPointsBusyUid(uid)
+    setError('')
+    try {
+      await adjustUserPointsAsMaster(uid, -n)
+      setPointDraft((d) => ({ ...d, [uid]: '' }))
+      await load()
+    } catch (e) {
+      setError(e?.message ?? '차감에 실패했습니다.')
+    } finally {
+      setPointsBusyUid(null)
+    }
+  }
+
   const fmtDate = (ts) => {
     if (!ts?.toDate) return '—'
     try {
@@ -73,7 +126,10 @@ export default function AdminUserManagement() {
       <h2 className="text-lg font-semibold text-slate-100">회원 관리</h2>
       <p className="mt-2 text-sm leading-relaxed text-slate-400">
         가입 시 Firestore에 보관한 비밀번호를 마스터만 조회할 수 있습니다. (가입
-        이전 계정은 비밀번호가 비어 있을 수 있습니다.)
+        이전 계정은 비밀번호가 비어 있을 수 있습니다.) 포인트는{' '}
+        <span className="text-slate-300">users</span> 문서의{' '}
+        <span className="text-slate-300">points</span> 필드이며, 목록의 숫자는
+        조회·지급·차감 후 갱신됩니다.
       </p>
 
       <div className="mt-4 flex gap-2">
@@ -97,12 +153,13 @@ export default function AdminUserManagement() {
         <p className="mt-8 text-center text-slate-500">불러오는 중…</p>
       ) : (
         <div className="mt-6 overflow-x-auto rounded-xl border border-slate-800">
-          <table className="w-full min-w-[480px] text-left text-xs">
+          <table className="w-full min-w-[720px] text-left text-xs">
             <thead className="bg-slate-900/90 text-slate-400">
               <tr>
                 <th className="px-2 py-2 font-medium">이름</th>
                 <th className="px-2 py-2 font-medium">비밀번호</th>
-                <th className="px-2 py-2 font-medium">포인트</th>
+                <th className="px-2 py-2 font-medium">포인트(조회)</th>
+                <th className="px-2 py-2 font-medium">지급·차감</th>
                 <th className="px-2 py-2 font-medium">가입</th>
                 <th className="px-2 py-2 font-medium">uid</th>
                 <th className="px-2 py-2 font-medium">삭제</th>
@@ -117,6 +174,40 @@ export default function AdminUserManagement() {
                   </td>
                   <td className="whitespace-nowrap px-2 py-2 font-mono text-slate-300">
                     {r.points ?? 0}
+                  </td>
+                  <td className="px-2 py-2">
+                    <div className="flex flex-wrap items-center gap-1">
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        placeholder="숫자"
+                        value={pointDraft[r.uid] ?? ''}
+                        onChange={(e) =>
+                          setPointDraft((d) => ({
+                            ...d,
+                            [r.uid]: e.target.value,
+                          }))
+                        }
+                        className="w-16 rounded border border-slate-600 bg-slate-900 px-1 py-1 text-slate-100"
+                      />
+                      <button
+                        type="button"
+                        disabled={pointsBusyUid === r.uid}
+                        onClick={() => void onGrantPoints(r.uid)}
+                        className="rounded border border-emerald-600/60 bg-emerald-950/40 px-2 py-1 text-emerald-200 hover:bg-emerald-900/40 disabled:opacity-50"
+                      >
+                        지급
+                      </button>
+                      <button
+                        type="button"
+                        disabled={pointsBusyUid === r.uid}
+                        onClick={() => void onDeductPoints(r.uid)}
+                        className="rounded border border-amber-600/60 bg-amber-950/40 px-2 py-1 text-amber-200 hover:bg-amber-900/40 disabled:opacity-50"
+                      >
+                        차감
+                      </button>
+                    </div>
                   </td>
                   <td className="whitespace-nowrap px-2 py-2 text-slate-400">
                     {fmtDate(r.createdAt)}
@@ -139,7 +230,9 @@ export default function AdminUserManagement() {
             </tbody>
           </table>
           {rows.length === 0 ? (
-            <p className="px-3 py-6 text-center text-slate-500">등록된 사용자가 없습니다.</p>
+            <p className="px-3 py-6 text-center text-slate-500">
+              등록된 사용자가 없습니다.
+            </p>
           ) : null}
         </div>
       )}

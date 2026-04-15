@@ -40,7 +40,9 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if request.auth != null && (request.auth.uid == uid || isNcgameMaster());
-      allow create, update: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null
+        && (request.auth.uid == uid || isNcgameMaster());
       allow delete: if isNcgameMaster();
     }
 

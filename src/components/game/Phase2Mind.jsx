@@ -86,15 +86,6 @@ function shuffle(arr) {
   return a
 }
 
-/** 내 패 표시·초기 배치: topic 모드는 국어→영어→숫자(가나다), sheet 모드는 엑셀 행(id) 순 */
-function sortHandByPlayOrder(hand, orderMode = 'topic') {
-  return [...hand].sort((a, b) => {
-    const o = comparePlayOrder(a, b, orderMode)
-    if (o !== 0) return o
-    return String(a.id).localeCompare(String(b.id))
-  })
-}
-
 /**
  * 플레이어 패와 동일 id 카드는 절대 봇에게 주지 않음.
  * 풀에서 id 문자열로 한 번 더 걸러 내고, 봇1·봇2는 가능하면 서로 겹치지 않게 뽑음(부족 시에만 풀에서 반복).
@@ -341,7 +332,8 @@ function buildRoundState({
   initialCheonryan,
   orderMode = 'topic',
 }) {
-  const playerHand = sortHandByPlayOrder(playerCards, orderMode)
+  /** 손패는 족보와 무관하게 무작위 배치(전근대사 등에서 앞/뒤 id가 한쪽으로 몰리지 않게) */
+  const playerHand = shuffle([...playerCards])
   const n = playerCards.length
   const { bot1Hand, bot2Hand } = dealBotsExclusive(
     playerCards,
@@ -881,11 +873,6 @@ const Phase2Mind = forwardRef(function Phase2Mind(
       ? state.playerHand.find((c) => String(c.id) === String(coachTargetId))
       : null
 
-  const playerHandSorted = useMemo(
-    () => sortHandByPlayOrder(state.playerHand, orderMode),
-    [state.playerHand, orderMode],
-  )
-
   const urgentSec =
     !timerPaused && secLeft > 0 && secLeft <= 5 ? Math.ceil(secLeft) : null
 
@@ -1363,7 +1350,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
         ) : null}
         <div className="max-h-[min(48dvh,26rem)] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-2 text-slate-900 shadow-inner sm:p-2.5">
           <div className="grid w-full grid-cols-3 gap-2 sm:gap-2.5">
-            {playerHandSorted.map((c) => (
+            {state.playerHand.map((c) => (
               <button
                 key={c.id}
                 type="button"

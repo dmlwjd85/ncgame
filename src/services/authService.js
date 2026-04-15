@@ -12,6 +12,7 @@ import {
   getDocs,
   serverTimestamp,
   setDoc,
+  updateDoc,
 } from 'firebase/firestore'
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { firebaseApp, firebaseAuth, firestoreDb } from '../config/firebase'
@@ -286,6 +287,29 @@ export async function deleteUserAccountAsMaster(targetUid) {
   const functions = getFunctions(firebaseApp, region)
   const del = httpsCallable(functions, 'deleteNcgameUser')
   await del({ targetUid })
+}
+
+/**
+ * 마스터 전용 포인트 증감 — Firestore 규칙으로 마스터만 타인 문서 수정 허용
+ * @param {string} targetUid
+ * @param {number} delta — 양수 지급, 음수 차감
+ * @returns {Promise<{ previousPoints: number, newPoints: number }>}
+ */
+export async function adjustUserPointsAsMaster(targetUid, delta) {
+  const u = firebaseAuth.currentUser
+  if (!u || !isMasterUser(u)) {
+    throw new Error('마스터만 포인트를 조정할 수 있습니다.')
+  }
+  if (!Number.isFinite(delta) || delta === 0 || !Number.isInteger(delta)) {
+    throw new Error('0이 아닌 정수만 가능합니다.')
+  }
+  const ref = doc(firestoreDb, 'users', targetUid)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) throw new Error('사용자 문서가 없습니다.')
+  const cur = Number(snap.data()?.points) || 0
+  const next = Math.max(0, cur + delta)
+  await updateDoc(ref, { points: next, updatedAt: serverTimestamp() })
+  return { previousPoints: cur, newPoints: next }
 }
 
 /**
