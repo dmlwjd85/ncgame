@@ -9,7 +9,6 @@ import GameRulesModal from '../components/GameRulesModal'
 import JokboModal from '../components/JokboModal'
 import HallOfFamePanel from '../components/HallOfFamePanel'
 import ShopPanel from '../components/ShopPanel'
-import { ComboLobby } from '../components/combo/ComboLobby'
 import GuestRecordWarningModal from '../components/GuestRecordWarningModal'
 import {
   hasGuestRecordWarningAck,
@@ -23,10 +22,11 @@ import { DISPLAY_NAME_MAX_LEN, formatHoFDisplayName } from '../utils/displayName
 import { displaySheetName } from '../utils/tutorialPack'
 import { maxLevelFromRowCount } from '../utils/gameRules'
 import { buildGameLocation } from '../utils/gameRoute'
+import { getPracticeComboRecord } from '../utils/hallOfFame'
 import { INITIAL_LIVES } from '../utils/userProgressConstants'
 
 /**
- * 홈 — 로그인·팩 선택·설명/족보 팝업·시작
+ * 홈 — 단어 팩 선택 후 눈치게임/무한도전 분기, 하단 탭은 상점·명예의 전당만
  */
 export default function Home() {
   const navigate = useNavigate()
@@ -35,9 +35,12 @@ export default function Home() {
     useAuth()
   const { packs, loading: packsLoading, error: packsError, reloadPacks } =
     useCardPacks()
-  const [tab, setTab] = useState(
-    /** @type {'play'|'shop'|'hof'|'combo'} */ ('play'),
-  )
+  /** 메인 하단 탭 — 상점·명예의 전당만 */
+  const [tab, setTab] = useState(/** @type {'shop' | 'hof'} */ ('shop'))
+  /** 단어팩 화면: 허브(팩+눈치) vs 무한도전 모드 선택 */
+  const [screen, setScreen] = useState(/** @type {'hub' | 'comboPick'} */ ('hub'))
+  /** 선택 팩으로 눈치게임(설명·시작) 패널 펼침 */
+  const [nimchiOpen, setNimchiOpen] = useState(false)
   const [selectedPackId, setSelectedPackId] = useState(null)
   const [rulesOpen, setRulesOpen] = useState(false)
   const [jokboOpen, setJokboOpen] = useState(false)
@@ -147,6 +150,25 @@ export default function Home() {
     continueGameDirect()
   }
 
+  const startComboWithMode = (mode) => {
+    if (!effectivePackId || !canStartPack) return
+    const packId = String(effectivePackId)
+    if (!user && !hasGuestRecordWarningAck()) {
+      setGuestPending(null)
+      setGuestPendingCombo({ packId, mode })
+      setGuestWarnOpen(true)
+      return
+    }
+    navigate('/combo-challenge', {
+      state: { comboAutoStart: { packId, mode } },
+    })
+  }
+
+  const practiceRecord =
+    effectivePackId != null
+      ? getPracticeComboRecord(String(effectivePackId))
+      : null
+
   return (
     <div className="game-shell shell-3d relative flex h-[100dvh] max-h-[100dvh] flex-col overflow-x-hidden overflow-y-hidden text-slate-800">
       <div
@@ -248,59 +270,80 @@ export default function Home() {
           </div>
         ) : null}
 
-        <div className="tab-rail-3d mx-auto mt-4 grid w-full grid-cols-2 gap-1 rounded-2xl border border-slate-600/80 bg-gradient-to-b from-slate-800/95 to-slate-900/90 p-1 sm:grid-cols-4">
-          <button
-            type="button"
-            className={`rounded-xl py-2.5 text-xs font-medium transition sm:text-sm ${
-              tab === 'play'
-                ? 'bg-gradient-to-b from-slate-600 to-slate-800 text-white shadow-[0_4px_0_rgba(15,23,42,0.35),0_8px_20px_rgba(15,23,42,0.25)]'
-                : 'text-slate-400'
-            }`}
-            onClick={() => setTab('play')}
-          >
-            눈치게임
-          </button>
-          <button
-            type="button"
-            className={`rounded-xl py-2.5 text-xs font-medium transition sm:text-sm ${
-              tab === 'combo'
-                ? 'bg-gradient-to-b from-violet-700 to-indigo-950 text-white shadow-[0_4px_0_rgba(40,30,90,0.45),0_8px_20px_rgba(40,30,90,0.28)]'
-                : 'text-slate-400'
-            }`}
-            onClick={() => setTab('combo')}
-          >
-            무한도전
-          </button>
-          <button
-            type="button"
-            className={`rounded-xl py-2.5 text-xs font-medium transition sm:text-sm ${
-              tab === 'shop'
-                ? 'bg-gradient-to-b from-amber-700 to-rose-900 text-white shadow-[0_4px_0_rgba(120,30,30,0.45),0_8px_20px_rgba(120,20,20,0.3)]'
-                : 'text-slate-400'
-            }`}
-            onClick={() => setTab('shop')}
-          >
-            상점
-          </button>
-          <button
-            type="button"
-            className={`rounded-xl py-2.5 text-xs font-medium transition sm:text-sm ${
-              tab === 'hof'
-                ? 'bg-gradient-to-b from-amber-600 to-amber-950 text-white shadow-[0_4px_0_rgba(120,80,20,0.45),0_8px_20px_rgba(120,80,20,0.28)]'
-                : 'text-slate-400'
-            }`}
-            onClick={() => setTab('hof')}
-          >
-            명예의 전당
-          </button>
-        </div>
-
         <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden">
-        {tab === 'play' ? (
+        {screen === 'comboPick' ? (
           <div className="min-h-0 flex-1 overflow-y-auto [-webkit-overflow-scrolling:touch] pr-0.5">
-          <>
+            <div className="card-lift-3d mx-auto mt-2 w-full rounded-2xl border border-violet-500/40 bg-gradient-to-b from-slate-900/95 to-indigo-950/90 px-4 py-5 text-zinc-100">
+              <button
+                type="button"
+                className="text-sm font-medium text-violet-200 underline underline-offset-2"
+                onClick={() => {
+                  setScreen('hub')
+                }}
+              >
+                ← 단어 팩 선택으로
+              </button>
+              <h2 className="font-display mt-3 text-lg font-bold text-violet-100">
+                무한도전
+              </h2>
+              <p className="mt-1 text-sm text-zinc-300">
+                팩:{' '}
+                <span className="font-semibold text-white">
+                  {selectedPack ? displaySheetName(selectedPack) : '—'}
+                </span>
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-zinc-400">
+                모드를 고른 뒤 시작하면 해당 팩으로 바로 플레이 화면으로 이동합니다.
+              </p>
+
+              <div className="mt-5 space-y-4">
+                <section className="rounded-xl border border-violet-400/35 bg-violet-950/40 px-4 py-4">
+                  <h3 className="text-sm font-bold text-violet-100">도전모드</h3>
+                  <ul className="mt-2 list-inside list-disc space-y-1.5 text-xs leading-relaxed text-zinc-200">
+                    <li>5초 제한, 명예의 전당(도전 최고 연속) 반영.</li>
+                    <li>
+                      로그인 시 가끔 1~5포인트 도전 팝업(튜토·동물·식물 팩 제외).
+                    </li>
+                  </ul>
+                  <button
+                    type="button"
+                    disabled={!canStartPack}
+                    onClick={() => startComboWithMode('challenge')}
+                    className="mt-4 w-full rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-700 py-3 text-sm font-bold text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    도전모드로 시작
+                  </button>
+                </section>
+
+                <section className="rounded-xl border border-emerald-500/35 bg-emerald-950/35 px-4 py-4">
+                  <h3 className="text-sm font-bold text-emerald-100">연습모드</h3>
+                  <ul className="mt-2 list-inside list-disc space-y-1.5 text-xs leading-relaxed text-zinc-200">
+                    <li>시간 제한 없음, 포인트·보상 팝업 없음.</li>
+                    <li>연습 최고 연속은 이 기기에만 저장됩니다.</li>
+                  </ul>
+                  {practiceRecord ? (
+                    <p className="mt-2 text-xs font-medium text-emerald-200/90">
+                      이 팩 연습 최고 연속:{' '}
+                      <span className="font-mono">{practiceRecord.maxCombo}</span>
+                    </p>
+                  ) : null}
+                  <button
+                    type="button"
+                    disabled={!canStartPack}
+                    onClick={() => startComboWithMode('practice')}
+                    className="mt-4 w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 py-3 text-sm font-bold text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    연습모드로 시작
+                  </button>
+                </section>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1 overflow-y-auto [-webkit-overflow-scrolling:touch] pr-0.5">
             <section className="card-lift-3d mx-auto mt-2 w-full rounded-2xl border border-slate-200 bg-white/95 px-4 py-4">
-              <div className="mb-3 flex items-center justify-end">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h2 className="text-sm font-bold text-slate-800">단어 팩</h2>
                 <button
                   type="button"
                   className="text-xs text-sky-700 underline underline-offset-2"
@@ -316,31 +359,63 @@ export default function Home() {
               ) : packs.length === 0 ? (
                 <p className="text-sm text-slate-500">등록된 단어 팩이 없습니다.</p>
               ) : (
-                <ul className="max-h-52 space-y-2 overflow-y-auto">
+                <ul className="max-h-[min(42dvh,18rem)] space-y-2 overflow-y-auto">
                   {packs.map((p) => {
                     const v = p.rows.filter((r) => r.topic && r.explanation).length
                     const ml = maxLevelFromRowCount(v)
                     const broken = p.missingColumns.length > 0
+                    const playable = ml >= 1 && p.missingColumns.length === 0
+                    const sel = effectivePackId === p.id
                     return (
                       <li key={p.id}>
-                        <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 transition has-[:checked]:border-sky-400 has-[:checked]:bg-sky-50">
-                          <input
-                            type="radio"
-                            name="pack"
-                            className="h-4 w-4 shrink-0"
-                            checked={effectivePackId === p.id}
-                            onChange={() => setSelectedPackId(p.id)}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p className="font-medium text-slate-900">
-                              {displaySheetName(p)}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              최대 {ml}단계 · 카드 {v}장
-                              {broken ? ' · 설정 필요' : ''}
-                            </p>
-                          </div>
-                        </label>
+                        <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-2 sm:flex-row sm:items-stretch">
+                          <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg px-2 py-2 transition has-[:checked]:bg-sky-50">
+                            <input
+                              type="radio"
+                              name="pack"
+                              className="h-4 w-4 shrink-0"
+                              checked={sel}
+                              onChange={() => {
+                                setSelectedPackId(p.id)
+                                setNimchiOpen(false)
+                                setScreen('hub')
+                              }}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium text-slate-900">
+                                {displaySheetName(p)}
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                최대 {ml}단계 · 카드 {v}장
+                                {broken ? ' · 설정 필요' : ''}
+                              </p>
+                            </div>
+                          </label>
+                          {sel && playable ? (
+                            <div className="flex shrink-0 flex-col gap-2 sm:w-[11.5rem]">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNimchiOpen(true)
+                                  setScreen('hub')
+                                }}
+                                className="rounded-xl bg-gradient-to-r from-cyan-600 to-sky-700 py-2.5 text-xs font-bold text-white shadow-md sm:text-sm"
+                              >
+                                눈치게임
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNimchiOpen(false)
+                                  setScreen('comboPick')
+                                }}
+                                className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-800 py-2.5 text-xs font-bold text-white shadow-md sm:text-sm"
+                              >
+                                무한도전
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
                       </li>
                     )
                   })}
@@ -348,11 +423,14 @@ export default function Home() {
               )}
             </section>
 
-            {packs.length > 0 ? (
+            {nimchiOpen && packs.length > 0 ? (
               selectedPack &&
               maxLv >= 1 &&
               selectedPack.missingColumns.length === 0 ? (
                 <section className="card-lift-3d mx-auto mt-4 w-full space-y-3 rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-violet-50 px-4 py-5">
+                  <p className="text-center text-xs font-semibold text-slate-600">
+                    눈치게임 — {displaySheetName(selectedPack)}
+                  </p>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
@@ -417,30 +495,34 @@ export default function Home() {
                 로그인하면 기록·포인트가 저장돼요. 비로그인으로도 플레이할 수 있어요.
               </p>
             ) : null}
-          </>
-          </div>
-        ) : tab === 'combo' ? (
-          <div className="min-h-0 flex-1 overflow-y-auto [-webkit-overflow-scrolling:touch] pr-0.5">
-            <ComboLobby
-              variant="embedded"
-              defaultPackId={
-                effectivePackId != null ? String(effectivePackId) : null
-              }
-              defaultMode="challenge"
-              onBegin={(packId, mode) => {
-                if (!user && !hasGuestRecordWarningAck()) {
-                  setGuestPending(null)
-                  setGuestPendingCombo({ packId, mode })
-                  setGuestWarnOpen(true)
-                  return
-                }
-                navigate('/combo-challenge', {
-                  state: { comboAutoStart: { packId, mode } },
-                })
-              }}
-            />
-          </div>
-        ) : tab === 'shop' ? (
+
+            <div className="tab-rail-3d mx-auto mt-6 grid w-full grid-cols-2 gap-1 rounded-2xl border border-slate-600/80 bg-gradient-to-b from-slate-800/95 to-slate-900/90 p-1">
+              <button
+                type="button"
+                className={`rounded-xl py-2.5 text-xs font-medium transition sm:text-sm ${
+                  tab === 'shop'
+                    ? 'bg-gradient-to-b from-amber-700 to-rose-900 text-white shadow-[0_4px_0_rgba(120,30,30,0.45),0_8px_20px_rgba(120,20,20,0.3)]'
+                    : 'text-slate-400'
+                }`}
+                onClick={() => setTab('shop')}
+              >
+                상점
+              </button>
+              <button
+                type="button"
+                className={`rounded-xl py-2.5 text-xs font-medium transition sm:text-sm ${
+                  tab === 'hof'
+                    ? 'bg-gradient-to-b from-amber-600 to-amber-950 text-white shadow-[0_4px_0_rgba(120,80,20,0.45),0_8px_20px_rgba(120,80,20,0.28)]'
+                    : 'text-slate-400'
+                }`}
+                onClick={() => setTab('hof')}
+              >
+                명예의 전당
+              </button>
+            </div>
+
+            <div className="mt-3 min-h-0 pb-2">
+        {tab === 'shop' ? (
           <div className="min-h-0 flex-1 overflow-y-auto [-webkit-overflow-scrolling:touch] pr-0.5">
             <ShopPanel />
           </div>
@@ -469,6 +551,10 @@ export default function Home() {
             </div>
           </section>
         )}
+            </div>
+          </div>
+        )}
+
         </div>
 
         {isMaster ? (
