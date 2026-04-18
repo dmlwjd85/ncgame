@@ -2,9 +2,9 @@
 # 저장소 Settings → Secrets and variables → Actions 에 다음이 필요합니다:
 # - FIREBASE_SERVICE_ACCOUNT_SAMBONG_WORLD_2026 : Firebase 콘솔에서 받은 서비스 계정 JSON 전체
 # - (선택) VITE_FIREBASE_* : 프로덕션 빌드용; 없으면 빌드는 되지만 클라이언트 설정이 비어 있을 수 있음
-name: Deploy Firebase Hosting
+name: Deploy Firebase Hosting (service account, manual)
 
-# Firebase 자동 배포는 사용하지 않을 때: 수동 실행만 허용
+# 서비스 계정 JSON 시크릿이 있을 때만 수동 배포 (push 자동 배포는 deploy-hosting.yml)
 on:
   workflow_dispatch:
 

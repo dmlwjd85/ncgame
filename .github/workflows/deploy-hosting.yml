@@ -1,9 +1,13 @@
 # Firebase Hosting 배포 — 저장소 시크릿 FIREBASE_TOKEN 필요 (firebase login:ci 로 발급)
-name: Deploy Firebase Hosting
+name: Deploy Firebase Hosting (CLI)
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
