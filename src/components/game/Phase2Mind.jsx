@@ -18,7 +18,10 @@ import {
   phase2SecondsForLevel,
 } from '../../utils/gameRules'
 import { sfxMerge, sfxPenalty, sfxTick } from '../../utils/gameSfx'
-import { buildMechanicalJokboFireTimes } from '../../utils/phase2Utils'
+import {
+  buildJokboProportionalBotFireTimes,
+  buildMechanicalJokboFireTimes,
+} from '../../utils/phase2Utils'
 import { createSeededRng } from '../../utils/seededRng'
 
 const DEFAULT_OPPONENT_LABELS = ['A봇', 'B봇', 'C봇']
@@ -310,21 +313,104 @@ function applyWrongSubmission(
 }
 
 /**
- * 봇 자동 제출 타이밍만 담습니다. 앞·뒤 2초 제외 구간을 **봇이 낼 총 장수**로 n등분한 시각(fireAt)입니다.
- * 플레이어 손패는 타이머로 내지 않고 탭으로만 제출합니다(눈치 플레이).
+ * 완전 플레이(매 턴 globalMin) 시뮬로 봇이 내는 카드 순서를 구합니다. 타이밍 스케줄만을 위한 것입니다.
+ */
+function simulatePerfectBotPlaySequence(
+  playerHand,
+  bot1Hand,
+  bot2Hand,
+  bot3Hand,
+  botCount,
+  orderMode,
+) {
+  let state = {
+    lives: MAX_LIVES,
+    cheonryan: 0,
+    lastPlayed: null,
+    center: [],
+    playerHand: [...playerHand],
+    bot1Hand: [...bot1Hand],
+    bot2Hand: botCount > 1 ? [...bot2Hand] : [],
+    bot3Hand: botCount > 2 ? [...bot3Hand] : [],
+    p2Combo: 0,
+    hintMode: false,
+    revealed: new Set(),
+    penaltyToast: null,
+    lifePenaltyModal: null,
+    mergeFlash: 0,
+    shakeKey: 0,
+  }
+  const seatLabels = DEFAULT_OPPONENT_LABELS
+  /** @type {typeof playerHand} */
+  const botCards = []
+  for (;;) {
+    const total =
+      state.playerHand.length +
+      state.bot1Hand.length +
+      state.bot2Hand.length +
+      state.bot3Hand.length
+    if (total === 0) break
+    const e = globalMinValidEntry(state, orderMode)
+    if (!e) break
+    if (e.from === 'player') {
+      state = applyPlayerPlayWithRules(state, e.card, orderMode, seatLabels)
+    } else {
+      botCards.push(e.card)
+      state = applyBotSuccessPlay(state, e.from, e.card)
+    }
+  }
+  return botCards
+}
+
+/**
+ * 봇 자동 제출 타이밍: 풀 족보에서의 순위에 비례해 fireAt을 둡니다.
+ * poolRows가 없거나 시뮬 길이가 어긋나면 예전처럼 봇 장수만 균등 분할합니다.
  */
 function buildMechanicalAllPlaysSchedule(
+  playerHand,
   bot1Hand,
   bot2Hand,
   bot3Hand,
   botCount,
   durationMs,
+  orderMode,
+  poolRows,
 ) {
   const botTotal =
     bot1Hand.length +
     (botCount > 1 ? bot2Hand.length : 0) +
     (botCount > 2 ? bot3Hand.length : 0)
-  const times = buildMechanicalJokboFireTimes(botTotal, durationMs)
+
+  const botCards = simulatePerfectBotPlaySequence(
+    playerHand,
+    bot1Hand,
+    bot2Hand,
+    bot3Hand,
+    botCount,
+    orderMode,
+  )
+
+  let times
+  if (
+    poolRows &&
+    poolRows.length > 0 &&
+    botCards.length > 0 &&
+    botCards.length === botTotal
+  ) {
+    times = buildJokboProportionalBotFireTimes(
+      botCards,
+      poolRows,
+      orderMode,
+      durationMs,
+    )
+  } else {
+    times = buildMechanicalJokboFireTimes(botTotal, durationMs)
+  }
+
+  if (times.length !== botTotal) {
+    times = buildMechanicalJokboFireTimes(botTotal, durationMs)
+  }
+
   return times.map((fireAt) => ({ fireAt }))
 }
 
@@ -354,11 +440,14 @@ function buildRoundState({
     rng,
   )
   const schedule = buildMechanicalAllPlaysSchedule(
+    playerHand,
     bot1Hand,
     bot2Hand,
     bot3Hand,
     botCount,
     durationMs,
+    orderMode,
+    poolRows,
   )
   return {
     lives: initialLives,

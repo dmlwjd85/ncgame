@@ -1,3 +1,5 @@
+import { comparePlayOrder } from './koCompare'
+
 /** 라운드 말미 — 플레이어 전용 구간(봇은 이 시간 안에 스케줄되지 않음). 뒤 2초. */
 export const USER_RESERVE_MS = 2000
 
@@ -139,4 +141,53 @@ export function buildMechanicalJokboFireTimes(cardCount, durationMs) {
     const t = start + i * step
     return Math.round(Math.min(Math.max(t, start), end))
   })
+}
+
+/**
+ * 봇이 실제로 내게 될 카드(완전 플레이 시뮬 순서)마다, **풀 전체 족보**에서의 위치에 비례해 제출 시각(ms)을 둡니다.
+ * (균등 n등분이면 “첫 봇 턴”이 항상 초반에만 잡혀 150번째 카드도 3초쯤 나가는 왜곡이 생김)
+ * @param {Array<{ id?: string|number, topic?: string }>} botCardsInOrder 봇이 내는 카드들의 순서
+ * @param {Array<{ id?: string|number, topic?: string }>} poolRows 팩/시트 전체 행(족보 기준 집합)
+ * @param {'topic'|'sheet'} orderMode
+ * @param {number} durationMs 라운드 길이(ms)
+ * @returns {number[]} 각 봇 제출 시각(elapsed 기준)
+ */
+export function buildJokboProportionalBotFireTimes(
+  botCardsInOrder,
+  poolRows,
+  orderMode,
+  durationMs,
+) {
+  const lead = MECHANICAL_LEAD_MS
+  const tail = MECHANICAL_LEAD_MS
+  const start = lead
+  const end = Math.max(start, durationMs - tail)
+  const span = Math.max(0, end - start)
+  const n = botCardsInOrder.length
+  if (n === 0) return []
+
+  if (!poolRows || poolRows.length === 0) {
+    return buildMechanicalJokboFireTimes(n, durationMs)
+  }
+
+  const sortedPool = [...poolRows].sort((a, b) => {
+    const o = comparePlayOrder(a, b, orderMode)
+    if (o !== 0) return o
+    return String(a?.id ?? '').localeCompare(String(b?.id ?? ''))
+  })
+  const denom = Math.max(1, sortedPool.length - 1)
+
+  /** @type {number[]} */
+  const times = botCardsInOrder.map((card) => {
+    const idx = sortedPool.findIndex((r) => String(r?.id) === String(card?.id))
+    const rank = idx >= 0 ? idx : 0
+    const ratio = rank / denom
+    const t = start + ratio * span
+    return Math.round(Math.min(Math.max(t, start), end))
+  })
+
+  for (let i = 1; i < times.length; i++) {
+    if (times[i] < times[i - 1]) times[i] = times[i - 1]
+  }
+  return times
 }
