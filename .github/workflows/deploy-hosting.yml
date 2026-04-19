@@ -38,4 +38,5 @@ jobs:
             echo "::error title=시크릿 누락::ncgame 저장소 Settings → Secrets and variables → Actions 에 FIREBASE_TOKEN 을 추가하세요 (로컬: npx firebase login:ci)"
             exit 1
           fi
-          npx firebase deploy --only hosting --project sambong-world-2026 --non-interactive
+          # npm 패키지 이름 `firebase`는 JS SDK라 CLI가 없음 — `firebase-tools`가 `firebase` 바이너리를 제공함
+          ./node_modules/.bin/firebase deploy --only hosting --project sambong-world-2026 --non-interactive
