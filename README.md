@@ -11,11 +11,14 @@ npm install
 npm run dev
 ```
 
-## 로컬에서 Firebase Hosting 배포
+## 로컬 빌드 확인
 
-1. [Firebase CLI](https://firebase.google.com/docs/cli) 로그인: `firebase login`
-2. CI용 토큰 발급: `firebase login:ci` → 출력된 토큰을 GitHub 저장소 Secrets의 `FIREBASE_TOKEN`에 등록
-3. 배포: `npm run deploy`
+```bash
+npm ci
+npm run build
+```
+
+(Firebase Hosting에 올리는 배포는 CI에서 쓰지 않습니다. 웹 공개는 아래 **GitHub Pages** 워크플로만 사용합니다.)
 
 ## GitHub 저장소 생성 및 푸시
 
@@ -34,18 +37,18 @@ git remote add origin https://github.com/<사용자>/ncgame.git
 git push -u origin main
 ```
 
-`main` 브랜치에 푸시하면 `.github/workflows/deploy-hosting.yml`이 빌드 후 Firebase Hosting에 배포합니다. `FIREBASE_TOKEN` 시크릿이 없으면 해당 작업은 실패합니다.
+`main`(또는 `master`)에 푸시하면 `.github/workflows/deploy-github-pages.yml`만 실행되어 **GitHub Pages**에 올라갑니다. **Firebase Hosting용 GitHub Actions는 사용하지 않습니다.**
 
-## 배포 주소 구분
+## 배포 주소 (GitHub Actions → GitHub Pages)
 
-| 방식 | 예시 URL | 설명 |
-|------|-----------|------|
-| **Firebase Hosting** | `https://sambong-world-2026.web.app` | 프로젝트 루트(`/`)에 배포 |
-| **GitHub Pages** | `https://dmlwjd85.github.io/ncgame/` | 반드시 **`/ncgame/`** 까지 포함 (루트 `github.io`만 열면 404) |
+| 항목 | 내용 |
+|------|------|
+| 워크플로 파일 | `.github/workflows/deploy-github-pages.yml` |
+| 공개 URL 예시 | `https://<사용자명>.github.io/ncgame/` — 주소 끝까지 **`/ncgame/`** 포함 (루트만 열면 404) |
 
-예전에 쓰시던 **github.io/저장소이름** 형태는 GitHub Pages입니다. 이 저장소에는 Pages용 워크플로(`.github/workflows/deploy-github-pages.yml`)를 추가해 두었습니다.
+**처음 한 번(필수):** GitHub 저장소 → **Settings** → **Pages** → **Build and deployment** → **Source**를 **GitHub Actions**로 바꿉니다. 그다음 `main`에 푸시하거나 Actions 탭에서 **Deploy GitHub Pages** 워크플로를 **Run workflow**로 수동 실행합니다.
 
-**처음 한 번:** GitHub 저장소 → **Settings** → **Pages** → **Build and deployment** → **Source**를 **GitHub Actions**로 선택합니다. 그다음 `main`에 푸시하면 `deploy-github-pages`가 실행되고, 위 github.io 주소에서 동작합니다.
+같은 저장소의 Firebase 프로젝트(`sambong-world-2026`)를 쓰는 **별도** 주소(예: `*.web.app`)가 있을 수 있으나, **이 저장소 CI로 자동 배포하는 곳은 GitHub Pages뿐**입니다.
 
 ## 계정 (이름 + 비밀번호)
 
