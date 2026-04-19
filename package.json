@@ -12,7 +12,10 @@
     "deploy": "npm run lint && npm run build",
     "ncxlxs:split": "node scripts/split-ncxlxs-one-sheet-per-file.mjs",
     "cap:android": "npx cap open android",
-    "cap:ios": "npx cap open ios"
+    "cap:ios": "npx cap open ios",
+    "android:sync": "npm run build:cap",
+    "android:aab": "npm run build:cap && node scripts/run-android-gradle.mjs bundleRelease",
+    "android:apk": "npm run build:cap && node scripts/run-android-gradle.mjs assembleRelease"
   },
   "dependencies": {
     "@capacitor/android": "7.1.0",

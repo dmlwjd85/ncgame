@@ -1,6 +1,9 @@
 /** 라운드 말미 — 플레이어 전용 구간(봇은 이 시간 안에 스케줄되지 않음). 뒤 2초. */
 export const USER_RESERVE_MS = 2000
 
+/** 족보 기계 제출: 라운드 시작 후 앞쪽에 비워 두는 시간(ms) */
+export const MECHANICAL_LEAD_MS = 2000
+
 /** 봇이 첫 카드를 내기 전 암묵적 대기(ms) — 시작 후 앞 2초는 플레이어 끼워 넣기 여유 */
 export const BOT_PLAY_START_DELAY_MS = 2000
 
@@ -108,4 +111,32 @@ export function scheduleBotFireTimes(k, durationMs) {
   if (k <= 0) return []
   const f = Array.from({ length: k }, () => BOT_PLAY_START_DELAY_MS)
   return scheduleBotFireTimesFromFloors(f, durationMs)
+}
+
+/**
+ * 눈치게임 2페이즈: 앞·뒤 각 2초를 제외한 가용 구간(span)을 족보 제출 횟수(n)로 **동일 폭**으로 나눕니다.
+ * i번째 제출 시각은 span/n 간격으로 앞쪽부터 배치되어, 족보 앞쪽(ㄱ·ㄷ 등)이 초반에 바로 나갑니다.
+ * (과거 (n-1)분모로 끝에 몰리던 문제·스케줄 카드와 globalMin 불일치 정체를 피하기 위해
+ *  실제 제출은 Phase2Mind 에서 매 시각 globalMin 만 제출합니다.)
+ * @param {number} cardCount 전체 손패 카드 수(플레이어+상대 전부)
+ * @param {number} durationMs 라운드 길이(ms)
+ * @returns {number[]} 각 제출 시각(ms, elapsed 기준)
+ */
+export function buildMechanicalJokboFireTimes(cardCount, durationMs) {
+  const lead = MECHANICAL_LEAD_MS
+  const tail = MECHANICAL_LEAD_MS
+  const start = lead
+  const end = Math.max(start, durationMs - tail)
+  const span = Math.max(0, end - start)
+  const n = Math.max(0, Math.floor(cardCount))
+  if (n <= 0) return []
+  if (n === 1) {
+    const t = start + span / 2
+    return [Math.round(Math.min(Math.max(t, start), end))]
+  }
+  const step = span / n
+  return Array.from({ length: n }, (_, i) => {
+    const t = start + i * step
+    return Math.round(Math.min(Math.max(t, start), end))
+  })
 }

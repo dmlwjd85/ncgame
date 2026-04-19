@@ -29,6 +29,7 @@ import {
   resolveGameBotCount,
   resolveGamePackId,
 } from '../utils/gameRoute'
+import { leaveNimchiRoom } from '../services/nimchiRoomService'
 import { isTutorialPack } from '../utils/tutorialPack'
 import { orderPhase1DeckRows } from '../utils/packRowOrder'
 
@@ -50,10 +51,12 @@ function sortHandForP2Snapshot(hand, orderMode) {
   })
 }
 
-function fieldActorLabel(from) {
+function fieldActorLabel(from, seatLabels) {
   if (from === 'player') return '나'
-  if (from === 'bot1') return 'A봇'
-  if (from === 'bot2') return 'B봇'
+  const L = seatLabels ?? []
+  if (from === 'bot1') return L[0] ?? 'A봇'
+  if (from === 'bot2') return L[1] ?? 'B봇'
+  if (from === 'bot3') return L[2] ?? 'C봇'
   return String(from)
 }
 
@@ -73,8 +76,13 @@ export default function Game() {
   } = useCardPacks()
 
   const packId = resolveGamePackId(location.state, searchParams)
-  const botCount = resolveGameBotCount()
+  const botCount = resolveGameBotCount(location.state, searchParams)
   const gameBootstrap = location.state?.gameBootstrap
+  /** 멀티 방: 상대 자리 이름(맞은편·왼쪽·오른쪽 순, 최대 3) */
+  const nimchiRoom = location.state?.nimchiRoom
+  const opponentSeatLabels = nimchiRoom?.opponentSeatLabels
+  /** 멀티 방에서 Firestore gameSession으로 공유 — 2페이즈 덱 동기화 */
+  const p2ShuffleSeed = location.state?.p2ShuffleSeed
 
   const resumeSnap = useMemo(() => {
     if (!packId) return null
@@ -199,6 +207,14 @@ export default function Game() {
   /** 전근대사 100선: 2페이즈는 엑셀 행 순서(시간 순) 족보 */
   const phase2OrderMode = pack?.sheetName === '전근대사 100선' ? 'sheet' : 'topic'
 
+  /** 멀티: 방 공유 시드 + 레벨·라운드 — 레벨마다 다른 2페이즈 셔플, 클라이언트 간 동일 */
+  const p2DeckSyncSeed = useMemo(() => {
+    if (p2ShuffleSeed == null) return undefined
+    const base = Number(p2ShuffleSeed)
+    if (!Number.isFinite(base)) return undefined
+    return (base ^ (level * 0x1f3d5a7) ^ (roundVersion * 0x9e3779b9)) >>> 0
+  }, [p2ShuffleSeed, level, roundVersion])
+
   /** 레벨 클리어: 토스트·팡파레만, 2페이즈 화면 유지 */
   const [showLevelClearPopup, setShowLevelClearPopup] = useState(false)
 
@@ -207,16 +223,12 @@ export default function Game() {
     const unused = validRows.filter((r) => !used.has(r.id))
     if (unused.length === 0) {
       used.clear()
-      setDeckNotice(
-        phase2OrderMode === 'sheet'
-          ? '단어팩에서 쓸 카드가 부족해요. 처음부터 시간(엑셀 행) 순으로 다시 이어갑니다.'
-          : '단어팩에서 쓸 카드가 부족해요. 덱을 처음부터 다시 섞어 이어갑니다.',
-      )
+      setDeckNotice('단어팩에서 쓸 카드가 부족해요. 덱을 처음부터 다시 섞어 이어갑니다.')
       window.setTimeout(() => setDeckNotice(null), 6000)
-      return orderPhase1DeckRows(validRows, phase2OrderMode)
+      return orderPhase1DeckRows(validRows, phase2OrderMode, p2ShuffleSeed)
     }
-    return orderPhase1DeckRows(unused, phase2OrderMode)
-  }, [validRows, phase2OrderMode])
+    return orderPhase1DeckRows(unused, phase2OrderMode, p2ShuffleSeed)
+  }, [validRows, phase2OrderMode, p2ShuffleSeed])
 
   /* eslint-disable react-hooks/set-state-in-effect -- 덱 셔플 초기화·이어하기 복원 */
   useEffect(() => {
@@ -230,6 +242,7 @@ export default function Game() {
       const pool = orderPhase1DeckRows(
         validRows.filter((r) => !usedRowIdsRef.current.has(String(r.id))),
         phase2OrderMode,
+        undefined,
       )
       setQueue(q.length > 0 ? q : pool)
       clearStagedResume()
@@ -237,9 +250,9 @@ export default function Game() {
       return
     }
     usedRowIdsRef.current = new Set()
-    setQueue(orderPhase1DeckRows(validRows, phase2OrderMode))
+    setQueue(orderPhase1DeckRows(validRows, phase2OrderMode, p2ShuffleSeed))
     setQueueReady(true)
-  }, [pack, queueReady, validRows, packId, resumeSnap, phase2OrderMode])
+  }, [pack, queueReady, validRows, packId, resumeSnap, phase2OrderMode, p2ShuffleSeed])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   /* eslint-disable react-hooks/set-state-in-effect -- 1페이즈 콤보 증가 시 타격감·1초 콤보 팝업 */
@@ -871,7 +884,7 @@ export default function Game() {
             <div className="mt-3 md:mt-4">
               <Phase2Mind
                 ref={p2MindRef}
-                key={`${level}-${roundVersion}-p2`}
+                key={`${level}-${roundVersion}-p2-${p2DeckSyncSeed ?? 'solo'}`}
                 level={level}
                 playerCards={levelDeck}
                 botCount={botCount}
@@ -891,6 +904,8 @@ export default function Game() {
                 orderMode={phase2OrderMode}
                 hideFixedCheonryanButton
                 onHintModeChange={setP2HintMode}
+                opponentSeatLabels={opponentSeatLabels}
+                shuffleSeed={p2DeckSyncSeed}
               />
             </div>
             {showLevelClearPopup ? (
@@ -1001,7 +1016,7 @@ export default function Game() {
                             </span>
                             <span className="text-slate-500">
                               {' '}
-                              · {fieldActorLabel(c.from)}
+                              · {fieldActorLabel(c.from, opponentSeatLabels)}
                             </span>
                           </li>
                         ))}
@@ -1020,13 +1035,24 @@ export default function Game() {
                     {(
                       [
                         { label: '나', hand: p2GameOver.snapshot.playerHand },
-                        { label: 'A봇', hand: p2GameOver.snapshot.bot1Hand },
+                        {
+                          label: opponentSeatLabels?.[0] ?? 'A봇',
+                          hand: p2GameOver.snapshot.bot1Hand,
+                        },
                       ].concat(
                         p2GameOver.snapshot.botCount >= 2
                           ? [
                               {
-                                label: 'B봇',
+                                label: opponentSeatLabels?.[1] ?? 'B봇',
                                 hand: p2GameOver.snapshot.bot2Hand,
+                              },
+                            ]
+                          : [],
+                        p2GameOver.snapshot.botCount >= 3
+                          ? [
+                              {
+                                label: opponentSeatLabels?.[2] ?? 'C봇',
+                                hand: p2GameOver.snapshot.bot3Hand ?? [],
                               },
                             ]
                           : [],
@@ -1062,13 +1088,58 @@ export default function Game() {
               </p>
             )}
 
-            <button
-              type="button"
-              className="mt-8 rounded-2xl border border-slate-300 bg-white px-6 py-3 text-slate-800 shadow-md"
-              onClick={() => navigate('/', { replace: true })}
-            >
-              처음으로
-            </button>
+            <div className="mx-auto mt-8 flex max-w-md flex-col gap-3">
+              {nimchiRoom?.roomId ? (
+                <>
+                  <button
+                    type="button"
+                    className="rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-600 px-6 py-3 text-base font-semibold text-white shadow-md"
+                    onClick={() =>
+                      navigate(
+                        {
+                          pathname: '/game',
+                          search: `?pack=${encodeURIComponent(packId)}&bots=${botCount}`,
+                        },
+                        {
+                          replace: true,
+                          state: {
+                            packId,
+                            botCount,
+                            nimchiRoom,
+                            gameBootstrap: {
+                              startLevel: 1,
+                              lives: INITIAL_LIVES,
+                              cheonryan: 1,
+                            },
+                          },
+                        },
+                      )
+                    }
+                  >
+                    다시 도전하기
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-2xl border border-slate-300 bg-white px-6 py-3 text-slate-800 shadow-md"
+                    onClick={() => {
+                      if (user?.uid && nimchiRoom?.roomId) {
+                        void leaveNimchiRoom(nimchiRoom.roomId, user.uid)
+                      }
+                      navigate('/', { replace: true })
+                    }}
+                  >
+                    방 나가기 (홈)
+                  </button>
+                </>
+              ) : null}
+              <button
+                type="button"
+                className="rounded-2xl border border-slate-300 bg-white px-6 py-3 text-slate-800 shadow-md"
+                onClick={() => navigate('/', { replace: true })}
+              >
+                처음으로
+              </button>
+            </div>
           </div>
         ) : null}
       </div>

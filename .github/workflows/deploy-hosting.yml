@@ -1,4 +1,8 @@
-# Firebase Hosting 배포 — 저장소 시크릿 FIREBASE_TOKEN 필요 (firebase login:ci 로 발급)
+# 이 저장소(https://github.com/dmlwjd85/ncgame) 루트 기준 워크플로입니다.
+# 부모 폴더 Project 에서 ncgame 은 .gitignore 되어 있어, 배포·푸시는 반드시 이 ncgame 저장소에서 합니다.
+#
+# Firebase Hosting 배포 — GitHub → Settings → Secrets → Actions
+#   FIREBASE_TOKEN — 로컬에서 `npx firebase login:ci` 로 발급한 토큰(저장소에만 저장)
 name: Deploy Firebase Hosting (CLI)
 
 on:
@@ -19,13 +23,19 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+          cache-dependency-path: package-lock.json
 
-      - name: 의존성 설치 및 프로덕션 빌드 (루트 배포용)
+      - name: 의존성 설치 및 프로덕션 빌드
         run: npm ci && npm run build
         env:
           VITE_BASE_PATH: /
 
       - name: Firebase Hosting 배포
-        run: npx firebase deploy --only hosting --project sambong-world-2026 --non-interactive
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          if [ -z "${FIREBASE_TOKEN:-}" ]; then
+            echo "::error title=시크릿 누락::ncgame 저장소 Settings → Secrets and variables → Actions 에 FIREBASE_TOKEN 을 추가하세요 (로컬: npx firebase login:ci)"
+            exit 1
+          fi
+          npx firebase deploy --only hosting --project sambong-world-2026 --non-interactive

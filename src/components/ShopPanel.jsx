@@ -3,8 +3,8 @@ import { SHOP_ITEMS } from '../config/shopConfig'
 import { subscribeSambongShopMent } from '../services/sambongShopService'
 import { usePlayerProgressStore } from '../stores/playerProgressStore'
 import { useAuth } from '../contexts/AuthContext'
-import { publicUrl } from '../utils/publicUrl'
 import ShopWoodSign from './ShopWoodSign'
+import SambongGrandpaArt from './SambongGrandpaArt'
 
 /**
  * 삼봉당 — 할아버지 + 말풍선(마스터 멘트)
@@ -62,13 +62,7 @@ export default function ShopPanel() {
 
       <div className="mx-auto mt-6 flex max-w-lg flex-col gap-4 sm:flex-row sm:items-stretch">
         <div className="flex shrink-0 justify-center sm:w-[7.5rem]">
-          <img
-            src={publicUrl('images/sambong-grandpa.svg')}
-            alt=""
-            className="h-28 w-28 object-contain drop-shadow-md sm:h-32 sm:w-32"
-            width={128}
-            height={128}
-          />
+          <SambongGrandpaArt />
         </div>
         <div className="relative min-h-[5rem] flex-1 rounded-2xl border-2 border-amber-800/50 bg-amber-50 px-3 py-3 text-slate-900 shadow-inner">
           <div

@@ -11,6 +11,15 @@ admin.initializeApp()
 
 const REGION = 'asia-northeast3'
 
+/** 클라이언트 기본 마스터 이메일(ncgame-master@프로젝트.firebaseapp.com)과 동일하게 맞춤 */
+function defaultNcgameMasterEmail() {
+  const pid =
+    process.env.GCLOUD_PROJECT ||
+    (process.env.FIREBASE_CONFIG && JSON.parse(process.env.FIREBASE_CONFIG).projectId) ||
+    ''
+  return pid ? `ncgame-master@${pid}.firebaseapp.com` : ''
+}
+
 /**
  * @param {import('firebase-functions').https.CallableContext} context
  */
@@ -19,7 +28,8 @@ function assertMaster(context) {
     throw new functions.https.HttpsError('unauthenticated', '로그인이 필요합니다.')
   }
   const cfg = functions.config().ncgame || {}
-  const masterEmail = (cfg.master_email || '').trim()
+  const fromCfg = (cfg.master_email || '').trim()
+  const masterEmail = fromCfg || defaultNcgameMasterEmail()
   const masterUid = (cfg.master_uid || '').trim()
   const callerEmail = context.auth.token.email || ''
   const callerUid = context.auth.uid

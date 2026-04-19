@@ -22,9 +22,10 @@ dist-ssr
 .idea
 .DS_Store
 
-# Capacitor 네이티브 프로젝트 (npx cap add android / ios 후 생성)
-android/
-ios/
+# Capacitor — 플레이 스토어용 android 폴더는 커밋합니다. 로컬 서명 파일만 제외합니다.
+android/keystore.properties
+android/*.jks
+android/*.keystore
 *.suo
 *.ntvs*
 *.njsproj

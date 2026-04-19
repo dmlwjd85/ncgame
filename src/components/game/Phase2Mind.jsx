@@ -18,14 +18,10 @@ import {
   phase2SecondsForLevel,
 } from '../../utils/gameRules'
 import { sfxMerge, sfxPenalty, sfxTick } from '../../utils/gameSfx'
-import {
-  BOT_PLAY_START_DELAY_MS,
-  PLAYER_AHEAD_MS,
-  scheduleBotFireTimesFromFloors,
-} from '../../utils/phase2Utils'
-import { topicAlphabetPosition01 } from '../../utils/topicAlphabetBias'
+import { buildMechanicalJokboFireTimes } from '../../utils/phase2Utils'
+import { createSeededRng } from '../../utils/seededRng'
 
-const BOT_NAMES = ['A봇', 'B봇']
+const DEFAULT_OPPONENT_LABELS = ['A봇', 'B봇', 'C봇']
 
 /** 천리안 버튼·연출용 눈 아이콘 */
 export function EyeIcon({ className = 'h-4 w-4' }) {
@@ -77,10 +73,12 @@ function centerEntryFromCard(card, from, extra = {}) {
   }
 }
 
-function shuffle(arr) {
+/** @param {() => number} [rng] 0~1 미만, 없으면 Math.random */
+function shuffle(arr, rng) {
   const a = [...arr]
+  const rnd = rng ?? (() => Math.random())
   for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
+    const j = Math.floor(rnd() * (i + 1))
     ;[a[i], a[j]] = [a[j], a[i]]
   }
   return a
@@ -94,10 +92,11 @@ function shuffle(arr) {
  * @param {number} n
  * @param {number} botCount
  */
-function dealBotsExclusive(playerCards, poolRows, n, botCount) {
+function dealBotsExclusive(playerCards, poolRows, n, botCount, rng) {
   const playerIds = new Set(playerCards.map((c) => String(c.id)))
   const safe = shuffle(
     poolRows.filter((r) => r && !playerIds.has(String(r.id))),
+    rng,
   )
   const used = new Set()
   const take = (need) => {
@@ -117,11 +116,12 @@ function dealBotsExclusive(playerCards, poolRows, n, botCount) {
       k += 1
       if (k > need * safe.length * 4) break
     }
-    return shuffle(out)
+    return shuffle(out, rng)
   }
   return {
     bot1Hand: n > 0 ? take(n) : [],
     bot2Hand: botCount > 1 && n > 0 ? take(n) : [],
+    bot3Hand: botCount > 2 && n > 0 ? take(n) : [],
   }
 }
 
@@ -136,6 +136,7 @@ function globalMinValidEntry(state, orderMode = 'topic') {
     ...state.playerHand.map((card) => ({ card, from: 'player' })),
     ...state.bot1Hand.map((card) => ({ card, from: 'bot1' })),
     ...state.bot2Hand.map((card) => ({ card, from: 'bot2' })),
+    ...state.bot3Hand.map((card) => ({ card, from: 'bot3' })),
   ]
   const valid =
     last == null
@@ -162,6 +163,7 @@ function collectForcedBeforeWrong(state, lastPlayed, wrongCard, orderMode = 'top
     ...state.playerHand.map((card) => ({ from: 'player', card })),
     ...state.bot1Hand.map((card) => ({ from: 'bot1', card })),
     ...state.bot2Hand.map((card) => ({ from: 'bot2', card })),
+    ...state.bot3Hand.map((card) => ({ from: 'bot3', card })),
   ]
   if (orderMode === 'sheet') {
     const w = Number(wrongCard.id)
@@ -185,10 +187,12 @@ function collectForcedBeforeWrong(state, lastPlayed, wrongCard, orderMode = 'top
   })
 }
 
-function actorLabel(from) {
+function actorLabelFrom(from, seatLabels) {
   if (from === 'player') return '나'
-  if (from === 'bot1') return 'A봇'
-  return 'B봇'
+  const labels = seatLabels ?? DEFAULT_OPPONENT_LABELS
+  if (from === 'bot1') return labels[0] ?? DEFAULT_OPPONENT_LABELS[0]
+  if (from === 'bot2') return labels[1] ?? DEFAULT_OPPONENT_LABELS[1]
+  return labels[2] ?? DEFAULT_OPPONENT_LABELS[2]
 }
 
 /** 타임라인 칩 색 — 나 / 봇 / 강제 / 오제출 구분 */
@@ -205,10 +209,19 @@ function fieldChipClass(entry) {
   if (entry.from === 'bot1') {
     return 'border-slate-400 bg-slate-100 text-slate-900'
   }
-  return 'border-violet-400 bg-violet-50 text-violet-950'
+  if (entry.from === 'bot2') {
+    return 'border-violet-400 bg-violet-50 text-violet-950'
+  }
+  return 'border-fuchsia-400 bg-fuchsia-50 text-fuchsia-950'
 }
 
-function applyWrongSubmission(state, playedCard, playedFrom, orderMode = 'topic') {
+function applyWrongSubmission(
+  state,
+  playedCard,
+  playedFrom,
+  orderMode = 'topic',
+  seatLabels,
+) {
   const expectedCard = globalMinValidCard(state, orderMode)
   const expectedTopic = expectedCard?.topic ?? ''
 
@@ -227,13 +240,15 @@ function applyWrongSubmission(state, playedCard, playedFrom, orderMode = 'topic'
   let playerHand = [...state.playerHand]
   let bot1Hand = [...state.bot1Hand]
   let bot2Hand = [...state.bot2Hand]
+  let bot3Hand = [...state.bot3Hand]
   let center = [...state.center]
 
   for (const { from, card: c } of forced) {
     center = [...center, centerEntryFromCard(c, from, { forced: true })]
     if (from === 'player') playerHand = removeFromHand(playerHand, c)
     else if (from === 'bot1') bot1Hand = removeFromHand(bot1Hand, c)
-    else bot2Hand = removeFromHand(bot2Hand, c)
+    else if (from === 'bot2') bot2Hand = removeFromHand(bot2Hand, c)
+    else bot3Hand = removeFromHand(bot3Hand, c)
   }
 
   const pen = forced.length
@@ -241,7 +256,8 @@ function applyWrongSubmission(state, playedCard, playedFrom, orderMode = 'topic'
   center = [...center, centerEntryFromCard(playedCard, playedFrom, { forced: true, wrongTap: true })]
   if (playedFrom === 'player') playerHand = removeFromHand(playerHand, playedCard)
   else if (playedFrom === 'bot1') bot1Hand = removeFromHand(bot1Hand, playedCard)
-  else bot2Hand = removeFromHand(bot2Hand, playedCard)
+  else if (playedFrom === 'bot2') bot2Hand = removeFromHand(bot2Hand, playedCard)
+  else bot3Hand = removeFromHand(bot3Hand, playedCard)
 
   return {
     ...state,
@@ -250,6 +266,7 @@ function applyWrongSubmission(state, playedCard, playedFrom, orderMode = 'topic'
     playerHand,
     bot1Hand,
     bot2Hand,
+    bot3Hand,
     lives: Math.max(0, state.lives - pen),
     p2Combo: playedFrom === 'player' ? 0 : (state.p2Combo ?? 0),
     hintMode: false,
@@ -262,9 +279,9 @@ function applyWrongSubmission(state, playedCard, playedFrom, orderMode = 'topic'
       forcedCards: forced.map(({ from: fr, card: c }) => ({
         topic: c.topic,
         from: fr,
-        fromLabel: actorLabel(fr),
+        fromLabel: actorLabelFrom(fr, seatLabels),
       })),
-      wrongFromLabel: actorLabel(playedFrom),
+      wrongFromLabel: actorLabelFrom(playedFrom, seatLabels),
       livesLost: pen,
     },
     shakeKey: (state.shakeKey ?? 0) + 1,
@@ -272,55 +289,24 @@ function applyWrongSubmission(state, playedCard, playedFrom, orderMode = 'topic'
 }
 
 /**
- * 족보(전체 주제어 순)에서 봇이 내는 순서와 시각 — 해당 타이밍에 그 카드로 무조건 제출.
- * 같은 족보에서 플레이어 카드가 앞에 많을수록 봇 최소 시각을 뒤로 밀어,
- * 봇이 ㅎ 쪽만 잡혀 있어도 첫 제출이 너무 이르지 않게 한다.
+ * 기계 제출 타이밍만 담습니다. 앞·뒤 2초 제외 구간을 제출 횟수로 n등분한 시각(fireAt)입니다.
+ * 각 시각에는 족보상 다음 한 장(globalMin)을 즉시 제출합니다(스케줄 카드 id에 묶이지 않음).
  */
-function buildBotScheduleFromHands(
+function buildMechanicalAllPlaysSchedule(
   playerHand,
   bot1Hand,
   bot2Hand,
+  bot3Hand,
   botCount,
   durationMs,
-  orderMode = 'topic',
 ) {
-  const entries = [
-    ...playerHand.map((card) => ({ card, bot: /** @type {'player'} */ ('player') })),
-    ...bot1Hand.map((card) => ({ card, bot: /** @type {'bot1'} */ ('bot1') })),
-    ...(botCount > 1
-      ? bot2Hand.map((card) => ({ card, bot: /** @type {'bot2'} */ ('bot2') }))
-      : []),
-  ]
-  entries.sort((a, b) => {
-    const o = comparePlayOrder(a.card, b.card, orderMode)
-    if (o !== 0) return o
-    return String(a.card.id).localeCompare(String(b.card.id))
-  })
-
-  const botPlays = []
-  for (let j = 0; j < entries.length; j++) {
-    const e = entries[j]
-    if (e.bot === 'player') continue
-    let precedingPlayers = 0
-    for (let p = 0; p < j; p++) {
-      if (entries[p].bot === 'player') precedingPlayers += 1
-    }
-    botPlays.push({ card: e.card, bot: e.bot, precedingPlayers })
-  }
-
-  /** 앞쪽 주제(가나다 앞)일수록 선행 플레이어 페널티를 덜 받아 봇이 상대적으로 빨리 나옴 */
-  const minFloors = botPlays.map((bp) => {
-    const pos = topicAlphabetPosition01(String(bp.card.topic ?? ''))
-    const ahead =
-      bp.precedingPlayers * PLAYER_AHEAD_MS * (0.48 + 0.52 * (1 - pos))
-    return BOT_PLAY_START_DELAY_MS + ahead
-  })
-  const times = scheduleBotFireTimesFromFloors(minFloors, durationMs)
-  return botPlays.map((bp, i) => ({
-    fireAt: times[i],
-    bot: bp.bot,
-    cardId: bp.card.id,
-  }))
+  const total =
+    playerHand.length +
+    bot1Hand.length +
+    (botCount > 1 ? bot2Hand.length : 0) +
+    (botCount > 2 ? bot3Hand.length : 0)
+  const times = buildMechanicalJokboFireTimes(total, durationMs)
+  return times.map((fireAt) => ({ fireAt }))
 }
 
 function buildRoundState({
@@ -331,23 +317,30 @@ function buildRoundState({
   initialLives,
   initialCheonryan,
   orderMode = 'topic',
+  /** 멀티 방: 모든 기기에서 동일 패가 되도록 시드(없으면 매번 다른 패) */
+  shuffleSeed,
 }) {
+  const rng =
+    shuffleSeed != null && shuffleSeed !== ''
+      ? createSeededRng(Number(shuffleSeed))
+      : null
   /** 손패는 족보와 무관하게 무작위 배치(전근대사 등에서 앞/뒤 id가 한쪽으로 몰리지 않게) */
-  const playerHand = shuffle([...playerCards])
+  const playerHand = shuffle([...playerCards], rng)
   const n = playerCards.length
-  const { bot1Hand, bot2Hand } = dealBotsExclusive(
+  const { bot1Hand, bot2Hand, bot3Hand } = dealBotsExclusive(
     playerCards,
     poolRows,
     n,
     botCount,
+    rng,
   )
-  const schedule = buildBotScheduleFromHands(
+  const schedule = buildMechanicalAllPlaysSchedule(
     playerHand,
     bot1Hand,
     bot2Hand,
+    bot3Hand,
     botCount,
     durationMs,
-    orderMode,
   )
   return {
     lives: initialLives,
@@ -357,6 +350,7 @@ function buildRoundState({
     playerHand,
     bot1Hand,
     bot2Hand,
+    bot3Hand,
     schedule,
     elapsedMs: 0,
     durationMs,
@@ -374,7 +368,7 @@ function buildRoundState({
  * 전역 최소 주제어만 정답. 오답 시 그보다 앞 순서 카드는 모든 손에서 강제 제출,
  * 생명은 강제로 깔린 장수만큼만 차감(잘못 낸 한 장은 생명에 포함하지 않음).
  */
-function applyPlayerPlayWithRules(state, card, orderMode = 'topic') {
+function applyPlayerPlayWithRules(state, card, orderMode = 'topic', seatLabels) {
   const hand = state.playerHand
   if (!hand.some((c) => c.id === card.id)) {
     return { ...state, penaltyToast: '손에 없는 카드예요.', lifePenaltyModal: null }
@@ -409,7 +403,7 @@ function applyPlayerPlayWithRules(state, card, orderMode = 'topic') {
     }
   }
 
-  return applyWrongSubmission(state, card, 'player', orderMode)
+  return applyWrongSubmission(state, card, 'player', orderMode, seatLabels)
 }
 
 /**
@@ -444,9 +438,24 @@ const Phase2Mind = forwardRef(function Phase2Mind(
     hideFixedCheonryanButton = false,
     /** 천리안 모드 여부 — 상단 버튼 비활성·취소 표시용 */
     onHintModeChange,
+    /** 상대 1·2·3번 자리 표시 이름(맞은편·왼쪽·오른쪽). 없으면 A/B/C봇 */
+    opponentSeatLabels,
+    /** true면 족보·타이밍에 맞춰 자동 제출(탭 비활성) */
+    mechanicalAutoPlay = true,
+    /** 멀티 방: 방에서 공유한 시드 — 있으면 모든 기기에서 같은 2페이즈 덱 */
+    shuffleSeed,
   },
   ref,
 ) {
+  const seatLabelsResolved = useMemo(
+    () => opponentSeatLabels ?? DEFAULT_OPPONENT_LABELS,
+    [opponentSeatLabels],
+  )
+  const seatLabelsRef = useRef(seatLabelsResolved)
+  useEffect(() => {
+    seatLabelsRef.current = seatLabelsResolved
+  }, [seatLabelsResolved])
+
   const durationMs = phase2SecondsForLevel(level) * 1000
   const [prepLeft, setPrepLeft] = useState(() => prepSeconds)
   const prepFreezeRef = useRef(false)
@@ -498,6 +507,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
       initialLives,
       initialCheonryan,
       orderMode,
+      shuffleSeed,
     }),
   )
 
@@ -515,20 +525,23 @@ const Phase2Mind = forwardRef(function Phase2Mind(
     ),
   )
 
-  const openFieldInspect = useCallback((entry) => {
-    const badges = []
-    if (entry.forced) badges.push('강제 제출')
-    if (entry.wrongTap) badges.push('잘못 낸 카드')
-    setFieldInspect({
-      topic: entry.topic,
-      explanation: entry.explanation ?? '',
-      fromLabel: actorLabel(entry.from),
-      badges,
-    })
-  }, [])
+  const openFieldInspect = useCallback(
+    (entry) => {
+      const badges = []
+      if (entry.forced) badges.push('강제 제출')
+      if (entry.wrongTap) badges.push('잘못 낸 카드')
+      setFieldInspect({
+        topic: entry.topic,
+        explanation: entry.explanation ?? '',
+        fromLabel: actorLabelFrom(entry.from, seatLabelsResolved),
+        badges,
+      })
+    },
+    [seatLabelsResolved],
+  )
 
   const endedRef = useRef(false)
-  const nextBotIdxRef = useRef(0)
+  const nextScheduleIdxRef = useRef(0)
   const overlayPauseRef = useRef(false)
   const onItemRewardPopRef = useRef(onItemRewardPop)
   /** 천리안으로 잠깐 공개한 뒤 다시 가리기 위한 타이머 */
@@ -591,6 +604,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
         playerHand: next.playerHand,
         bot1Hand: next.bot1Hand,
         bot2Hand: next.bot2Hand,
+        bot3Hand: next.bot3Hand,
         botCount,
       },
       /** 라이프 소진 직전 패널티(모달을 띄우기 전에 화면이 바뀌는 경우 대비) */
@@ -630,25 +644,37 @@ const Phase2Mind = forwardRef(function Phase2Mind(
         const sched = s.schedule
 
         while (
-          nextBotIdxRef.current < sched.length &&
-          sched[nextBotIdxRef.current].fireAt <= next.elapsedMs
+          nextScheduleIdxRef.current < sched.length &&
+          sched[nextScheduleIdxRef.current].fireAt <= next.elapsedMs
         ) {
-          const slot = sched[nextBotIdxRef.current]
-          const scheduledBot = slot.bot
-          const hand =
-            scheduledBot === 'bot1' ? next.bot1Hand : next.bot2Hand
-          const card = hand.find((c) => String(c.id) === String(slot.cardId))
-          if (!card) {
-            nextBotIdxRef.current += 1
+          /* 시각마다 족보상 다음 한 장만 제출 — 스케줄 카드 id와 어긋나 멈추지 않게 함 */
+          const minEntry = globalMinValidEntry(next, orderMode)
+          if (!minEntry) {
+            nextScheduleIdxRef.current += 1
             continue
           }
-          const globalMin = globalMinValidCard(next, orderMode)
+          const { card, from } = minEntry
           const comboBefore = next.p2Combo ?? 0
-          /* 족보상 지금 낼 수 있는 카드일 때만 제출 — 차례가 아니면 오답 처리 없이 다음 틱까지 대기 */
-          if (!globalMin || globalMin.id !== card.id) {
-            break
+          if (from === 'player') {
+            queueMicrotask(() => {
+              setPlayCardPop({
+                topic: card.topic,
+                explanation: card.explanation ?? '',
+                perfect: true,
+              })
+              window.setTimeout(() => setPlayCardPop(null), 520)
+            })
+            sfxMerge()
+            next = applyPlayerPlayWithRules(
+              next,
+              card,
+              orderMode,
+              seatLabelsRef.current,
+            )
+          } else {
+            sfxMerge()
+            next = applyBotSuccessPlay(next, from, card)
           }
-          next = applyBotSuccessPlay(next, scheduledBot, card)
           const comboAfter = next.p2Combo ?? 0
           if (comboAfter > comboBefore) {
             const r = phase1ComboRewards(comboAfter)
@@ -656,13 +682,16 @@ const Phase2Mind = forwardRef(function Phase2Mind(
               queueMicrotask(() => onItemRewardPopRef.current?.(r))
             }
           }
-          nextBotIdxRef.current += 1
-          /* 봇 연속 처리 시 모달 한 번에 하나만 */
+          nextScheduleIdxRef.current += 1
+          /* 연속 처리 시 모달 한 번에 하나만 */
           if (next.lifePenaltyModal) break
         }
 
         const total =
-          next.playerHand.length + next.bot1Hand.length + next.bot2Hand.length
+          next.playerHand.length +
+          next.bot1Hand.length +
+          next.bot2Hand.length +
+          next.bot3Hand.length
         if (
           total === 0 &&
           next.center.length > 0 &&
@@ -713,6 +742,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
 
   const playPlayer = useCallback(
     (card) => {
+      if (mechanicalAutoPlay) return
       if (prepFreezeRef.current) return
       if (endedRef.current) return
       setState((s) => {
@@ -728,7 +758,12 @@ const Phase2Mind = forwardRef(function Phase2Mind(
           window.setTimeout(() => setPlayCardPop(null), 520)
         })
         const prevP2 = s.p2Combo ?? 0
-        const next = applyPlayerPlayWithRules(s, card, orderMode)
+        const next = applyPlayerPlayWithRules(
+          s,
+          card,
+          orderMode,
+          seatLabelsRef.current,
+        )
         if (!next.lifePenaltyModal && !next.penaltyToast) {
           const n = next.p2Combo ?? 0
           if (n > prevP2) {
@@ -742,7 +777,10 @@ const Phase2Mind = forwardRef(function Phase2Mind(
         else sfxMerge()
         if (endedRef.current) return next
         const total =
-          next.playerHand.length + next.bot1Hand.length + next.bot2Hand.length
+          next.playerHand.length +
+          next.bot1Hand.length +
+          next.bot2Hand.length +
+          next.bot3Hand.length
         if (next.lives <= 0) {
           endedRef.current = true
           queueMicrotask(() => onRoundLose(makeLosePayload(next, 'lives')))
@@ -766,7 +804,14 @@ const Phase2Mind = forwardRef(function Phase2Mind(
         return next
       })
     },
-    [onRoundWin, onRoundLose, makeLosePayload, onItemRewardPop, orderMode],
+    [
+      mechanicalAutoPlay,
+      onRoundWin,
+      onRoundLose,
+      makeLosePayload,
+      onItemRewardPop,
+      orderMode,
+    ],
   )
 
   const startCheonryan = useCallback(() => {
@@ -861,7 +906,9 @@ const Phase2Mind = forwardRef(function Phase2Mind(
   })()
   /** 초보·튜토리얼: 전체 중 이번에 낼 수 있는 가장 앞 순서 카드 */
   const coachTargetId =
-    (tutorialMode || coachMode) && state.playerHand.length > 0
+    !mechanicalAutoPlay &&
+    (tutorialMode || coachMode) &&
+    state.playerHand.length > 0
       ? (() => {
           const e = globalMinValidEntry(state, orderMode)
           return e?.from === 'player' ? e.card.id : null
@@ -1169,34 +1216,34 @@ const Phase2Mind = forwardRef(function Phase2Mind(
         </div>
       ) : null}
 
-      <div className="flex w-full max-w-full items-stretch justify-center gap-1 sm:gap-2 md:gap-3">
-        {/* 멀티·추가 봇용 세로 패널 자리 — 현재는 여백만 확보 */}
-        <div
-          className="hidden min-h-[6rem] w-2 shrink-0 sm:block md:min-h-[7rem] md:w-4 lg:w-5"
-          aria-hidden
-        />
-        <div className="flex min-w-0 flex-1 flex-col gap-2.5 md:gap-3">
-          <div className="flex flex-wrap justify-center gap-2 md:gap-3 landscape:grid landscape:grid-cols-2 landscape:items-start landscape:gap-4">
-            {botCount >= 1 ? (
-              <BotStack
-                name={BOT_NAMES[0]}
-                hand={state.bot1Hand}
-                botKey="bot1"
-                hintMode={state.hintMode}
-                revealed={state.revealed}
-                onReveal={reveal}
-              />
-            ) : null}
+      <div className="mx-auto w-full max-w-[min(100%,28rem)]">
+        {/* 상대 1=맞은편, 2=왼쪽, 3=오른쪽 · 본인 패는 화면 아래 */}
+        <div className="flex justify-center pb-2">
+          {botCount >= 1 ? (
+            <BotStack
+              name={seatLabelsResolved[0] ?? DEFAULT_OPPONENT_LABELS[0]}
+              hand={state.bot1Hand}
+              botKey="bot1"
+              hintMode={state.hintMode}
+              revealed={state.revealed}
+              onReveal={reveal}
+            />
+          ) : null}
+        </div>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-x-2 gap-y-2 md:gap-x-3">
+          <div className="flex min-w-0 justify-end pr-0.5 pt-1 sm:pt-3">
             {botCount >= 2 ? (
               <BotStack
-                name={BOT_NAMES[1]}
+                name={seatLabelsResolved[1] ?? DEFAULT_OPPONENT_LABELS[1]}
                 hand={state.bot2Hand}
                 botKey="bot2"
                 hintMode={state.hintMode}
                 revealed={state.revealed}
                 onReveal={reveal}
               />
-            ) : null}
+            ) : (
+              <span className="hidden w-[4.5rem] sm:block" aria-hidden />
+            )}
           </div>
 
           <div className="p2-table-ink relative mx-auto w-full max-w-[min(100%,16.5rem)] rounded-[1.35rem] border-[5px] border-amber-800/35 p2-table-felt p-1.5 text-slate-900 shadow-[inset_0_2px_24px_rgba(120,53,15,0.08)] md:max-w-[min(100%,17.5rem)] md:p-2.5">
@@ -1214,7 +1261,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
                         필드
                       </p>
                       <p className="text-[9px] font-semibold text-amber-900/90">
-                        {actorLabel(lastFieldEntry.from)}
+                        {actorLabelFrom(lastFieldEntry.from, seatLabelsResolved)}
                       </p>
                       <p className="p1-enhance-topic !mt-1 !text-[clamp(0.9rem,3.8vw,1.2rem)]">
                         {lastFieldEntry.topic}
@@ -1238,7 +1285,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
                         : '가나다 순으로 눈치껏 내세요!'}
                     </p>
                     <p className="text-center text-[10px] font-medium leading-snug text-amber-900/90">
-                      (경고 : AI는 실수를 할 수 있습니다.)
+                      앞·뒤 2초를 제외한 시간에 족보 순으로 자동 제출됩니다.
                     </p>
                   </div>
                 )}
@@ -1273,11 +1320,22 @@ const Phase2Mind = forwardRef(function Phase2Mind(
               </div>
             </div>
           </div>
+
+          <div className="flex min-w-0 justify-start pl-0.5 pt-1 sm:pt-3">
+            {botCount >= 3 ? (
+              <BotStack
+                name={seatLabelsResolved[2] ?? DEFAULT_OPPONENT_LABELS[2]}
+                hand={state.bot3Hand}
+                botKey="bot3"
+                hintMode={state.hintMode}
+                revealed={state.revealed}
+                onReveal={reveal}
+              />
+            ) : (
+              <span className="hidden w-[4.5rem] sm:block" aria-hidden />
+            )}
+          </div>
         </div>
-        <div
-          className="hidden min-h-[6rem] w-2 shrink-0 sm:block md:min-h-[7rem] md:w-4 lg:w-5"
-          aria-hidden
-        />
       </div>
 
       {fieldInspect ? (
@@ -1354,8 +1412,13 @@ const Phase2Mind = forwardRef(function Phase2Mind(
               <button
                 key={c.id}
                 type="button"
+                disabled={mechanicalAutoPlay}
                 onClick={() => playPlayer(c)}
-                className={`flex min-h-[7.5rem] flex-col rounded-xl border-2 border-slate-400/90 bg-white px-2.5 py-3 text-left shadow-[0_6px_0_0_rgba(15,23,42,0.35),0_8px_24px_rgba(0,0,0,0.25)] ring-1 ring-slate-300/80 transition active:translate-y-0.5 active:shadow-md md:min-h-[8.25rem] md:px-3 md:py-3.5 ${
+                className={`flex min-h-[7.5rem] flex-col rounded-xl border-2 border-slate-400/90 bg-white px-2.5 py-3 text-left shadow-[0_6px_0_0_rgba(15,23,42,0.35),0_8px_24px_rgba(0,0,0,0.25)] ring-1 ring-slate-300/80 transition md:min-h-[8.25rem] md:px-3 md:py-3.5 ${
+                  mechanicalAutoPlay
+                    ? 'pointer-events-none cursor-default opacity-95'
+                    : 'active:translate-y-0.5 active:shadow-md'
+                } ${
                   coachTargetId != null && c.id === coachTargetId
                     ? tutorialMode
                       ? 'z-10 ring-4 ring-amber-400 ring-offset-2 ring-offset-white shadow-[0_0_0_4px_rgba(251,191,36,0.45)] animate-pulse'
@@ -1389,7 +1452,9 @@ Phase2Mind.displayName = 'Phase2Mind'
 
 /** 봇 정답 제출(호출 전에 globalMin과 일치함을 확인할 것) */
 function applyBotSuccessPlay(state, bot, card) {
-  const hand = bot === 'bot1' ? state.bot1Hand : state.bot2Hand
+  const key =
+    bot === 'bot1' ? 'bot1Hand' : bot === 'bot2' ? 'bot2Hand' : 'bot3Hand'
+  const hand = state[key]
   if (!hand.some((c) => c.id === card.id)) return state
 
   const newCombo = (state.p2Combo ?? 0) + 1
@@ -1400,7 +1465,7 @@ function applyBotSuccessPlay(state, bot, card) {
     ...state,
     lastPlayed: { id: card.id, topic: t },
     center: [...state.center, centerEntryFromCard(card, bot)],
-    [bot === 'bot1' ? 'bot1Hand' : 'bot2Hand']: h2,
+    [key]: h2,
     hintMode: false,
     revealed: new Set(),
     lifePenaltyModal: null,

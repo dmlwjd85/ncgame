@@ -79,25 +79,39 @@ git push -u origin main
 
 ## 앱 스토어 / 플레이 스토어 (Capacitor)
 
-웹 빌드(`dist`)를 네이티브 껍데기로 감싸 **Android / iOS** 프로젝트를 생성합니다.
+웹 빌드(`dist`)를 네이티브 껍데기로 감싸 **Android / iOS** 프로젝트를 사용합니다. 저장소에 `android/` 폴더가 포함되어 있으면 `npx cap add android`는 생략해도 됩니다.
 
 ```bash
 npm install
+# android 폴더가 없을 때만
 npx cap add android
 npx cap add ios
 ```
 
 - iOS는 **macOS + Xcode**가 필요합니다.
 - 스토어 제출 전: 앱 아이콘·스플래시·권한 문구·개인정보 처리방침·서명(Keystore / App Store Connect)을 각 스토어 가이드에 맞게 설정합니다.
-- 네이티브에 올릴 웹 자산은 **루트 경로**로 빌드합니다.
+- 네이티브에 올릴 웹 자산은 **루트 경로**로 빌드합니다 (`build:cap`).
+
+### Google Play용 AAB / APK (명령줄)
+
+1. **JDK 17**(권장)과 **Android SDK**(Android Studio 설치 시 포함)가 필요합니다. 터미널에서 Gradle을 쓰려면 `JAVA_HOME`을 JDK 17 경로로 설정하고, Android Studio를 쓰면 메뉴 **Build → Generate Signed Bundle / APK**로도 동일한 결과물을 만들 수 있습니다.
+2. **플레이 콘솔에 올릴 때**는 업로드 키로 서명한 AAB가 필요합니다.
+   - `keytool`로 `.jks` 생성 후 `android/keystore.properties.example`을 복사해 `android/keystore.properties`로 두고 값을 채웁니다. (이 두 파일은 Git에 넣지 마세요.)
+   - `keystore.properties`가 없으면 릴리스 빌드는 **디버그 키**로 서명되어 내부 테스트용으로만 쓰입니다.
+3. 빌드 결과물 경로:
+   - **AAB(스토어 권장):** `android/app/build/outputs/bundle/release/app-release.aab`
+   - **APK:** `android/app/build/outputs/apk/release/app-release.apk`
+
+```bash
+npm run android:aab
+npm run android:apk
+```
+
+Android Studio에서 열어 GUI로 빌드할 때는 다음과 같습니다.
 
 ```bash
 npm run build:cap
-```
-
-이후 Android Studio / Xcode에서 열어 번들(AAB/APK) 또는 아카이브를 만듭니다.
-
-```bash
 npx cap open android
+# iOS (macOS)
 npx cap open ios
 ```

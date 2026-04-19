@@ -21,7 +21,20 @@ import { prepareGameBootstrap } from '../services/userShopService'
 import { DISPLAY_NAME_MAX_LEN, formatHoFDisplayName } from '../utils/displayName'
 import { displaySheetName } from '../utils/tutorialPack'
 import { maxLevelFromRowCount } from '../utils/gameRules'
-import { buildGameLocation } from '../utils/gameRoute'
+import {
+  buildGameLocation,
+  NCGAME_HOME_SELECTED_PACK_KEY,
+  NCGAME_LAST_PACK_KEY,
+} from '../utils/gameRoute'
+import {
+  createNimchiRoom,
+  joinNimchiRoom,
+  leaveNimchiRoom,
+  normalizeRoomName,
+  opponentSeatLabelsFromRoom,
+  startNimchiGameSession,
+  subscribeNimchiRoom,
+} from '../services/nimchiRoomService'
 import { getPracticeComboRecord } from '../utils/hallOfFame'
 import { INITIAL_LIVES } from '../utils/userProgressConstants'
 
@@ -56,6 +69,16 @@ export default function Home() {
   const [nameEdit, setNameEdit] = useState('')
   const [nameMsg, setNameMsg] = useState(/** @type {string} */ (''))
   const [nameSaving, setNameSaving] = useState(false)
+  /** 멀티 방: 참가 중 방 id(없으면 솔로) */
+  const [nimchiJoinedRoomId, setNimchiJoinedRoomId] = useState(
+    /** @type {string | null} */ (null),
+  )
+  const [nimchiRoomDoc, setNimchiRoomDoc] = useState(/** @type {object | null} */ (null))
+  const [nimchiRoomDraft, setNimchiRoomDraft] = useState('')
+  const [nimchiRoomBusy, setNimchiRoomBusy] = useState(false)
+  const [nimchiRoomMsg, setNimchiRoomMsg] = useState('')
+  /** 단어 팩 목록 — 팝업에서 고름 */
+  const [packPickerOpen, setPackPickerOpen] = useState(false)
 
   const { points: userPoints, refreshProgress } = useUserProgress()
 
@@ -70,6 +93,138 @@ export default function Home() {
       setNameEdit('')
     }
   }, [user?.displayName])
+
+  useEffect(() => {
+    if (!nimchiJoinedRoomId) {
+      setNimchiRoomDoc(null)
+      return
+    }
+    const unsub = subscribeNimchiRoom(
+      nimchiJoinedRoomId,
+      (data) => setNimchiRoomDoc(data),
+      () => setNimchiRoomDoc(null),
+    )
+    return () => unsub()
+  }, [nimchiJoinedRoomId])
+
+  /**
+   * 방에 gameSession이 올라오면(호스트가 시작) 모든 멤버가 동일 시드로 게임으로 이동합니다.
+   * sessionStorage로 같은 시드에 대한 중복 이동(복귀 후 재트리거)을 막습니다.
+   */
+  useEffect(() => {
+    const gs = nimchiRoomDoc?.gameSession
+    const roomId = nimchiJoinedRoomId
+    if (!gs || roomId == null || !user?.uid || packsLoading || packsError) return
+    const rawSeed = gs.seed
+    if (rawSeed == null || rawSeed === '') return
+    const seed = Number(rawSeed)
+    if (!Number.isFinite(seed)) return
+    const seedU = seed >>> 0
+    const seedStr = String(seedU)
+    const storageKey = `nimchi-p2-nav-${roomId}`
+    let storedNav = ''
+    try {
+      storedNav = sessionStorage.getItem(storageKey) ?? ''
+    } catch {
+      /* storage 비활성 시에도 게임 이동은 시도 */
+    }
+    if (storedNav === seedStr) return
+
+    const packForGame = String(gs.packId ?? nimchiRoomDoc?.packId ?? '')
+    if (!packForGame) return
+
+    const pack = packs.find((p) => p.id === packForGame)
+    const validCount = pack
+      ? pack.rows.filter((r) => r.topic && r.explanation).length
+      : 0
+    if (!pack || validCount < 1 || pack.missingColumns.length > 0) return
+
+    const maxLv = maxLevelFromRowCount(validCount)
+    const memberCount = Array.isArray(nimchiRoomDoc.memberUids)
+      ? nimchiRoomDoc.memberUids.length
+      : 1
+    const botCount =
+      typeof gs.botCount === 'number' && Number.isFinite(gs.botCount)
+        ? Math.min(3, Math.max(1, Math.floor(gs.botCount)))
+        : Math.min(3, Math.max(1, memberCount - 1))
+
+    let cancelled = false
+    ;(async () => {
+      let gameBootstrap = {
+        startLevel: 1,
+        lives: INITIAL_LIVES,
+        cheonryan: 1,
+      }
+      try {
+        gameBootstrap = await prepareGameBootstrap(user.uid, maxLv)
+      } catch {
+        /* 폴백 */
+      }
+      if (cancelled) return
+
+      try {
+        sessionStorage.setItem(storageKey, seedStr)
+      } catch {
+        /* noop */
+      }
+
+      const loc = buildGameLocation(packForGame, botCount)
+      const nimchiRoom = {
+        roomId: String(nimchiRoomDoc.id ?? roomId),
+        opponentSeatLabels: opponentSeatLabelsFromRoom(nimchiRoomDoc, user.uid),
+      }
+      navigate(loc, {
+        state: {
+          packId: packForGame,
+          botCount,
+          gameBootstrap,
+          nimchiRoom,
+          p2ShuffleSeed: seedU,
+        },
+      })
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    nimchiRoomDoc,
+    nimchiJoinedRoomId,
+    user?.uid,
+    packs,
+    packsLoading,
+    packsError,
+    navigate,
+  ])
+
+  /** 홈: 마지막으로 고른 팩·최근 플레이 팩 복원 */
+  useEffect(() => {
+    if (!packs.length || packsLoading) return
+    setSelectedPackId((prev) => {
+      if (prev != null) return prev
+      try {
+        const fromHome = localStorage.getItem(NCGAME_HOME_SELECTED_PACK_KEY)
+        if (fromHome && packs.some((p) => p.id === fromHome)) return fromHome
+        const fromLast = sessionStorage.getItem(NCGAME_LAST_PACK_KEY)
+        if (fromLast && packs.some((p) => p.id === fromLast)) return fromLast
+      } catch {
+        /* noop */
+      }
+      return packs[0]?.id ?? null
+    })
+  }, [packs, packsLoading])
+
+  useEffect(() => {
+    if (!selectedPackId) return
+    try {
+      localStorage.setItem(
+        NCGAME_HOME_SELECTED_PACK_KEY,
+        String(selectedPackId),
+      )
+    } catch {
+      /* noop */
+    }
+  }, [selectedPackId])
 
   const effectivePackId = selectedPackId ?? packs[0]?.id ?? null
   const selectedPack = packs.find((p) => p.id === effectivePackId)
@@ -93,7 +248,45 @@ export default function Home() {
     if (!effectivePackId || !canStartPack) return
     clearStagedResume()
     clearRunSave()
-    const loc = buildGameLocation(effectivePackId)
+
+    const inRoom =
+      !!nimchiJoinedRoomId && !!user?.uid && !!nimchiRoomDoc
+
+    /** 멀티 방: Firestore에 세션만 올리고, 구독 effect가 모두 같은 시드로 이동 */
+    if (inRoom) {
+      const memberCount = Array.isArray(nimchiRoomDoc.memberUids)
+        ? nimchiRoomDoc.memberUids.length
+        : 0
+      if (memberCount < 2) {
+        setNimchiRoomMsg('멀티는 2인 이상일 때 시작할 수 있어요.')
+        return
+      }
+      const packForGame = String(nimchiRoomDoc.packId ?? effectivePackId)
+      const botCount = Math.min(3, Math.max(1, memberCount - 1))
+      const seed =
+        typeof crypto !== 'undefined' && crypto.getRandomValues
+          ? crypto.getRandomValues(new Uint32Array(1))[0] >>> 0
+          : (Math.floor(Math.random() * 0x100000000) >>> 0)
+      setNimchiRoomBusy(true)
+      setNimchiRoomMsg('')
+      try {
+        await startNimchiGameSession(nimchiJoinedRoomId, {
+          packId: packForGame,
+          botCount,
+          seed,
+        })
+        setNimchiRoomMsg('같은 판으로 이동합니다…')
+      } catch (e) {
+        setNimchiRoomMsg(e?.message ?? '시작 신호를 보내지 못했습니다.')
+      } finally {
+        setNimchiRoomBusy(false)
+      }
+      return
+    }
+
+    const packForGame = String(effectivePackId)
+    const botCount = 1
+    const loc = buildGameLocation(packForGame, botCount)
     let gameBootstrap = {
       startLevel: 1,
       lives: INITIAL_LIVES,
@@ -107,7 +300,11 @@ export default function Home() {
       }
     }
     navigate(loc, {
-      state: { packId: effectivePackId, botCount: 1, gameBootstrap },
+      state: {
+        packId: packForGame,
+        botCount,
+        gameBootstrap,
+      },
     })
   }
 
@@ -343,13 +540,13 @@ export default function Home() {
           <div className="min-h-0 flex-1 overflow-y-auto [-webkit-overflow-scrolling:touch] pr-0.5">
             <section className="card-lift-3d mx-auto mt-2 w-full rounded-2xl border border-slate-200 bg-white/95 px-4 py-4">
               <div className="mb-3 flex items-center justify-between gap-2">
-                <h2 className="text-sm font-bold text-slate-800">단어 팩</h2>
+                <h2 className="text-sm font-bold text-slate-800">메뉴</h2>
                 <button
                   type="button"
                   className="text-xs text-sky-700 underline underline-offset-2"
                   onClick={() => void reloadPacks()}
                 >
-                  새로고침
+                  단어 팩 새로고침
                 </button>
               </div>
               {packsLoading ? (
@@ -359,67 +556,62 @@ export default function Home() {
               ) : packs.length === 0 ? (
                 <p className="text-sm text-slate-500">등록된 단어 팩이 없습니다.</p>
               ) : (
-                <ul className="max-h-[min(42dvh,18rem)] space-y-2 overflow-y-auto">
-                  {packs.map((p) => {
-                    const v = p.rows.filter((r) => r.topic && r.explanation).length
-                    const ml = maxLevelFromRowCount(v)
-                    const broken = p.missingColumns.length > 0
-                    const playable = ml >= 1 && p.missingColumns.length === 0
-                    const sel = effectivePackId === p.id
-                    return (
-                      <li key={p.id}>
-                        <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-2 sm:flex-row sm:items-stretch">
-                          <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg px-2 py-2 transition has-[:checked]:bg-sky-50">
-                            <input
-                              type="radio"
-                              name="pack"
-                              className="h-4 w-4 shrink-0"
-                              checked={sel}
-                              onChange={() => {
-                                setSelectedPackId(p.id)
-                                setNimchiOpen(false)
-                                setScreen('hub')
-                              }}
-                            />
-                            <div className="min-w-0 flex-1">
-                              <p className="font-medium text-slate-900">
-                                {displaySheetName(p)}
-                              </p>
-                              <p className="text-xs text-slate-500">
-                                최대 {ml}단계 · 카드 {v}장
-                                {broken ? ' · 설정 필요' : ''}
-                              </p>
-                            </div>
-                          </label>
-                          {sel && playable ? (
-                            <div className="flex shrink-0 flex-col gap-2 sm:w-[11.5rem]">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setNimchiOpen(true)
-                                  setScreen('hub')
-                                }}
-                                className="rounded-xl bg-gradient-to-r from-cyan-600 to-sky-700 py-2.5 text-xs font-bold text-white shadow-md sm:text-sm"
-                              >
-                                눈치게임
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setNimchiOpen(false)
-                                  setScreen('comboPick')
-                                }}
-                                className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-800 py-2.5 text-xs font-bold text-white shadow-md sm:text-sm"
-                              >
-                                무한도전
-                              </button>
-                            </div>
-                          ) : null}
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
+                <>
+                  <div className="rounded-xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white px-3 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-800/80">
+                      선택한 단어 팩
+                    </p>
+                    <p className="mt-1 line-clamp-2 text-base font-bold text-slate-900">
+                      {selectedPack ? displaySheetName(selectedPack) : '—'}
+                    </p>
+                    {selectedPack ? (
+                      <p className="mt-1 text-xs text-slate-600">
+                        최대 {maxLv}단계 · 카드 {validCount}장
+                        {selectedPack.missingColumns.length > 0 ? ' · 설정 필요' : ''}
+                      </p>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="mt-3 w-full rounded-xl border border-sky-500/60 bg-white py-2.5 text-sm font-semibold text-sky-950 shadow-sm transition hover:bg-sky-50"
+                      onClick={() => setPackPickerOpen(true)}
+                    >
+                      단어 팩 선택
+                    </button>
+                  </div>
+
+                  {canStartPack && selectedPack ? (
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNimchiOpen(true)
+                          setScreen('hub')
+                        }}
+                        className="rounded-xl bg-gradient-to-r from-cyan-600 to-sky-700 py-3 text-sm font-bold text-white shadow-md"
+                      >
+                        눈치게임
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNimchiOpen(false)
+                          setScreen('comboPick')
+                        }}
+                        className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-800 py-3 text-sm font-bold text-white shadow-md"
+                      >
+                        무한도전
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-center text-sm text-slate-500">
+                      {selectedPack?.missingColumns?.length
+                        ? '이 팩은 지금 쓸 수 없어요. 다른 팩을 골라 주세요.'
+                        : maxLv < 1
+                          ? '이 팩으로는 아직 시작할 수 없어요.'
+                          : '단어 팩을 골라 주세요.'}
+                    </p>
+                  )}
+                </>
               )}
             </section>
 
@@ -447,8 +639,138 @@ export default function Home() {
                       족보 보기
                     </button>
                   </div>
-                  <p className="text-center text-xs text-slate-500">
-                    가상 플레이어 1명과 대전합니다.
+                  <div className="rounded-xl border border-slate-200 bg-white/90 px-3 py-3 text-left text-xs text-slate-700">
+                    <p className="font-semibold text-slate-800">같이하기 (최대 4인)</p>
+                    <p className="mt-1 leading-relaxed text-slate-600">
+                      로그인 후 방 이름으로 만들거나 참가할 수 있어요. 2인 이상이면 시작하기로
+                      같은 팩·같은 덱이 열립니다. 모두 나가면 방이 비워져 같은 이름으로 다시
+                      만들 수 있어요.
+                    </p>
+                    {user?.uid ? (
+                      <div className="mt-3 space-y-2">
+                        <input
+                          type="text"
+                          value={nimchiRoomDraft}
+                          onChange={(e) => setNimchiRoomDraft(e.target.value)}
+                          placeholder="방 이름"
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-500"
+                          maxLength={24}
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            disabled={nimchiRoomBusy || !canStartPack}
+                            className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+                            onClick={async () => {
+                              const n = normalizeRoomName(nimchiRoomDraft)
+                              if (!n || !effectivePackId) return
+                              setNimchiRoomBusy(true)
+                              setNimchiRoomMsg('')
+                              try {
+                                await createNimchiRoom({
+                                  name: n,
+                                  packId: String(effectivePackId),
+                                  hostUid: user.uid,
+                                  hostDisplayName: user.displayName ?? '',
+                                })
+                                setNimchiJoinedRoomId(n)
+                                setNimchiRoomMsg('방을 만들었어요.')
+                              } catch (e) {
+                                setNimchiRoomMsg(e?.message ?? '방 만들기에 실패했습니다.')
+                              } finally {
+                                setNimchiRoomBusy(false)
+                              }
+                            }}
+                          >
+                            방 만들기
+                          </button>
+                          <button
+                            type="button"
+                            disabled={nimchiRoomBusy}
+                            className="rounded-lg border border-slate-400 px-3 py-2 text-xs font-semibold text-slate-800 disabled:opacity-40"
+                            onClick={async () => {
+                              const n = normalizeRoomName(nimchiRoomDraft)
+                              if (!n) return
+                              setNimchiRoomBusy(true)
+                              setNimchiRoomMsg('')
+                              try {
+                                await joinNimchiRoom(
+                                  n,
+                                  user.uid,
+                                  user.displayName ?? '',
+                                )
+                                setNimchiJoinedRoomId(n)
+                                setNimchiRoomMsg('방에 참가했어요.')
+                              } catch (e) {
+                                setNimchiRoomMsg(e?.message ?? '참가에 실패했습니다.')
+                              } finally {
+                                setNimchiRoomBusy(false)
+                              }
+                            }}
+                          >
+                            참가
+                          </button>
+                          {nimchiJoinedRoomId ? (
+                            <button
+                              type="button"
+                              disabled={nimchiRoomBusy}
+                              className="rounded-lg border border-rose-400 px-3 py-2 text-xs font-semibold text-rose-800 disabled:opacity-40"
+                              onClick={async () => {
+                                if (!user?.uid || !nimchiJoinedRoomId) return
+                                setNimchiRoomBusy(true)
+                                try {
+                                  await leaveNimchiRoom(nimchiJoinedRoomId, user.uid)
+                                  try {
+                                    sessionStorage.removeItem(
+                                      `nimchi-p2-nav-${nimchiJoinedRoomId}`,
+                                    )
+                                  } catch {
+                                    /* noop */
+                                  }
+                                  setNimchiJoinedRoomId(null)
+                                  setNimchiRoomMsg('방을 나왔어요.')
+                                } catch (e) {
+                                  setNimchiRoomMsg(e?.message ?? '나가기에 실패했습니다.')
+                                } finally {
+                                  setNimchiRoomBusy(false)
+                                }
+                              }}
+                            >
+                              방 나가기
+                            </button>
+                          ) : null}
+                        </div>
+                        {nimchiJoinedRoomId && nimchiRoomDoc ? (
+                          <div className="rounded-lg border border-sky-200 bg-sky-50/80 px-2 py-2 text-[11px] text-sky-950">
+                            <p className="font-semibold">
+                              방: {nimchiJoinedRoomId} · 인원{' '}
+                              {Array.isArray(nimchiRoomDoc.memberUids)
+                                ? nimchiRoomDoc.memberUids.length
+                                : 0}
+                              /4
+                            </p>
+                            <ul className="mt-1 list-inside list-disc space-y-0.5">
+                              {(nimchiRoomDoc.memberUids ?? []).map((uid) => (
+                                <li key={uid}>
+                                  {nimchiRoomDoc.members?.[uid]?.displayName ?? uid}
+                                  {uid === user.uid ? ' (나)' : ''}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                        {nimchiRoomMsg ? (
+                          <p className="text-[11px] text-slate-600">{nimchiRoomMsg}</p>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-[11px] text-slate-500">
+                        멀티 방은 로그인 후 이용할 수 있어요.
+                      </p>
+                    )}
+                  </div>
+                  <p className="mt-3 text-center text-xs text-slate-500">
+                    솔로는 가상 상대 1명(기본) · 방에서는 인원에 맞춰 최대 3명까지 맞섭니다.
                   </p>
                   {canResume ? (
                     <div className="flex w-full flex-col gap-2">
@@ -568,6 +890,73 @@ export default function Home() {
           </nav>
         ) : null}
       </div>
+
+      {packPickerOpen && packs.length > 0 ? (
+        <div
+          className="fixed inset-0 z-[200] flex items-end justify-center p-3 sm:items-center sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="pack-picker-title"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/55"
+            aria-label="팝업 닫기"
+            onClick={() => setPackPickerOpen(false)}
+          />
+          <div className="relative z-10 flex max-h-[min(78dvh,34rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3">
+              <h2
+                id="pack-picker-title"
+                className="text-sm font-bold text-slate-900"
+              >
+                단어 팩 선택
+              </h2>
+              <button
+                type="button"
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                onClick={() => setPackPickerOpen(false)}
+              >
+                닫기
+              </button>
+            </div>
+            <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-3 [-webkit-overflow-scrolling:touch]">
+              {packs.map((p) => {
+                const v = p.rows.filter((r) => r.topic && r.explanation).length
+                const ml = maxLevelFromRowCount(v)
+                const broken = p.missingColumns.length > 0
+                const sel = effectivePackId === p.id
+                return (
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedPackId(p.id)
+                        setNimchiOpen(false)
+                        setScreen('hub')
+                        setPackPickerOpen(false)
+                      }}
+                      className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+                        sel
+                          ? 'border-sky-500 bg-sky-50 ring-1 ring-sky-400/60'
+                          : 'border-slate-200 bg-white hover:bg-slate-50'
+                      }`}
+                    >
+                      <p className="font-semibold text-slate-900">
+                        {displaySheetName(p)}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        최대 {ml}단계 · 카드 {v}장
+                        {broken ? ' · 설정 필요' : ''}
+                      </p>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        </div>
+      ) : null}
 
       <GameRulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
       <JokboModal
