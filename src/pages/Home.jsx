@@ -39,7 +39,7 @@ import { getPracticeComboRecord } from '../utils/hallOfFame'
 import { INITIAL_LIVES } from '../utils/userProgressConstants'
 
 /**
- * 홈 — 단어 팩 선택 후 눈치게임/무한도전 분기, 하단 탭은 상점·명예의 전당만
+ * 홈 — 단어 팩·눈치/무한 분기, 상점·명예의 전당은 상단 탭으로 전환(세로 스크롤 축소)
  */
 export default function Home() {
   const navigate = useNavigate()
@@ -48,12 +48,12 @@ export default function Home() {
     useAuth()
   const { packs, loading: packsLoading, error: packsError, reloadPacks } =
     useCardPacks()
-  /** 메인 하단 탭 — 상점·명예의 전당만 */
+  /** 상단 탭 — 상점·명예의 전당 */
   const [tab, setTab] = useState(/** @type {'shop' | 'hof'} */ ('shop'))
-  /** 단어팩 화면: 허브(팩+눈치) vs 무한도전 모드 선택 */
-  const [screen, setScreen] = useState(/** @type {'hub' | 'comboPick'} */ ('hub'))
-  /** 선택 팩으로 눈치게임(설명·시작) 패널 펼침 */
-  const [nimchiOpen, setNimchiOpen] = useState(false)
+  /** hub: 메인 / comboPick: 무한도전 / nimchiPick: 눈치게임(설명·혼자·같이 한 화면) */
+  const [screen, setScreen] = useState(
+    /** @type {'hub' | 'comboPick' | 'nimchiPick'} */ ('hub'),
+  )
   const [selectedPackId, setSelectedPackId] = useState(null)
   const [rulesOpen, setRulesOpen] = useState(false)
   const [jokboOpen, setJokboOpen] = useState(false)
@@ -474,11 +474,9 @@ export default function Home() {
               <button
                 type="button"
                 className="text-sm font-medium text-violet-200 underline underline-offset-2"
-                onClick={() => {
-                  setScreen('hub')
-                }}
+                onClick={() => setScreen('hub')}
               >
-                ← 단어 팩 선택으로
+                ← 메뉴로
               </button>
               <h2 className="font-display mt-3 text-lg font-bold text-violet-100">
                 무한도전
@@ -536,11 +534,247 @@ export default function Home() {
               </div>
             </div>
           </div>
-        ) : (
+        ) : screen === 'nimchiPick' ? (
           <div className="min-h-0 flex-1 overflow-y-auto [-webkit-overflow-scrolling:touch] pr-0.5">
-            <section className="card-lift-3d mx-auto mt-2 w-full rounded-2xl border border-slate-200 bg-white/95 px-4 py-4">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <h2 className="text-sm font-bold text-slate-800">메뉴</h2>
+            {selectedPack &&
+            maxLv >= 1 &&
+            selectedPack.missingColumns.length === 0 &&
+            packs.length > 0 ? (
+              <div className="card-lift-3d mx-auto mt-2 w-full space-y-3 rounded-2xl border border-sky-300/80 bg-gradient-to-br from-sky-50 via-white to-violet-50 px-4 py-5 shadow-md">
+                <button
+                  type="button"
+                  className="text-sm font-medium text-sky-800 underline underline-offset-2"
+                  onClick={() => setScreen('hub')}
+                >
+                  ← 메뉴로
+                </button>
+                <h2 className="font-display text-lg font-bold text-slate-900">
+                  눈치게임
+                </h2>
+                <p className="text-sm text-slate-600">
+                  팩:{' '}
+                  <span className="font-semibold text-slate-900">
+                    {displaySheetName(selectedPack)}
+                  </span>
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    className="rounded-xl border border-slate-300 bg-white py-3 text-sm font-medium text-slate-800 shadow-sm"
+                    onClick={() => setRulesOpen(true)}
+                  >
+                    게임 설명서 보기
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-xl border border-slate-300 bg-white py-3 text-sm font-medium text-slate-800 shadow-sm"
+                    onClick={() => setJokboOpen(true)}
+                  >
+                    족보 보기
+                  </button>
+                </div>
+
+                <div className="rounded-xl border border-cyan-200 bg-white/95 px-3 py-3">
+                  <p className="text-sm font-bold text-slate-900">혼자 시작</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+                    가상 상대와 같은 팩으로 진행합니다.
+                  </p>
+                  {canResume ? (
+                    <div className="mt-3 flex w-full flex-col gap-2">
+                      <button
+                        type="button"
+                        disabled={!canStartPack}
+                        onClick={continueGame}
+                        className="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-cyan-600 py-3 text-sm font-semibold text-white shadow-md disabled:opacity-40"
+                      >
+                        이어하기
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!canStartPack}
+                        onClick={goGame}
+                        className="w-full rounded-2xl border border-slate-300 bg-white py-3 text-sm font-semibold text-slate-800 shadow-sm disabled:opacity-40"
+                      >
+                        새로 시작
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={!canStartPack}
+                      onClick={goGame}
+                      className="mt-3 w-full rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-600 py-3.5 text-sm font-semibold text-white shadow-lg disabled:opacity-40"
+                    >
+                      시작하기
+                    </button>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white/90 px-3 py-3 text-left text-xs text-slate-700">
+                  <p className="text-sm font-bold text-slate-900">같이 하기</p>
+                  <p className="mt-1 leading-relaxed text-slate-600">
+                    로그인 후 방 이름으로 만들거나 참가하세요. 2인 이상이면 시작하기로 같은
+                    팩·같은 덱이 열립니다.
+                  </p>
+                  {user?.uid ? (
+                    <div className="mt-3 space-y-2">
+                      <input
+                        type="text"
+                        value={nimchiRoomDraft}
+                        onChange={(e) => setNimchiRoomDraft(e.target.value)}
+                        placeholder="방 이름"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-500"
+                        maxLength={24}
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={nimchiRoomBusy || !canStartPack}
+                          className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+                          onClick={async () => {
+                            const n = normalizeRoomName(nimchiRoomDraft)
+                            if (!n || !effectivePackId) return
+                            setNimchiRoomBusy(true)
+                            setNimchiRoomMsg('')
+                            try {
+                              await createNimchiRoom({
+                                name: n,
+                                packId: String(effectivePackId),
+                                hostUid: user.uid,
+                                hostDisplayName: user.displayName ?? '',
+                              })
+                              setNimchiJoinedRoomId(n)
+                              setNimchiRoomMsg('방을 만들었어요.')
+                            } catch (e) {
+                              setNimchiRoomMsg(
+                                e?.message ?? '방 만들기에 실패했습니다.',
+                              )
+                            } finally {
+                              setNimchiRoomBusy(false)
+                            }
+                          }}
+                        >
+                          방 만들기
+                        </button>
+                        <button
+                          type="button"
+                          disabled={nimchiRoomBusy}
+                          className="rounded-lg border border-slate-400 px-3 py-2 text-xs font-semibold text-slate-800 disabled:opacity-40"
+                          onClick={async () => {
+                            const n = normalizeRoomName(nimchiRoomDraft)
+                            if (!n) return
+                            setNimchiRoomBusy(true)
+                            setNimchiRoomMsg('')
+                            try {
+                              await joinNimchiRoom(
+                                n,
+                                user.uid,
+                                user.displayName ?? '',
+                              )
+                              setNimchiJoinedRoomId(n)
+                              setNimchiRoomMsg('방에 참가했어요.')
+                            } catch (e) {
+                              setNimchiRoomMsg(
+                                e?.message ?? '참가에 실패했습니다.',
+                              )
+                            } finally {
+                              setNimchiRoomBusy(false)
+                            }
+                          }}
+                        >
+                          참가하기
+                        </button>
+                        {nimchiJoinedRoomId ? (
+                          <button
+                            type="button"
+                            disabled={nimchiRoomBusy}
+                            className="rounded-lg border border-rose-400 px-3 py-2 text-xs font-semibold text-rose-800 disabled:opacity-40"
+                            onClick={async () => {
+                              if (!user?.uid || !nimchiJoinedRoomId) return
+                              setNimchiRoomBusy(true)
+                              try {
+                                await leaveNimchiRoom(
+                                  nimchiJoinedRoomId,
+                                  user.uid,
+                                )
+                                try {
+                                  sessionStorage.removeItem(
+                                    `nimchi-p2-nav-${nimchiJoinedRoomId}`,
+                                  )
+                                } catch {
+                                  /* noop */
+                                }
+                                setNimchiJoinedRoomId(null)
+                                setNimchiRoomMsg('방을 나왔어요.')
+                              } catch (e) {
+                                setNimchiRoomMsg(
+                                  e?.message ?? '나가기에 실패했습니다.',
+                                )
+                              } finally {
+                                setNimchiRoomBusy(false)
+                              }
+                            }}
+                          >
+                            방 나가기
+                          </button>
+                        ) : null}
+                      </div>
+                      {nimchiJoinedRoomId && nimchiRoomDoc ? (
+                        <div className="rounded-lg border border-sky-200 bg-sky-50/80 px-2 py-2 text-[11px] text-sky-950">
+                          <p className="font-semibold">
+                            방: {nimchiJoinedRoomId} · 인원{' '}
+                            {Array.isArray(nimchiRoomDoc.memberUids)
+                              ? nimchiRoomDoc.memberUids.length
+                              : 0}
+                            /4
+                          </p>
+                          <ul className="mt-1 list-inside list-disc space-y-0.5">
+                            {(nimchiRoomDoc.memberUids ?? []).map((uid) => (
+                              <li key={uid}>
+                                {nimchiRoomDoc.members?.[uid]?.displayName ??
+                                  uid}
+                                {uid === user.uid ? ' (나)' : ''}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                      {nimchiRoomMsg ? (
+                        <p className="text-[11px] text-slate-600">
+                          {nimchiRoomMsg}
+                        </p>
+                      ) : null}
+                      <button
+                        type="button"
+                        disabled={!canStartPack || nimchiRoomBusy}
+                        onClick={goGame}
+                        className="mt-2 w-full rounded-2xl bg-gradient-to-r from-violet-600 to-sky-700 py-3 text-sm font-semibold text-white shadow-md disabled:opacity-40"
+                      >
+                        시작하기
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-[11px] text-slate-500">
+                      같이 하기는 로그인 후 이용할 수 있어요.
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="mx-auto mt-6 text-center text-sm text-slate-500">
+                {selectedPack?.missingColumns?.length
+                  ? '이 팩은 지금 쓸 수 없어요. 다른 팩을 골라 주세요.'
+                  : maxLv < 1
+                    ? '이 팩으로는 아직 시작할 수 없어요.'
+                    : '단어 팩을 먼저 골라 주세요.'}
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <section className="card-lift-3d mx-auto w-full shrink-0 rounded-2xl border border-slate-200 bg-white/95 px-4 py-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h2 className="text-sm font-bold text-slate-800">플레이</h2>
                 <button
                   type="button"
                   className="text-xs text-sky-700 underline underline-offset-2"
@@ -583,20 +817,14 @@ export default function Home() {
                     <div className="mt-3 grid grid-cols-2 gap-2">
                       <button
                         type="button"
-                        onClick={() => {
-                          setNimchiOpen(true)
-                          setScreen('hub')
-                        }}
+                        onClick={() => setScreen('nimchiPick')}
                         className="rounded-xl bg-gradient-to-r from-cyan-600 to-sky-700 py-3 text-sm font-bold text-white shadow-md"
                       >
                         눈치게임
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          setNimchiOpen(false)
-                          setScreen('comboPick')
-                        }}
+                        onClick={() => setScreen('comboPick')}
                         className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-800 py-3 text-sm font-bold text-white shadow-md"
                       >
                         무한도전
@@ -615,210 +843,7 @@ export default function Home() {
               )}
             </section>
 
-            {nimchiOpen && packs.length > 0 ? (
-              selectedPack &&
-              maxLv >= 1 &&
-              selectedPack.missingColumns.length === 0 ? (
-                <section className="card-lift-3d mx-auto mt-4 w-full space-y-3 rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-violet-50 px-4 py-5">
-                  <p className="text-center text-xs font-semibold text-slate-600">
-                    눈치게임 — {displaySheetName(selectedPack)}
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      className="rounded-xl border border-slate-300 bg-white py-3 text-sm font-medium text-slate-800 shadow-sm"
-                      onClick={() => setRulesOpen(true)}
-                    >
-                      게임 설명서 보기
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-xl border border-slate-300 bg-white py-3 text-sm font-medium text-slate-800 shadow-sm"
-                      onClick={() => setJokboOpen(true)}
-                    >
-                      족보 보기
-                    </button>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-white/90 px-3 py-3 text-left text-xs text-slate-700">
-                    <p className="font-semibold text-slate-800">같이하기 (최대 4인)</p>
-                    <p className="mt-1 leading-relaxed text-slate-600">
-                      로그인 후 방 이름으로 만들거나 참가할 수 있어요. 2인 이상이면 시작하기로
-                      같은 팩·같은 덱이 열립니다. 모두 나가면 방이 비워져 같은 이름으로 다시
-                      만들 수 있어요.
-                    </p>
-                    {user?.uid ? (
-                      <div className="mt-3 space-y-2">
-                        <input
-                          type="text"
-                          value={nimchiRoomDraft}
-                          onChange={(e) => setNimchiRoomDraft(e.target.value)}
-                          placeholder="방 이름"
-                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-500"
-                          maxLength={24}
-                        />
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            disabled={nimchiRoomBusy || !canStartPack}
-                            className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
-                            onClick={async () => {
-                              const n = normalizeRoomName(nimchiRoomDraft)
-                              if (!n || !effectivePackId) return
-                              setNimchiRoomBusy(true)
-                              setNimchiRoomMsg('')
-                              try {
-                                await createNimchiRoom({
-                                  name: n,
-                                  packId: String(effectivePackId),
-                                  hostUid: user.uid,
-                                  hostDisplayName: user.displayName ?? '',
-                                })
-                                setNimchiJoinedRoomId(n)
-                                setNimchiRoomMsg('방을 만들었어요.')
-                              } catch (e) {
-                                setNimchiRoomMsg(e?.message ?? '방 만들기에 실패했습니다.')
-                              } finally {
-                                setNimchiRoomBusy(false)
-                              }
-                            }}
-                          >
-                            방 만들기
-                          </button>
-                          <button
-                            type="button"
-                            disabled={nimchiRoomBusy}
-                            className="rounded-lg border border-slate-400 px-3 py-2 text-xs font-semibold text-slate-800 disabled:opacity-40"
-                            onClick={async () => {
-                              const n = normalizeRoomName(nimchiRoomDraft)
-                              if (!n) return
-                              setNimchiRoomBusy(true)
-                              setNimchiRoomMsg('')
-                              try {
-                                await joinNimchiRoom(
-                                  n,
-                                  user.uid,
-                                  user.displayName ?? '',
-                                )
-                                setNimchiJoinedRoomId(n)
-                                setNimchiRoomMsg('방에 참가했어요.')
-                              } catch (e) {
-                                setNimchiRoomMsg(e?.message ?? '참가에 실패했습니다.')
-                              } finally {
-                                setNimchiRoomBusy(false)
-                              }
-                            }}
-                          >
-                            참가
-                          </button>
-                          {nimchiJoinedRoomId ? (
-                            <button
-                              type="button"
-                              disabled={nimchiRoomBusy}
-                              className="rounded-lg border border-rose-400 px-3 py-2 text-xs font-semibold text-rose-800 disabled:opacity-40"
-                              onClick={async () => {
-                                if (!user?.uid || !nimchiJoinedRoomId) return
-                                setNimchiRoomBusy(true)
-                                try {
-                                  await leaveNimchiRoom(nimchiJoinedRoomId, user.uid)
-                                  try {
-                                    sessionStorage.removeItem(
-                                      `nimchi-p2-nav-${nimchiJoinedRoomId}`,
-                                    )
-                                  } catch {
-                                    /* noop */
-                                  }
-                                  setNimchiJoinedRoomId(null)
-                                  setNimchiRoomMsg('방을 나왔어요.')
-                                } catch (e) {
-                                  setNimchiRoomMsg(e?.message ?? '나가기에 실패했습니다.')
-                                } finally {
-                                  setNimchiRoomBusy(false)
-                                }
-                              }}
-                            >
-                              방 나가기
-                            </button>
-                          ) : null}
-                        </div>
-                        {nimchiJoinedRoomId && nimchiRoomDoc ? (
-                          <div className="rounded-lg border border-sky-200 bg-sky-50/80 px-2 py-2 text-[11px] text-sky-950">
-                            <p className="font-semibold">
-                              방: {nimchiJoinedRoomId} · 인원{' '}
-                              {Array.isArray(nimchiRoomDoc.memberUids)
-                                ? nimchiRoomDoc.memberUids.length
-                                : 0}
-                              /4
-                            </p>
-                            <ul className="mt-1 list-inside list-disc space-y-0.5">
-                              {(nimchiRoomDoc.memberUids ?? []).map((uid) => (
-                                <li key={uid}>
-                                  {nimchiRoomDoc.members?.[uid]?.displayName ?? uid}
-                                  {uid === user.uid ? ' (나)' : ''}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : null}
-                        {nimchiRoomMsg ? (
-                          <p className="text-[11px] text-slate-600">{nimchiRoomMsg}</p>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <p className="mt-2 text-[11px] text-slate-500">
-                        멀티 방은 로그인 후 이용할 수 있어요.
-                      </p>
-                    )}
-                  </div>
-                  <p className="mt-3 text-center text-xs text-slate-500">
-                    솔로는 가상 상대 1명(기본) · 방에서는 인원에 맞춰 최대 3명까지 맞섭니다.
-                  </p>
-                  {canResume ? (
-                    <div className="flex w-full flex-col gap-2">
-                      <button
-                        type="button"
-                        disabled={!canStartPack}
-                        onClick={continueGame}
-                        className="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-cyan-600 py-3.5 text-base font-semibold text-white shadow-lg disabled:opacity-40"
-                      >
-                        이어하기
-                      </button>
-                      <button
-                        type="button"
-                        disabled={!canStartPack}
-                        onClick={goGame}
-                        className="w-full rounded-2xl border border-slate-300 bg-white py-3 text-base font-semibold text-slate-800 shadow-sm disabled:opacity-40"
-                      >
-                        새로 시작
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={!canStartPack}
-                      onClick={goGame}
-                      className="w-full rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-600 py-3.5 text-base font-semibold text-white shadow-lg disabled:opacity-40"
-                    >
-                      시작하기
-                    </button>
-                  )}
-                </section>
-              ) : (
-                <p className="mx-auto mt-6 text-center text-sm text-slate-500">
-                  {selectedPack?.missingColumns?.length
-                    ? '이 팩은 지금 쓸 수 없어요. 다른 팩을 골라 주세요.'
-                    : maxLv < 1
-                      ? '이 팩으로는 아직 시작할 수 없어요.'
-                      : '단어 팩을 골라 주세요.'}
-                </p>
-              )
-            ) : null}
-            {!user ? (
-              <p className="mx-auto mt-6 text-center text-sm text-slate-500">
-                로그인하면 기록·포인트가 저장돼요. 비로그인으로도 플레이할 수 있어요.
-              </p>
-            ) : null}
-
-            <div className="tab-rail-3d mx-auto mt-6 grid w-full grid-cols-2 gap-1 rounded-2xl border border-slate-600/80 bg-gradient-to-b from-slate-800/95 to-slate-900/90 p-1">
+            <div className="tab-rail-3d mx-auto mt-2 w-full shrink-0 grid grid-cols-2 gap-1 rounded-2xl border border-slate-600/80 bg-gradient-to-b from-slate-800/95 to-slate-900/90 p-1">
               <button
                 type="button"
                 className={`rounded-xl py-2.5 text-xs font-medium transition sm:text-sm ${
@@ -843,37 +868,43 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="mt-3 min-h-0 pb-2">
-        {tab === 'shop' ? (
-          <div className="min-h-0 flex-1 overflow-y-auto [-webkit-overflow-scrolling:touch] pr-0.5">
-            <ShopPanel />
-          </div>
-        ) : (
-          <section className="hof-temple mx-auto flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border px-4 py-4">
-            <div className="shrink-0 border-b border-[var(--hof-border)] pb-3">
-              <h2 className="font-display text-lg font-bold text-[var(--hof-ink)]">
-                명예의 전당
-              </h2>
-              <p className="athens-subtitle mt-0.5 text-[12px] text-[var(--hof-muted)]">
-                Hall of Fame — agōn
-              </p>
-              <p className="mt-1.5 text-[11px] leading-snug text-[var(--hof-muted)]">
-                <span className="font-semibold text-[var(--hof-ink)]">눈치게임</span>은 팩별
-                최고 레벨,{' '}
-                <span className="font-semibold text-[var(--hof-ink)]">무한도전</span>은 최고
-                연속 성공을 각각 올립니다. 동점이면 먼저 달성한 분이 위입니다.
-              </p>
-            </div>
-            <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1 [-webkit-overflow-scrolling:touch]">
-              {packsLoading ? (
-                <p className="text-sm text-[var(--hof-muted)]">불러오는 중…</p>
+            <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden">
+              {tab === 'shop' ? (
+                <div className="min-h-0 flex-1 overflow-y-auto [-webkit-overflow-scrolling:touch] pr-0.5">
+                  <ShopPanel />
+                </div>
               ) : (
-                <HallOfFamePanel packs={packs} />
+                <section className="hof-temple mx-auto flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border px-3 py-3 sm:px-4 sm:py-4">
+                  <div className="shrink-0 border-b border-[var(--hof-border)] pb-2">
+                    <h2 className="font-display text-base font-bold text-[var(--hof-ink)] sm:text-lg">
+                      명예의 전당
+                    </h2>
+                    <p className="athens-subtitle mt-0.5 text-[11px] text-[var(--hof-muted)] sm:text-[12px]">
+                      Hall of Fame — agōn
+                    </p>
+                    <p className="mt-1 text-[10px] leading-snug text-[var(--hof-muted)] sm:mt-1.5 sm:text-[11px]">
+                      <span className="font-semibold text-[var(--hof-ink)]">눈치게임</span>
+                      은 팩별 최고 레벨,{' '}
+                      <span className="font-semibold text-[var(--hof-ink)]">무한도전</span>은
+                      최고 연속 성공을 각각 올립니다.
+                    </p>
+                  </div>
+                  <div className="mt-2 min-h-0 flex-1 overflow-y-auto pr-0.5 [-webkit-overflow-scrolling:touch] sm:mt-3">
+                    {packsLoading ? (
+                      <p className="text-sm text-[var(--hof-muted)]">불러오는 중…</p>
+                    ) : (
+                      <HallOfFamePanel packs={packs} />
+                    )}
+                  </div>
+                </section>
               )}
             </div>
-          </section>
-        )}
-            </div>
+
+            {!user ? (
+              <p className="mx-auto mt-2 shrink-0 text-center text-xs text-slate-500 sm:text-sm">
+                로그인하면 기록·포인트가 저장돼요. 비로그인으로도 플레이할 수 있어요.
+              </p>
+            ) : null}
           </div>
         )}
 
@@ -932,7 +963,6 @@ export default function Home() {
                       type="button"
                       onClick={() => {
                         setSelectedPackId(p.id)
-                        setNimchiOpen(false)
                         setScreen('hub')
                         setPackPickerOpen(false)
                       }}

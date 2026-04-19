@@ -155,6 +155,27 @@ function globalMinValidCard(state, orderMode = 'topic') {
   return globalMinValidEntry(state, orderMode)?.card ?? null
 }
 
+/** 봇 손패만 — 이번에 낼 수 있는 카드 중 족보상 가장 앞(최소) 1장(타이머 강제 제출용) */
+function botMinValidEntry(state, orderMode = 'topic') {
+  const last = state.lastPlayed
+  const all = [
+    ...state.bot1Hand.map((card) => ({ card, from: 'bot1' })),
+    ...state.bot2Hand.map((card) => ({ card, from: 'bot2' })),
+    ...state.bot3Hand.map((card) => ({ card, from: 'bot3' })),
+  ]
+  const valid =
+    last == null
+      ? all
+      : all.filter((x) => isPlayableAfter(x.card, last, orderMode))
+  if (valid.length === 0) return null
+  valid.sort((a, b) => {
+    const o = comparePlayOrder(a.card, b.card, orderMode)
+    if (o !== 0) return o
+    return String(a.card.id).localeCompare(String(b.card.id))
+  })
+  return valid[0]
+}
+
 /**
  * 잘못 낸 카드보다 족보상 앞인데 아직 깔리지 않은 카드 — 모든 손에서 강제 제출
  */
@@ -289,23 +310,21 @@ function applyWrongSubmission(
 }
 
 /**
- * 기계 제출 타이밍만 담습니다. 앞·뒤 2초 제외 구간을 제출 횟수로 n등분한 시각(fireAt)입니다.
- * 각 시각에는 족보상 다음 한 장(globalMin)을 즉시 제출합니다(스케줄 카드 id에 묶이지 않음).
+ * 봇 자동 제출 타이밍만 담습니다. 앞·뒤 2초 제외 구간을 **봇이 낼 총 장수**로 n등분한 시각(fireAt)입니다.
+ * 플레이어 손패는 타이머로 내지 않고 탭으로만 제출합니다(눈치 플레이).
  */
 function buildMechanicalAllPlaysSchedule(
-  playerHand,
   bot1Hand,
   bot2Hand,
   bot3Hand,
   botCount,
   durationMs,
 ) {
-  const total =
-    playerHand.length +
+  const botTotal =
     bot1Hand.length +
     (botCount > 1 ? bot2Hand.length : 0) +
     (botCount > 2 ? bot3Hand.length : 0)
-  const times = buildMechanicalJokboFireTimes(total, durationMs)
+  const times = buildMechanicalJokboFireTimes(botTotal, durationMs)
   return times.map((fireAt) => ({ fireAt }))
 }
 
@@ -335,7 +354,6 @@ function buildRoundState({
     rng,
   )
   const schedule = buildMechanicalAllPlaysSchedule(
-    playerHand,
     bot1Hand,
     bot2Hand,
     bot3Hand,
@@ -440,7 +458,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
     onHintModeChange,
     /** 상대 1·2·3번 자리 표시 이름(맞은편·왼쪽·오른쪽). 없으면 A/B/C봇 */
     opponentSeatLabels,
-    /** true면 족보·타이밍에 맞춰 자동 제출(탭 비활성) */
+    /** true면 봇만 족보·타이밍에 맞춰 자동 제출, 플레이어는 직접 탭 */
     mechanicalAutoPlay = true,
     /** 멀티 방: 방에서 공유한 시드 — 있으면 모든 기기에서 같은 2페이즈 덱 */
     shuffleSeed,
@@ -647,34 +665,34 @@ const Phase2Mind = forwardRef(function Phase2Mind(
           nextScheduleIdxRef.current < sched.length &&
           sched[nextScheduleIdxRef.current].fireAt <= next.elapsedMs
         ) {
-          /* 시각마다 족보상 다음 한 장만 제출 — 스케줄 카드 id와 어긋나 멈추지 않게 함 */
           const minEntry = globalMinValidEntry(next, orderMode)
           if (!minEntry) {
             nextScheduleIdxRef.current += 1
             continue
           }
-          const { card, from } = minEntry
-          const comboBefore = next.p2Combo ?? 0
-          if (from === 'player') {
-            queueMicrotask(() => {
-              setPlayCardPop({
-                topic: card.topic,
-                explanation: card.explanation ?? '',
-                perfect: true,
-              })
-              window.setTimeout(() => setPlayCardPop(null), 520)
-            })
-            sfxMerge()
-            next = applyPlayerPlayWithRules(
+          /* 스케줄 시각마다 봇은 무조건 제출(큐가 멈추지 않음). 전역 차례가 플레이어면 봇 최소 카드로 오제출해 눈치 압박 */
+          if (minEntry.from === 'player') {
+            const botEntry = botMinValidEntry(next, orderMode)
+            if (!botEntry) {
+              nextScheduleIdxRef.current += 1
+              continue
+            }
+            sfxPenalty()
+            next = applyWrongSubmission(
               next,
-              card,
+              botEntry.card,
+              botEntry.from,
               orderMode,
               seatLabelsRef.current,
             )
-          } else {
-            sfxMerge()
-            next = applyBotSuccessPlay(next, from, card)
+            nextScheduleIdxRef.current += 1
+            if (next.lifePenaltyModal) break
+            continue
           }
+          const { card, from } = minEntry
+          const comboBefore = next.p2Combo ?? 0
+          sfxMerge()
+          next = applyBotSuccessPlay(next, from, card)
           const comboAfter = next.p2Combo ?? 0
           if (comboAfter > comboBefore) {
             const r = phase1ComboRewards(comboAfter)
@@ -742,7 +760,6 @@ const Phase2Mind = forwardRef(function Phase2Mind(
 
   const playPlayer = useCallback(
     (card) => {
-      if (mechanicalAutoPlay) return
       if (prepFreezeRef.current) return
       if (endedRef.current) return
       setState((s) => {
@@ -804,14 +821,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
         return next
       })
     },
-    [
-      mechanicalAutoPlay,
-      onRoundWin,
-      onRoundLose,
-      makeLosePayload,
-      onItemRewardPop,
-      orderMode,
-    ],
+    [onRoundWin, onRoundLose, makeLosePayload, onItemRewardPop, orderMode],
   )
 
   const startCheonryan = useCallback(() => {
@@ -906,7 +916,6 @@ const Phase2Mind = forwardRef(function Phase2Mind(
   })()
   /** 초보·튜토리얼: 전체 중 이번에 낼 수 있는 가장 앞 순서 카드 */
   const coachTargetId =
-    !mechanicalAutoPlay &&
     (tutorialMode || coachMode) &&
     state.playerHand.length > 0
       ? (() => {
@@ -1408,15 +1417,23 @@ const Phase2Mind = forwardRef(function Phase2Mind(
         ) : null}
         <div className="max-h-[min(48dvh,26rem)] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-2 text-slate-900 shadow-inner sm:p-2.5">
           <div className="grid w-full grid-cols-3 gap-2 sm:gap-2.5">
-            {state.playerHand.map((c) => (
+            {state.playerHand.map((c) => {
+              const handInputBlocked =
+                prepLeft > 0 ||
+                postHintResumeLeft > 0 ||
+                state.hintMode ||
+                !!state.lifePenaltyModal ||
+                !!state.penaltyToast ||
+                overlayTimerPause
+              return (
               <button
                 key={c.id}
                 type="button"
-                disabled={mechanicalAutoPlay}
+                disabled={handInputBlocked}
                 onClick={() => playPlayer(c)}
                 className={`flex min-h-[7.5rem] flex-col rounded-xl border-2 border-slate-400/90 bg-white px-2.5 py-3 text-left shadow-[0_6px_0_0_rgba(15,23,42,0.35),0_8px_24px_rgba(0,0,0,0.25)] ring-1 ring-slate-300/80 transition md:min-h-[8.25rem] md:px-3 md:py-3.5 ${
-                  mechanicalAutoPlay
-                    ? 'pointer-events-none cursor-default opacity-95'
+                  handInputBlocked
+                    ? 'cursor-not-allowed opacity-80'
                     : 'active:translate-y-0.5 active:shadow-md'
                 } ${
                   coachTargetId != null && c.id === coachTargetId
@@ -1435,7 +1452,7 @@ const Phase2Mind = forwardRef(function Phase2Mind(
                   </span>
                 ) : null}
               </button>
-            ))}
+            )})}
           </div>
         </div>
       </div>
