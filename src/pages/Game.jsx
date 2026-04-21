@@ -11,6 +11,7 @@ import Phase2Mind, { EyeIcon } from '../components/game/Phase2Mind'
 import { useAuth } from '../contexts/AuthContext'
 import { useCardPacks } from '../contexts/CardPackContext'
 import {
+  MAX_CHEONRYAN_USES_PER_LEVEL,
   MAX_LIVES,
   maxLevelFromRowCount,
   phase1ComboRewards,
@@ -197,6 +198,8 @@ export default function Game() {
   )
   /** 천리안 모드(상대 패 탭 가능) — 버튼 비활성·취소 표시 */
   const [p2HintMode, setP2HintMode] = useState(false)
+  /** 현재 레벨에서 2페이즈 천리안을 누른 횟수(레벨당 상한과 별도 추적) */
+  const [p2CheonryanUsesThisLevel, setP2CheonryanUsesThisLevel] = useState(0)
   /** 1페이즈에서 실제로 마지막으로 맞춘 카드(전환 연출용 — 수집 배열 순서와 다를 수 있음) */
   const [p1LastMatchDisplay, setP1LastMatchDisplay] = useState(
     /** @type {{ topic: string, explanation: string } | null} */ (null),
@@ -217,6 +220,10 @@ export default function Game() {
 
   /** 레벨 클리어: 토스트·팡파레만, 2페이즈 화면 유지 */
   const [showLevelClearPopup, setShowLevelClearPopup] = useState(false)
+
+  useEffect(() => {
+    setP2CheonryanUsesThisLevel(0)
+  }, [level])
 
   const refillQueueFromPool = useCallback(() => {
     const used = usedRowIdsRef.current
@@ -782,13 +789,25 @@ export default function Game() {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                disabled={cheonryan <= 0 || p2HintMode}
+                disabled={
+                  cheonryan <= 0 ||
+                  p2HintMode ||
+                  p2CheonryanUsesThisLevel >= MAX_CHEONRYAN_USES_PER_LEVEL
+                }
                 onClick={() => p2MindRef.current?.startCheonryan()}
                 className="inline-flex items-center gap-1 rounded-full border border-amber-400/90 bg-gradient-to-b from-amber-100 to-amber-200/95 px-2.5 py-1 text-[11px] font-bold text-amber-950 shadow-sm ring-1 ring-amber-500/20 disabled:opacity-40"
               >
                 <EyeIcon className="h-3.5 w-3.5 shrink-0 text-amber-900" />
                 <span>천리안</span>
                 <span className="tabular-nums text-amber-800">{cheonryan}</span>
+                <span className="font-normal text-[9px] text-amber-900/85">
+                  · 레벨{' '}
+                  {Math.max(
+                    0,
+                    MAX_CHEONRYAN_USES_PER_LEVEL - p2CheonryanUsesThisLevel,
+                  )}
+                  회 남음
+                </span>
               </button>
               {p2HintMode ? (
                 <button
@@ -891,6 +910,11 @@ export default function Game() {
                 poolRows={poolRows}
                 initialLives={lives}
                 initialCheonryan={cheonryan}
+                cheonryanUsesThisLevel={p2CheonryanUsesThisLevel}
+                maxCheonryanUsesPerLevel={MAX_CHEONRYAN_USES_PER_LEVEL}
+                onCheonryanLevelUse={() =>
+                  setP2CheonryanUsesThisLevel((n) => n + 1)
+                }
                 onRoundWin={onRoundWin}
                 onRoundLose={onRoundLose}
                 onLivesChange={setLives}

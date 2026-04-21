@@ -13,6 +13,7 @@ import {
   isPlayableAfter,
 } from '../../utils/koCompare'
 import {
+  MAX_CHEONRYAN_USES_PER_LEVEL,
   MAX_LIVES,
   phase1ComboRewards,
   phase2SecondsForLevel,
@@ -529,6 +530,12 @@ const Phase2Mind = forwardRef(function Phase2Mind(
     onLivesChange,
     onP2ComboChange,
     onCheonryanChange,
+    /** 현재 레벨에서 이미 쓴 천리안 횟수(부모가 레벨당 상한과 함께 관리) */
+    cheonryanUsesThisLevel = 0,
+    /** 레벨당 천리안 최대 사용 횟수 */
+    maxCheonryanUsesPerLevel = MAX_CHEONRYAN_USES_PER_LEVEL,
+    /** 천리안 1회 소모 시(버튼으로 진입 성공 시) */
+    onCheonryanLevelUse,
     onItemRewardPop,
     /** 부모(보상 팝업 등) 오버레이 중 타이머 정지 */
     overlayTimerPause = false,
@@ -915,12 +922,14 @@ const Phase2Mind = forwardRef(function Phase2Mind(
 
   const startCheonryan = useCallback(() => {
     if (endedRef.current) return
+    if (cheonryanUsesThisLevel >= maxCheonryanUsesPerLevel) return
     if (peekClearRef.current) {
       clearTimeout(peekClearRef.current)
       peekClearRef.current = null
     }
     setState((s) => {
       if (s.cheonryan <= 0 || s.hintMode) return s
+      queueMicrotask(() => onCheonryanLevelUse?.())
       return {
         ...s,
         cheonryan: s.cheonryan - 1,
@@ -933,7 +942,12 @@ const Phase2Mind = forwardRef(function Phase2Mind(
         '상대 카드 한 장을 탭해 보세요. 뒤집은 뒤 3초 카운트다운 후 타이머가 다시 흘러요.',
       )
     }
-  }, [tutorialMode])
+  }, [
+    tutorialMode,
+    cheonryanUsesThisLevel,
+    maxCheonryanUsesPerLevel,
+    onCheonryanLevelUse,
+  ])
 
   const reveal = useCallback((botKey, cardId) => {
     setState((s) => {

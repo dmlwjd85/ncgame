@@ -47,3 +47,6 @@ export function phase1ComboRewards(comboAfterSuccess) {
 
 /** 생명 상한 (초기 지급은 INITIAL_LIVES — userProgressConstants 참고) */
 export const MAX_LIVES = 5
+
+/** 레벨당 2페이즈 천리안 최대 사용 횟수(보유 개수와 별도 상한) */
+export const MAX_CHEONRYAN_USES_PER_LEVEL = 7
