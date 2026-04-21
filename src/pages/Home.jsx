@@ -771,7 +771,7 @@ export default function Home() {
             )}
           </div>
         ) : (
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-webkit-overflow-scrolling:touch] pr-0.5">
             <section className="card-lift-3d mx-auto w-full shrink-0 rounded-2xl border border-slate-200 bg-white/95 px-4 py-3">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <h2 className="text-sm font-bold text-slate-800">플레이</h2>
@@ -868,28 +868,28 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="mt-2 flex min-h-[min(52dvh,28rem)] flex-1 flex-col gap-0 sm:min-h-[min(48dvh,26rem)]">
               {tab === 'shop' ? (
                 <div className="min-h-0 flex-1 overflow-y-auto [-webkit-overflow-scrolling:touch] pr-0.5">
                   <ShopPanel />
                 </div>
               ) : (
-                <section className="hof-temple mx-auto flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border px-3 py-3 sm:px-4 sm:py-4">
-                  <div className="shrink-0 border-b border-[var(--hof-border)] pb-2">
-                    <h2 className="font-display text-base font-bold text-[var(--hof-ink)] sm:text-lg">
+                <section className="hof-temple mx-auto flex min-h-[min(48dvh,24rem)] w-full flex-1 flex-col overflow-hidden rounded-2xl border px-3 py-4 sm:min-h-[min(46dvh,22rem)] sm:px-5 sm:py-5">
+                  <div className="shrink-0 border-b border-[var(--hof-border)] pb-3">
+                    <h2 className="font-display text-lg font-bold text-[var(--hof-ink)] sm:text-xl">
                       명예의 전당
                     </h2>
-                    <p className="athens-subtitle mt-0.5 text-[11px] text-[var(--hof-muted)] sm:text-[12px]">
+                    <p className="athens-subtitle mt-1 text-xs text-[var(--hof-muted)] sm:text-sm">
                       Hall of Fame — agōn
                     </p>
-                    <p className="mt-1 text-[10px] leading-snug text-[var(--hof-muted)] sm:mt-1.5 sm:text-[11px]">
+                    <p className="mt-2 text-[11px] leading-relaxed text-[var(--hof-muted)] sm:text-xs">
                       <span className="font-semibold text-[var(--hof-ink)]">눈치게임</span>
                       은 팩별 최고 레벨,{' '}
                       <span className="font-semibold text-[var(--hof-ink)]">무한도전</span>은
                       최고 연속 성공을 각각 올립니다.
                     </p>
                   </div>
-                  <div className="mt-2 min-h-0 flex-1 overflow-y-auto pr-0.5 [-webkit-overflow-scrolling:touch] sm:mt-3">
+                  <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-0.5 [-webkit-overflow-scrolling:touch]">
                     {packsLoading ? (
                       <p className="text-sm text-[var(--hof-muted)]">불러오는 중…</p>
                     ) : (
