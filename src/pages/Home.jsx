@@ -48,8 +48,8 @@ export default function Home() {
     useAuth()
   const { packs, loading: packsLoading, error: packsError, reloadPacks } =
     useCardPacks()
-  /** 상단 탭 — 상점·명예의 전당 */
-  const [tab, setTab] = useState(/** @type {'shop' | 'hof'} */ ('shop'))
+  /** 상단 탭 — 플레이·상점·명예의 전당 */
+  const [tab, setTab] = useState(/** @type {'play' | 'shop' | 'hof'} */ ('play'))
   /** hub: 메인 / comboPick: 무한도전 / nimchiPick: 눈치게임(설명·혼자·같이 한 화면) */
   const [screen, setScreen] = useState(
     /** @type {'hub' | 'comboPick' | 'nimchiPick'} */ ('hub'),
@@ -771,79 +771,20 @@ export default function Home() {
             )}
           </div>
         ) : (
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-webkit-overflow-scrolling:touch] pr-0.5">
-            <section className="card-lift-3d mx-auto w-full shrink-0 rounded-2xl border border-slate-200 bg-white/95 px-4 py-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <h2 className="text-sm font-bold text-slate-800">플레이</h2>
-                <button
-                  type="button"
-                  className="text-xs text-sky-700 underline underline-offset-2"
-                  onClick={() => void reloadPacks()}
-                >
-                  단어 팩 새로고침
-                </button>
-              </div>
-              {packsLoading ? (
-                <p className="text-sm text-slate-500">불러오는 중…</p>
-              ) : packsError ? (
-                <p className="text-sm text-amber-200/90">{packsError}</p>
-              ) : packs.length === 0 ? (
-                <p className="text-sm text-slate-500">등록된 단어 팩이 없습니다.</p>
-              ) : (
-                <>
-                  <div className="rounded-xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white px-3 py-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-800/80">
-                      선택한 단어 팩
-                    </p>
-                    <p className="mt-1 line-clamp-2 text-base font-bold text-slate-900">
-                      {selectedPack ? displaySheetName(selectedPack) : '—'}
-                    </p>
-                    {selectedPack ? (
-                      <p className="mt-1 text-xs text-slate-600">
-                        최대 {maxLv}단계 · 카드 {validCount}장
-                        {selectedPack.missingColumns.length > 0 ? ' · 설정 필요' : ''}
-                      </p>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="mt-3 w-full rounded-xl border border-sky-500/60 bg-white py-2.5 text-sm font-semibold text-sky-950 shadow-sm transition hover:bg-sky-50"
-                      onClick={() => setPackPickerOpen(true)}
-                    >
-                      단어 팩 선택
-                    </button>
-                  </div>
-
-                  {canStartPack && selectedPack ? (
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setScreen('nimchiPick')}
-                        className="rounded-xl bg-gradient-to-r from-cyan-600 to-sky-700 py-3 text-sm font-bold text-white shadow-md"
-                      >
-                        눈치게임
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setScreen('comboPick')}
-                        className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-800 py-3 text-sm font-bold text-white shadow-md"
-                      >
-                        무한도전
-                      </button>
-                    </div>
-                  ) : (
-                    <p className="mt-3 text-center text-sm text-slate-500">
-                      {selectedPack?.missingColumns?.length
-                        ? '이 팩은 지금 쓸 수 없어요. 다른 팩을 골라 주세요.'
-                        : maxLv < 1
-                          ? '이 팩으로는 아직 시작할 수 없어요.'
-                          : '단어 팩을 골라 주세요.'}
-                    </p>
-                  )}
-                </>
-              )}
-            </section>
-
-            <div className="tab-rail-3d mx-auto mt-2 w-full shrink-0 grid grid-cols-2 gap-1 rounded-2xl border border-slate-600/80 bg-gradient-to-b from-slate-800/95 to-slate-900/90 p-1">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            {/* 상단 탭: 플레이 / 상점 / 명예의 전당 */}
+            <div className="tab-rail-3d mx-auto w-full shrink-0 grid grid-cols-3 gap-1 rounded-2xl border border-slate-600/80 bg-gradient-to-b from-slate-800/95 to-slate-900/90 p-1">
+              <button
+                type="button"
+                className={`rounded-xl py-2.5 text-xs font-medium transition sm:text-sm ${
+                  tab === 'play'
+                    ? 'bg-gradient-to-b from-sky-600 to-sky-950 text-white shadow-[0_4px_0_rgba(20,60,120,0.45),0_8px_20px_rgba(10,30,80,0.28)]'
+                    : 'text-slate-400'
+                }`}
+                onClick={() => setTab('play')}
+              >
+                플레이
+              </button>
               <button
                 type="button"
                 className={`rounded-xl py-2.5 text-xs font-medium transition sm:text-sm ${
@@ -868,13 +809,111 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="mt-2 flex min-h-[min(52dvh,28rem)] flex-1 flex-col gap-0 sm:min-h-[min(48dvh,26rem)]">
-              {tab === 'shop' ? (
-                <div className="min-h-0 flex-1 overflow-y-auto [-webkit-overflow-scrolling:touch] pr-0.5">
+            {/* 탭 콘텐츠 */}
+            <div className="mt-2 min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-webkit-overflow-scrolling:touch] pr-0.5">
+              {tab === 'play' ? (
+                <section className="card-lift-3d mx-auto w-full rounded-2xl border border-slate-200 bg-white/95 px-4 py-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <h2 className="text-sm font-bold text-slate-800">플레이</h2>
+                    <button
+                      type="button"
+                      className="text-xs text-sky-700 underline underline-offset-2"
+                      onClick={() => void reloadPacks()}
+                    >
+                      단어 팩 새로고침
+                    </button>
+                  </div>
+
+                  {packsLoading ? (
+                    <p className="text-sm text-slate-500">불러오는 중…</p>
+                  ) : packsError ? (
+                    <p className="text-sm text-amber-200/90">{packsError}</p>
+                  ) : packs.length === 0 ? (
+                    <p className="text-sm text-slate-500">등록된 단어 팩이 없습니다.</p>
+                  ) : (
+                    <>
+                      {!selectedPack ? (
+                        <div
+                          className="mb-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950"
+                          role="status"
+                        >
+                          <p className="font-bold">처음 오셨나요?</p>
+                          <p className="mt-1 text-xs leading-relaxed text-sky-900/80">
+                            아래 <span className="font-semibold">단어 팩 선택</span>을 눌러
+                            팩을 고른 뒤 시작해 보세요.
+                          </p>
+                          <p className="mt-2 flex items-center gap-2 text-xs font-semibold text-sky-800">
+                            <span aria-hidden className="text-base leading-none">
+                              ↘
+                            </span>
+                            단어 팩을 고르세요
+                          </p>
+                        </div>
+                      ) : null}
+
+                      <div className="rounded-xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white px-3 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-800/80">
+                          선택한 단어 팩
+                        </p>
+                        <p className="mt-1 line-clamp-2 text-base font-bold text-slate-900">
+                          {selectedPack ? displaySheetName(selectedPack) : '—'}
+                        </p>
+                        {selectedPack ? (
+                          <p className="mt-1 text-xs text-slate-600">
+                            최대 {maxLv}단계 · 카드 {validCount}장
+                            {selectedPack.missingColumns.length > 0 ? ' · 설정 필요' : ''}
+                          </p>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="mt-3 w-full rounded-xl border border-sky-500/60 bg-white py-2.5 text-sm font-semibold text-sky-950 shadow-sm transition hover:bg-sky-50"
+                          onClick={() => setPackPickerOpen(true)}
+                        >
+                          단어 팩 선택
+                        </button>
+                      </div>
+
+                      {canStartPack && selectedPack ? (
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setScreen('nimchiPick')}
+                            className="rounded-xl bg-gradient-to-r from-cyan-600 to-sky-700 px-3 py-3 text-left text-white shadow-md"
+                          >
+                            <p className="text-sm font-extrabold">눈치게임</p>
+                            <p className="mt-0.5 text-[11px] leading-snug text-white/85">
+                              시간 안에 족보 순서를 맞춰 카드 제출
+                            </p>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setScreen('comboPick')}
+                            className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-800 px-3 py-3 text-left text-white shadow-md"
+                          >
+                            <p className="text-sm font-extrabold">무한도전</p>
+                            <p className="mt-0.5 text-[11px] leading-snug text-white/85">
+                              제한 안에서 연속 성공 기록에 도전
+                            </p>
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="mt-3 text-center text-sm text-slate-500">
+                          {selectedPack?.missingColumns?.length
+                            ? '이 팩은 지금 쓸 수 없어요. 다른 팩을 골라 주세요.'
+                            : maxLv < 1
+                              ? '이 팩으로는 아직 시작할 수 없어요.'
+                              : '단어 팩을 골라 주세요.'}
+                        </p>
+                      )}
+                    </>
+                  )}
+                </section>
+              ) : tab === 'shop' ? (
+                <div className="min-h-0 flex-1">
                   <ShopPanel />
                 </div>
               ) : (
-                <section className="hof-temple mx-auto flex min-h-[min(48dvh,24rem)] w-full flex-1 flex-col overflow-hidden rounded-2xl border px-3 py-4 sm:min-h-[min(46dvh,22rem)] sm:px-5 sm:py-5">
+                <section className="hof-temple mx-auto flex min-h-[min(70dvh,34rem)] w-full flex-col overflow-hidden rounded-2xl border px-3 py-4 sm:px-5 sm:py-5">
                   <div className="shrink-0 border-b border-[var(--hof-border)] pb-3">
                     <h2 className="font-display text-lg font-bold text-[var(--hof-ink)] sm:text-xl">
                       명예의 전당
@@ -898,13 +937,13 @@ export default function Home() {
                   </div>
                 </section>
               )}
-            </div>
 
-            {!user ? (
-              <p className="mx-auto mt-2 shrink-0 text-center text-xs text-slate-500 sm:text-sm">
-                로그인하면 기록·포인트가 저장돼요. 비로그인으로도 플레이할 수 있어요.
-              </p>
-            ) : null}
+              {!user ? (
+                <p className="mx-auto mt-3 text-center text-xs text-slate-500 sm:text-sm">
+                  로그인하면 기록·포인트가 저장돼요. 비로그인으로도 플레이할 수 있어요.
+                </p>
+              ) : null}
+            </div>
           </div>
         )}
 
