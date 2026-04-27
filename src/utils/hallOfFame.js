@@ -11,6 +11,17 @@ const STORAGE_KEY_COMBO = 'ncgame-hall-combo-v1'
 /** 무한도전 연습모드 — 로컬 전용, 클라우드·명예의 전당 없음 */
 const STORAGE_KEY_COMBO_PRACTICE = 'ncgame-combo-practice-v1'
 
+/** 비로그인 플레이 기록(로컬) 전체 삭제 */
+export function clearLocalGuestRecords() {
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem(STORAGE_KEY_COMBO)
+    localStorage.removeItem(STORAGE_KEY_COMBO_PRACTICE)
+  } catch {
+    /* noop */
+  }
+}
+
 /**
  * @returns {Record<string, { maxLevel: number, at: string, displayName: string }>}
  */
@@ -54,6 +65,8 @@ export async function saveHallOfFameIfBetter(packId, maxLevel, displayName, auth
       maxLevel: best,
       at: new Date().toISOString(),
       displayName: name,
+      /** 로그인 중 달성한 기록만 uid를 붙여 둠(게스트 기록이 로그인 후 클라우드로 섞이지 않게) */
+      ...(auth?.uid ? { uid: auth.uid } : {}),
     }
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
@@ -99,9 +112,14 @@ export async function mergeHallOfFameFromCloud(uid, packs) {
         }
         changed = true
       } else if (lmax > cmax && lmax >= 1) {
-        /** 로컬만 더 높을 때(예: 오프라인 플레이 후 로그인) 클라우드로 동기화 */
-        const name = formatHoFDisplayName(prev?.displayName ?? '')
-        await syncUserBestToCloud(p.id, uid, name, lmax)
+        /**
+         * 로컬만 더 높을 때 클라우드로 동기화.
+         * 단, "게스트(비로그인) 플레이 기록"은 로그인 계정에 섞이지 않도록 uid 태그가 있는 기록만 업로드합니다.
+         */
+        if (prev?.uid && String(prev.uid) === String(uid)) {
+          const name = formatHoFDisplayName(prev?.displayName ?? '')
+          await syncUserBestToCloud(p.id, uid, name, lmax)
+        }
       }
     } catch {
       /* noop */
@@ -169,6 +187,7 @@ export async function saveHallOfFameComboIfBetter(
       maxCombo: best,
       at: new Date().toISOString(),
       displayName: name,
+      ...(auth?.uid ? { uid: auth.uid } : {}),
     }
     try {
       localStorage.setItem(STORAGE_KEY_COMBO, JSON.stringify(all))
@@ -180,6 +199,57 @@ export async function saveHallOfFameComboIfBetter(
     await syncUserComboBestToCloud(packId, auth.uid, name, best)
   }
   return improved
+}
+
+/**
+ * 로그인 후 클라우드 최고 기록을 로컬 명예의 전당(무한도전)과 합침
+ * - 클라우드 > 로컬: 로컬 갱신
+ * - 로컬 > 클라우드: 로컬 기록이 "로그인 중 달성(uid 태그)"인 경우에만 업로드
+ * @param {string} uid
+ * @param {Array<{ id: string }>} packs
+ */
+export async function mergeHallOfFameComboFromCloud(uid, packs) {
+  if (!uid || !packs?.length) return
+  const all = { ...loadHallOfFameCombo() }
+  let changed = false
+  for (const p of packs) {
+    if (!p?.id) continue
+    try {
+      const cloud = await loadUserComboBestFromCloud(p.id, uid)
+      const cmax = Number(cloud?.maxCombo) || 0
+      const prev = all[p.id]
+      const lmax = prev?.maxCombo ?? 0
+
+      if (cmax > lmax) {
+        const u = cloud?.updatedAt
+        const atStr =
+          u && typeof u.toDate === 'function'
+            ? u.toDate().toISOString()
+            : typeof u === 'string'
+              ? u
+              : new Date().toISOString()
+        all[p.id] = {
+          maxCombo: cmax,
+          at: atStr,
+          displayName: formatHoFDisplayName(cloud?.displayName),
+        }
+        changed = true
+      } else if (lmax > cmax && lmax >= 1) {
+        if (prev?.uid && String(prev.uid) === String(uid)) {
+          const name = formatHoFDisplayName(prev?.displayName ?? '')
+          await syncUserComboBestToCloud(p.id, uid, name, lmax)
+        }
+      }
+    } catch {
+      /* noop */
+    }
+  }
+  if (!changed) return
+  try {
+    localStorage.setItem(STORAGE_KEY_COMBO, JSON.stringify(all))
+  } catch {
+    /* noop */
+  }
 }
 
 /**

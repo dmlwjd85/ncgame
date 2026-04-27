@@ -8,7 +8,7 @@ import {
   useRef,
 } from 'react'
 import { useAuth } from './AuthContext'
-import { mergeHallOfFameFromCloud } from '../utils/hallOfFame'
+import { mergeHallOfFameComboFromCloud, mergeHallOfFameFromCloud } from '../utils/hallOfFame'
 import { useCardPacks } from './CardPackContext'
 import { usePlayerProgressStore } from '../stores/playerProgressStore'
 
@@ -58,6 +58,7 @@ export function UserProgressProvider({ children }) {
     if (mergedUidRef.current === key) return
     mergedUidRef.current = key
     void mergeHallOfFameFromCloud(user.uid, packs)
+    void mergeHallOfFameComboFromCloud(user.uid, packs)
   }, [user?.uid, packs, packIdsKey])
 
   const value = useMemo(

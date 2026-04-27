@@ -49,6 +49,21 @@ export function clearRunSave() {
   }
 }
 
+/** 비로그인 플레이가 남긴 sessionStorage 스냅샷(이어하기) 정리 */
+export function clearAllResumeFromSession() {
+  try {
+    const prefix = 'ncgame-resume-'
+    const keys = []
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i)
+      if (k && k.startsWith(prefix)) keys.push(k)
+    }
+    for (const k of keys) sessionStorage.removeItem(k)
+  } catch {
+    /* noop */
+  }
+}
+
 /**
  * 홈에서 이어하기로 넘길 때 sessionStorage에 넣은 뒤, 게임 첫 진입에서 한 번 읽음.
  * @param {string} packId

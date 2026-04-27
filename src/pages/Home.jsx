@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   clearRunSave,
+  clearAllResumeFromSession,
   clearStagedResume,
   loadRunSave,
 } from '../utils/gameRunSave'
@@ -36,6 +37,7 @@ import {
   subscribeNimchiRoom,
 } from '../services/nimchiRoomService'
 import { getPracticeComboRecord } from '../utils/hallOfFame'
+import { clearLocalGuestRecords } from '../utils/hallOfFame'
 import { INITIAL_LIVES } from '../utils/userProgressConstants'
 
 /**
@@ -81,6 +83,18 @@ export default function Home() {
   const [packPickerOpen, setPackPickerOpen] = useState(false)
 
   const { points: userPoints, refreshProgress } = useUserProgress()
+
+  /** 비로그인 플레이 기록이 로그인 계정에 섞이지 않도록: 게스트 상태에서는 로컬 기록을 정리 */
+  const guestClearedRef = useRef(false)
+  useEffect(() => {
+    if (authLoading) return
+    if (user?.uid) return
+    if (guestClearedRef.current) return
+    guestClearedRef.current = true
+    clearRunSave()
+    clearAllResumeFromSession()
+    clearLocalGuestRecords()
+  }, [user?.uid, authLoading])
 
   useEffect(() => {
     void refreshProgress()
