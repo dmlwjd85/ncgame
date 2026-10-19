@@ -1,10 +1,11 @@
 {
+  "id": "/ncgame/",
   "name": "가나다 눈치게임",
   "short_name": "눈치게임",
   "description": "낱말을 외치기 전에 서로 눈치를 보는 교실 게임",
   "lang": "ko",
-  "start_url": "./",
-  "scope": "./",
+  "start_url": "/ncgame/",
+  "scope": "/ncgame/",
   "display": "standalone",
   "background_color": "#1A1033",
   "theme_color": "#8B4DFF",
